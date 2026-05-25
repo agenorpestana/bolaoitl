@@ -89,7 +89,7 @@ function loadDatabaseFromFile(): LocalDatabase {
       token: "6:4dacdb8e47193e8cbbabe508c3c59b4547e463817b1d9b9a1d20ab4812fe1a62",
       chave: "ixc_default_api_key_copa",
       timeout: 5000,
-      offline_mode: true // default to simulation for high-fidelity previews
+      offline_mode: false // default to production API representation
     },
     configs_points: INITIAL_POINTS_CONFIG,
     configs_football: {
@@ -402,7 +402,7 @@ async function loadDatabaseFromMySql(): Promise<LocalDatabase> {
         ixc_token: "6:4dacdb8e47193e8cbbabe508c3c59b4547e463817b1d9b9a1d20ab4812fe1a62",
         ixc_chave: "ixc_default_api_key_copa",
         ixc_timeout: 5000,
-        ixc_offline_mode: true,
+        ixc_offline_mode: false,
         points_vencedor: INITIAL_POINTS_CONFIG.pontos_acertar_vencedor,
         points_empate: INITIAL_POINTS_CONFIG.pontos_acertar_empate,
         points_placar_exato: INITIAL_POINTS_CONFIG.pontos_acertar_placar_exato,
@@ -534,13 +534,25 @@ async function loadDatabaseFromMySql(): Promise<LocalDatabase> {
 
 async function initializeDatabase() {
   if (prisma) {
+    // Check if the usuarios table already exists to prevent destructive db push runs on every startup/reboot
+    let schemaIsPushed = false;
     try {
-      const { execSync } = await import("child_process");
-      console.log("[MySql Sync] Dynamic push starting: npx prisma db push --accept-data-loss");
-      execSync("npx prisma db push --accept-data-loss", { stdio: "inherit" });
-      console.log("[MySql Sync] Schema successfully pushed to VPS!");
+      await prisma.$queryRaw`SELECT 1 FROM usuarios LIMIT 1`;
+      schemaIsPushed = true;
+      console.log("[MySql Sync] Table structure looks correct (table 'usuarios' found). Skipping schema push to prevent data loss.");
     } catch (err: any) {
-      console.error("[MySql Sync] Schema push warning (could be running locally/no cli path):", err.message);
+      console.log("[MySql Sync] Tables not found or query failed. Pushing schema initially...", err.message);
+    }
+
+    if (!schemaIsPushed) {
+      try {
+        const { execSync } = await import("child_process");
+        console.log("[MySql Sync] Dynamic push starting: npx prisma db push --accept-data-loss (first-time database setup only!)");
+        execSync("npx prisma db push --accept-data-loss", { stdio: "inherit" });
+        console.log("[MySql Sync] Schema successfully pushed to VPS!");
+      } catch (err: any) {
+        console.error("[MySql Sync] Schema initial push failed:", err.message);
+      }
     }
 
     try {
