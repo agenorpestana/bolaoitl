@@ -10,6 +10,7 @@ import http from "http";
 import bcryptjs from "bcryptjs";
 import jwt from "jsonwebtoken";
 import axios from "axios";
+import { PrismaClient } from "@prisma/client";
 
 import { 
   Usuario, 
@@ -39,7 +40,36 @@ interface LocalDatabase {
   admins: AdminUser[];
 }
 
+// ==========================================
+// PRISMA CLIENT & DYNAMIC MYSQL DATABASE URL CONTEXT
+// ==========================================
+let prisma: PrismaClient | null = null;
+
+if (process.env.DB_USER && process.env.DB_NAME && !process.env.DATABASE_URL) {
+  const host = process.env.DB_HOST || "localhost";
+  const user = process.env.DB_USER;
+  const pass = process.env.DB_PASSWORD || "";
+  const name = process.env.DB_NAME;
+  process.env.DATABASE_URL = `mysql://${user}:${encodeURIComponent(pass)}@${host}:3306/${name}`;
+  console.log(`[MySql DB Setup] Dynamically constructed DATABASE_URL for user ${user} on host ${host}`);
+}
+
+if (process.env.DATABASE_URL) {
+  prisma = new PrismaClient();
+  console.log("[MySql DB Setup] Initialized PrismaClient using active URL configuration.");
+}
+
+let cachedDb: LocalDatabase | null = null;
+
 function loadDatabase(): LocalDatabase {
+  if (cachedDb) {
+    return cachedDb;
+  }
+  cachedDb = loadDatabaseFromFile();
+  return cachedDb;
+}
+
+function loadDatabaseFromFile(): LocalDatabase {
   try {
     if (fs.existsSync(DB_FILE)) {
       const data = fs.readFileSync(DB_FILE, "utf-8");
@@ -151,11 +181,398 @@ function loadDatabase(): LocalDatabase {
   return initialDb;
 }
 
+let isSyncing = false;
+let needsSync = false;
+
 function saveDatabase(db: LocalDatabase) {
+  cachedDb = db;
   try {
     fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), "utf-8");
   } catch (err) {
     console.error("Error saving database file", err);
+  }
+
+  // Trigger asynchronous sync with MySQL
+  triggerMySqlSync();
+}
+
+function triggerMySqlSync() {
+  if (!prisma) return;
+  if (isSyncing) {
+    needsSync = true;
+    return;
+  }
+
+  isSyncing = true;
+  saveDatabaseToMySqlIncremental(cachedDb)
+    .catch((err: any) => {
+      console.error("[MySql Sync] Incremental save failed:", err.message);
+    })
+    .finally(() => {
+      isSyncing = false;
+      if (needsSync) {
+        needsSync = false;
+        setTimeout(triggerMySqlSync, 100);
+      }
+    });
+}
+
+async function saveDatabaseToMySqlIncremental(db: LocalDatabase | null) {
+  if (!prisma || !db) return;
+
+  try {
+    // 1. Sync clients (Usuario)
+    for (const u of db.usuarios) {
+      await prisma.usuario.upsert({
+        where: { id: u.id },
+        update: {
+          ixc_id: u.ixc_id,
+          nome: u.nome,
+          cpf_cnpj: u.cpf_cnpj,
+          telefone: u.telefone,
+          email: u.email,
+          cidade: u.cidade,
+          avatar: u.avatar || "⚽",
+          pontos_total: u.pontos_total,
+          acertos_exato: u.acertos_exato,
+          acertos_vencedor: u.acertos_vencedor,
+          erros: u.erros,
+          bloqueado: u.bloqueado
+        },
+        create: {
+          id: u.id,
+          ixc_id: u.ixc_id,
+          nome: u.nome,
+          cpf_cnpj: u.cpf_cnpj,
+          telefone: u.telefone,
+          email: u.email,
+          cidade: u.cidade,
+          avatar: u.avatar || "⚽",
+          pontos_total: u.pontos_total,
+          acertos_exato: u.acertos_exato,
+          acertos_vencedor: u.acertos_vencedor,
+          erros: u.erros,
+          bloqueado: u.bloqueado,
+          created_at: new Date(u.created_at)
+        }
+      });
+    }
+
+    // Handle deletions of users
+    const dbUserIds = db.usuarios.map(u => u.id);
+    await prisma.usuario.deleteMany({
+      where: { id: { notIn: dbUserIds } }
+    });
+
+    // 2. Sync games (Jogo)
+    for (const g of db.jogos) {
+      await prisma.jogo.upsert({
+        where: { id: g.id },
+        update: {
+          api_id: g.api_id,
+          time_casa: g.time_casa,
+          time_fora: g.time_fora,
+          time_casa_bandeira: g.time_casa_bandeira || "🏳️",
+          time_fora_bandeira: g.time_fora_bandeira || "🏳️",
+          data_jogo: new Date(g.data_jogo),
+          placar_casa: g.placar_casa,
+          placar_fora: g.placar_fora,
+          status: g.status,
+          rodada: g.rodada
+        },
+        create: {
+          id: g.id,
+          api_id: g.api_id,
+          time_casa: g.time_casa,
+          time_fora: g.time_fora,
+          time_casa_bandeira: g.time_casa_bandeira || "🏳️",
+          time_fora_bandeira: g.time_fora_bandeira || "🏳️",
+          data_jogo: new Date(g.data_jogo),
+          placar_casa: g.placar_casa,
+          placar_fora: g.placar_fora,
+          status: g.status,
+          rodada: g.rodada
+        }
+      });
+    }
+
+    const dbJogoIds = db.jogos.map(g => g.id);
+    await prisma.jogo.deleteMany({
+      where: { id: { notIn: dbJogoIds } }
+    });
+
+    // 3. Sync bets (Palpite)
+    for (const p of db.palpites) {
+      const userExist = db.usuarios.some(u => u.id === p.usuario_id);
+      const gameExist = db.jogos.some(g => g.id === p.jogo_id);
+      if (!userExist || !gameExist) continue;
+
+      await prisma.palpite.upsert({
+        where: { id: p.id },
+        update: {
+          usuario_id: p.usuario_id,
+          jogo_id: p.jogo_id,
+          placar_casa: p.placar_casa,
+          placar_fora: p.placar_fora,
+          pontos: p.pontos
+        },
+        create: {
+          id: p.id,
+          usuario_id: p.usuario_id,
+          jogo_id: p.jogo_id,
+          placar_casa: p.placar_casa,
+          placar_fora: p.placar_fora,
+          pontos: p.pontos,
+          created_at: new Date(p.created_at)
+        }
+      });
+    }
+
+    const dbPalpiteIds = db.palpites.map(p => p.id);
+    await prisma.palpite.deleteMany({
+      where: { id: { notIn: dbPalpiteIds } }
+    });
+
+    // 4. Sync Configs (Configuracoes)
+    await prisma.configuracoes.upsert({
+      where: { id: 1 },
+      update: {
+        ixc_url: db.configs_ixc.url,
+        ixc_token: db.configs_ixc.token,
+        ixc_chave: db.configs_ixc.chave || "",
+        ixc_timeout: db.configs_ixc.timeout,
+        ixc_offline_mode: db.configs_ixc.offline_mode,
+        points_vencedor: db.configs_points.pontos_acertar_vencedor,
+        points_empate: db.configs_points.pontos_acertar_empate,
+        points_placar_exato: db.configs_points.pontos_acertar_placar_exato,
+        bonus_rodada: db.configs_points.bonus_rodada,
+        bonus_sequencia: db.configs_points.bonus_sequencia,
+        bonus_jogos_perfeitos: db.configs_points.bonus_jogos_perfeitos,
+        football_api_key: db.configs_football.key,
+        football_api_url: db.configs_football.url,
+        sync_manual_override: db.configs_football.manual_override,
+        sync_cron_active: db.configs_football.cron_active
+      },
+      create: {
+        id: 1,
+        ixc_url: db.configs_ixc.url,
+        ixc_token: db.configs_ixc.token,
+        ixc_chave: db.configs_ixc.chave || "",
+        ixc_timeout: db.configs_ixc.timeout,
+        ixc_offline_mode: db.configs_ixc.offline_mode,
+        points_vencedor: db.configs_points.pontos_acertar_vencedor,
+        points_empate: db.configs_points.pontos_acertar_empate,
+        points_placar_exato: db.configs_points.pontos_acertar_placar_exato,
+        bonus_rodada: db.configs_points.bonus_rodada,
+        bonus_sequencia: db.configs_points.bonus_sequencia,
+        bonus_jogos_perfeitos: db.configs_points.bonus_jogos_perfeitos,
+        football_api_key: db.configs_football.key,
+        football_api_url: db.configs_football.url,
+        sync_manual_override: db.configs_football.manual_override,
+        sync_cron_active: db.configs_football.cron_active
+      }
+    });
+
+    // 5. Sync audit logs
+    const lastDBSavedLog = await prisma.auditLog.findFirst({
+      orderBy: { id: "desc" }
+    });
+    const lastId = lastDBSavedLog ? lastDBSavedLog.id : 0;
+    const newLogs = db.logs.filter(l => l.id > lastId);
+    if (newLogs.length > 0) {
+      await prisma.auditLog.createMany({
+        data: newLogs.map(l => ({
+          id: l.id,
+          usuario: l.usuario,
+          acao: l.acao,
+          descricao: l.descricao,
+          ip: l.ip,
+          data: new Date(l.data)
+        }))
+      });
+    }
+  } catch (err: any) {
+    console.error("[MySql Sync] Sync engine batch write error:", err.message);
+  }
+}
+
+async function loadDatabaseFromMySql(): Promise<LocalDatabase> {
+  if (!prisma) throw new Error("Prisma client not connected");
+
+  const dbUsuarios = await prisma.usuario.findMany();
+  const dbJogos = await prisma.jogo.findMany();
+  const dbPalpites = await prisma.palpite.findMany();
+  
+  let dbCfg = await prisma.configuracoes.findFirst();
+  if (!dbCfg) {
+    dbCfg = await prisma.configuracoes.create({
+      data: {
+        ixc_url: "https://provedor-ixc.exemplo.com.br",
+        ixc_token: "6:4dacdb8e47193e8cbbabe508c3c59b4547e463817b1d9b9a1d20ab4812fe1a62",
+        ixc_chave: "ixc_default_api_key_copa",
+        ixc_timeout: 5000,
+        ixc_offline_mode: true,
+        points_vencedor: INITIAL_POINTS_CONFIG.pontos_acertar_vencedor,
+        points_empate: INITIAL_POINTS_CONFIG.pontos_acertar_empate,
+        points_placar_exato: INITIAL_POINTS_CONFIG.pontos_acertar_placar_exato,
+        bonus_rodada: INITIAL_POINTS_CONFIG.bonus_rodada,
+        bonus_sequencia: INITIAL_POINTS_CONFIG.bonus_sequencia,
+        bonus_jogos_perfeitos: INITIAL_POINTS_CONFIG.bonus_jogos_perfeitos,
+        football_api_key: "dummy_soccer_api_key_2026_sports",
+        football_api_url: "https://v3.football.api-sports.io",
+        sync_manual_override: true,
+        sync_cron_active: true
+      }
+    });
+  }
+
+  const dbLogs = await prisma.auditLog.findMany({
+    orderBy: { data: "desc" },
+    take: 400
+  });
+
+  const dbAdmins = await prisma.admin.findMany();
+  if (dbAdmins.length === 0) {
+    const hash = await bcryptjs.hash("200616", 10);
+    await prisma.admin.create({
+      data: {
+        email: "suporte@unityautomacoes.com.br",
+        nome: "Suporte Unity",
+        senha_hash: hash
+      }
+    });
+  }
+
+  if (dbJogos.length === 0) {
+    console.log("[MySql Sync] Table 'jogos' is empty, seeding games catalog...");
+    for (const g of INITIAL_GAMES) {
+      await prisma.jogo.create({
+        data: {
+          id: g.id,
+          api_id: g.api_id,
+          time_casa: g.time_casa,
+          time_fora: g.time_fora,
+          time_casa_bandeira: g.time_casa_bandeira,
+          time_fora_bandeira: g.time_fora_bandeira,
+          data_jogo: new Date(g.data_jogo),
+          status: g.status,
+          rodada: g.rodada,
+          placar_casa: g.placar_casa,
+          placar_fora: g.placar_fora
+        }
+      });
+    }
+    const dbJogosUpdated = await prisma.jogo.findMany();
+    dbJogos.push(...dbJogosUpdated);
+  }
+
+  return {
+    usuarios: dbUsuarios.map(u => ({
+      id: u.id,
+      ixc_id: u.ixc_id,
+      nome: u.nome,
+      cpf_cnpj: u.cpf_cnpj,
+      telefone: u.telefone,
+      email: u.email,
+      cidade: u.cidade,
+      avatar: u.avatar || "⚽",
+      pontos_total: u.pontos_total,
+      acertos_exato: u.acertos_exato,
+      acertos_vencedor: u.acertos_vencedor,
+      erros: u.erros,
+      bloqueado: u.bloqueado,
+      created_at: u.created_at.toISOString()
+    })),
+    jogos: dbJogos.map(g => ({
+      id: g.id,
+      api_id: g.api_id || `manual_${g.id}`,
+      time_casa: g.time_casa,
+      time_fora: g.time_fora,
+      time_casa_bandeira: g.time_casa_bandeira || "🏳️",
+      time_fora_bandeira: g.time_fora_bandeira || "🏳️",
+      data_jogo: g.data_jogo.toISOString(),
+      placar_casa: g.placar_casa,
+      placar_fora: g.placar_fora,
+      status: g.status as any,
+      rodada: g.rodada
+    })),
+    palpites: dbPalpites.map(p => ({
+      id: p.id,
+      usuario_id: p.usuario_id,
+      jogo_id: p.jogo_id,
+      placar_casa: p.placar_casa,
+      placar_fora: p.placar_fora,
+      pontos: p.pontos,
+      created_at: p.created_at.toISOString()
+    })),
+    configs_ixc: {
+      url: dbCfg.ixc_url,
+      token: dbCfg.ixc_token,
+      chave: dbCfg.ixc_chave || "",
+      timeout: dbCfg.ixc_timeout,
+      offline_mode: dbCfg.ixc_offline_mode
+    },
+    configs_points: {
+      pontos_acertar_vencedor: dbCfg.points_vencedor,
+      pontos_acertar_empate: dbCfg.points_empate,
+      pontos_acertar_placar_exato: dbCfg.points_placar_exato,
+      bonus_rodada: dbCfg.bonus_rodada,
+      bonus_sequencia: dbCfg.bonus_sequencia,
+      bonus_jogos_perfeitos: dbCfg.bonus_jogos_perfeitos
+    },
+    configs_football: {
+      key: dbCfg.football_api_key || "",
+      url: dbCfg.football_api_url,
+      status_conexao: "CONECTADO",
+      cron_active: dbCfg.sync_cron_active,
+      manual_override: dbCfg.sync_manual_override
+    },
+    logs: dbLogs.map(l => ({
+      id: l.id,
+      usuario: l.usuario,
+      acao: l.acao,
+      descricao: l.descricao,
+      ip: l.ip,
+      data: l.data.toISOString()
+    })),
+    admins: [
+      { id: 1, email: "suporte@unityautomacoes.com.br", nome: "Suporte Unity" }
+    ]
+  };
+}
+
+async function initializeDatabase() {
+  if (prisma) {
+    try {
+      const { execSync } = await import("child_process");
+      console.log("[MySql Sync] Dynamic push starting: npx prisma db push --accept-data-loss");
+      execSync("npx prisma db push --accept-data-loss", { stdio: "inherit" });
+      console.log("[MySql Sync] Schema successfully pushed to VPS!");
+    } catch (err: any) {
+      console.error("[MySql Sync] Schema push warning (could be running locally/no cli path):", err.message);
+    }
+
+    try {
+      console.log("[MySql Sync] Retrieving state from MySQL server...");
+      cachedDb = await loadDatabaseFromMySql();
+      console.log(`[MySql Sync] Cache filled from MySQL: ${cachedDb.usuarios.length} users parsed, ${cachedDb.palpites.length} bets.`);
+      return;
+    } catch (err: any) {
+      console.error("[MySql Sync] MySQL connection failed, falling back to local database.json. Error:", err.message);
+    }
+  }
+
+  // File fallback
+  cachedDb = loadDatabaseFromFile();
+  console.log(`[Cache Sync] Local database.json state resolved: ${cachedDb.usuarios.length} users, ${cachedDb.palpites.length} bets.`);
+}
+
+// Ensure database file exists with initial structure (kept for fallback)
+function saveDatabaseToFile(db: LocalDatabase) {
+  try {
+    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), "utf-8");
+  } catch (err) {
+    console.error("Error saving fallback database file", err);
   }
 }
 
@@ -273,7 +690,7 @@ async function startServer() {
   });
 
   // Database auto-seed check on run
-  loadDatabase();
+  await initializeDatabase();
 
   // Authentication Middleware for Clients
   const verifyClientToken = (req: any, res: express.Response, next: express.NextFunction) => {

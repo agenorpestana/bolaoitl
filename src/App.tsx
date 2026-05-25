@@ -214,7 +214,7 @@ export default function App() {
               <Dribbble className="h-6 w-6 text-emerald-500 absolute animate-pulse" />
             </div>
             <div>
-              <p className="text-xs font-black uppercase tracking-widest text-emerald-400">Carregando Copa 2026...</p>
+              <p className="text-xs font-black uppercase tracking-widest text-emerald-400">Carregando Bolão ITLFibra...</p>
               <p className="text-[10px] text-slate-500 font-mono mt-1">Lendo tabelas ixc_usuarios, palpites e rodadas</p>
             </div>
           </div>
@@ -267,7 +267,7 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-2 flex flex-col sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-1.5 justify-center sm:justify-start">
             <span className="font-extrabold text-[10px] tracking-wider uppercase text-emerald-500/80 bg-emerald-950/20 border border-emerald-900/30 px-1.5 py-0.5 rounded">
-              COPA DO MUNDO 2026
+              BOLÃO ITLFIBRA
             </span>
             <span>© Todos os direitos reservados.</span>
           </div>
