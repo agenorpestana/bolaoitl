@@ -79,66 +79,11 @@ function loadDatabaseFromFile(): LocalDatabase {
     console.error("Error reading database file, resetting...", err);
   }
 
-  // Create initial structure
-  const isProd = process.env.NODE_ENV === "production";
+  // Create initial structure (pristine empty list of users and palpites to prevent fictitious data sync)
   const initialDb: LocalDatabase = {
-    usuarios: isProd ? [] : [
-      {
-        id: 101,
-        ixc_id: "4420",
-        nome: "Agenor Tec",
-        cpf_cnpj: "123.456.789-00",
-        telefone: "(49) 99999-1122",
-        email: "agenor.tec.info@gmail.com",
-        cidade: "Chapecó",
-        avatar: "⚽",
-        pontos_total: 24,
-        acertos_exato: 2,
-        acertos_vencedor: 3,
-        erros: 1,
-        bloqueado: false,
-        created_at: new Date().toISOString()
-      },
-      {
-        id: 102,
-        ixc_id: "4425",
-        nome: "Bruna Silva",
-        cpf_cnpj: "987.654.321-11",
-        telefone: "(49) 98888-2233",
-        email: "bruna.silva@provedor.com.br",
-        cidade: "Xanxerê",
-        avatar: "🦁",
-        pontos_total: 18,
-        acertos_exato: 1,
-        acertos_vencedor: 3,
-        erros: 2,
-        bloqueado: false,
-        created_at: new Date().toISOString()
-      },
-      {
-        id: 103,
-        ixc_id: "4501",
-        nome: "Carlos Eduardo",
-        cpf_cnpj: "111.222.333-44",
-        telefone: "(49) 99111-4455",
-        email: "carlos.edu@provedor.com.br",
-        cidade: "Concórdia",
-        avatar: "🦖",
-        pontos_total: 10,
-        acertos_exato: 0,
-        acertos_vencedor: 2,
-        erros: 3,
-        bloqueado: false,
-        created_at: new Date().toISOString()
-      }
-    ],
+    usuarios: [],
     jogos: INITIAL_GAMES,
-    palpites: isProd ? [] : [
-      { id: 1, usuario_id: 101, jogo_id: 1, placar_casa: 2, placar_fora: 1, pontos: 10, created_at: new Date().toISOString() },
-      { id: 2, usuario_id: 101, jogo_id: 2, placar_casa: 1, placar_fora: 1, pontos: 4, created_at: new Date().toISOString() },
-      { id: 3, usuario_id: 102, jogo_id: 1, placar_casa: 2, placar_fora: 1, pontos: 10, created_at: new Date().toISOString() },
-      { id: 4, usuario_id: 102, jogo_id: 2, placar_casa: 3, placar_fora: 0, pontos: 0, created_at: new Date().toISOString() }
-    ],
+    palpites: [],
     configs_ixc: {
       url: "https://provedor-ixc.exemplo.com.br",
       token: "6:4dacdb8e47193e8cbbabe508c3c59b4547e463817b1d9b9a1d20ab4812fe1a62",
@@ -373,6 +318,52 @@ async function saveDatabaseToMySqlIncremental(db: LocalDatabase | null) {
       }
     });
 
+    // Sync into api_tokens table as requested by user so it displays there!
+    if (db.configs_ixc.token) {
+      await prisma.apiToken.upsert({
+        where: { id: 1 },
+        update: {
+          servico: "ixc_token",
+          token: db.configs_ixc.token
+        },
+        create: {
+          id: 1,
+          servico: "ixc_token",
+          token: db.configs_ixc.token
+        }
+      });
+    }
+
+    if (db.configs_ixc.chave) {
+      await prisma.apiToken.upsert({
+        where: { id: 2 },
+        update: {
+          servico: "ixc_chave",
+          token: db.configs_ixc.chave
+        },
+        create: {
+          id: 2,
+          servico: "ixc_chave",
+          token: db.configs_ixc.chave
+        }
+      });
+    }
+
+    if (db.configs_football.key) {
+      await prisma.apiToken.upsert({
+        where: { id: 3 },
+        update: {
+          servico: "football_api",
+          token: db.configs_football.key
+        },
+        create: {
+          id: 3,
+          servico: "football_api",
+          token: db.configs_football.key
+        }
+      });
+    }
+
     // 5. Sync audit logs
     const lastDBSavedLog = await prisma.auditLog.findFirst({
       orderBy: { id: "desc" }
@@ -550,6 +541,19 @@ async function initializeDatabase() {
       console.log("[MySql Sync] Schema successfully pushed to VPS!");
     } catch (err: any) {
       console.error("[MySql Sync] Schema push warning (could be running locally/no cli path):", err.message);
+    }
+
+    try {
+      console.log("[MySql Sync] Cleaning up legacy sandbox fictitious users if any exist...");
+      const mockCpfList = ["123.456.789-00", "987.654.321-11", "111.222.333-44"];
+      await prisma.usuario.deleteMany({
+        where: {
+          cpf_cnpj: { in: mockCpfList }
+        }
+      });
+      console.log("[MySql Sync] Purged legacy fictitious users from MySQL successfully!");
+    } catch (err: any) {
+      console.error("[MySql Sync] Legacy user purge bypassed:", err.message);
     }
 
     try {
