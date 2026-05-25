@@ -1,0 +1,6 @@
+{
+  "name": "Bolão da Copa - Provedor ISP",
+  "description": "Sistema completo de palpites da Copa do Mundo 2026 para clientes de provedores, integrado via API ao IXC Soft para verificação contratual automática e relatórios de auditoria.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

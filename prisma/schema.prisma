@@ -1,0 +1,139 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Usuario {
+  id              Int        @id @default(autoincrement())
+  ixc_id          String     @unique @db.VarChar(50)
+  nome            String     @db.VarChar(150)
+  cpf_cnpj        String     @unique @db.VarChar(24)
+  telefone        String     @db.VarChar(50)
+  email           String     @db.VarChar(150)
+  cidade          String     @db.VarChar(100)
+  avatar          String?    @default("⚽") @db.VarChar(10)
+  pontos_total    Int        @default(0)
+  acertos_exato   Int        @default(0)
+  acertos_vencedor Int        @default(0)
+  erros           Int        @default(0)
+  bloqueado       Boolean    @default(false)
+  created_at      DateTime   @default(now())
+
+  palpites        Palpite[]
+  pontuacoes      Pontuacoes[]
+
+  @@index([cidade])
+  @@index([pontos_total])
+  @@map("usuarios")
+}
+
+model Jogo {
+  id                Int        @id @default(autoincrement())
+  api_id            String?    @unique @db.VarChar(100)
+  time_casa         String     @db.VarChar(100)
+  time_fora         String     @db.VarChar(100)
+  time_casa_bandeira String?    @db.VarChar(10)
+  time_fora_bandeira String?    @db.VarChar(10)
+  data_jogo         DateTime
+  placar_casa       Int?
+  placar_fora       Int?
+  status            String     @default("PENDENTE") @db.VarChar(20) // PENDENTE, AO_VIVO, ENCERRADO
+  rodada            Int        @default(1)
+
+  palpites          Palpite[]
+
+  @@index([status])
+  @@index([data_jogo])
+  @@map("jogos")
+}
+
+model Palpite {
+  id           Int      @id @default(autoincrement())
+  usuario_id   Int
+  jogo_id      Int
+  placar_casa  Int
+  placar_fora  Int
+  pontos       Int?
+  created_at   DateTime @default(now())
+
+  usuario      Usuario  @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  jogo         Jogo     @relation(fields: [jogo_id], references: [id], onDelete: Cascade)
+
+  @@unique([usuario_id, jogo_id])
+  @@map("palpites")
+}
+
+model Pontuacoes {
+  id          Int      @id @default(autoincrement())
+  usuario_id  Int
+  rodada      Int
+  pontos      Int      @default(0)
+  updated_at  DateTime @updatedAt
+
+  usuario      Usuario  @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+
+  @@unique([usuario_id, rodada])
+  @@map("pontuacoes")
+}
+
+model Configuracoes {
+  id                    Int      @id @default(1)
+  // IXC Configs
+  ixc_url               String   @db.VarChar(255)
+  ixc_token             String   @db.VarChar(255)
+  ixc_chave             String   @db.VarChar(100)
+  ixc_timeout           Int      @default(5000)
+  ixc_offline_mode      Boolean  @default(true)
+  // Scoring parameters configs
+  points_vencedor       Int      @default(4)
+  points_empate         Int      @default(4)
+  points_placar_exato   Int      @default(6)
+  bonus_rodada          Int      @default(5)
+  bonus_sequencia       Int      @default(3)
+  bonus_jogos_perfeitos Int      @default(15)
+  // API Football Params
+  football_api_key      String?  @db.VarChar(150)
+  football_api_url      String   @default("https://v3.football.api-sports.io") @db.VarChar(255)
+  sync_manual_override  Boolean  @default(true)
+  sync_cron_active      Boolean  @default(true)
+
+  @@map("configuracoes")
+}
+
+model Admin {
+  id         Int      @id @default(autoincrement())
+  email      String   @unique @db.VarChar(150)
+  senha_hash String   @db.VarChar(255)
+  nome       String   @db.VarChar(100)
+  created_at DateTime @default(now())
+
+  @@map("admins")
+}
+
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  usuario    String   @db.VarChar(150)
+  acao       String   @db.VarChar(100)
+  descricao  String   @db.Text
+  ip         String   @db.VarChar(45)
+  data       DateTime @default(now())
+
+  @@index([data])
+  @@map("logs")
+}
+
+model ApiToken {
+  id         Int      @id @default(autoincrement())
+  servico    String   @db.VarChar(100)
+  token      String   @db.VarChar(255)
+  expira_em  DateTime?
+
+  @@map("api_tokens")
+}

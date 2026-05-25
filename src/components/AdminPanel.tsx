@@ -1,0 +1,1608 @@
+import React from 'react';
+import { 
+  Sliders, Users, Shield, Database, Activity, FileSpreadsheet, PlusCircle, Trash2, 
+  Save, RefreshCw, Check, Search, Download, Trash, Edit2, Play, Power, AlertTriangle, ShieldCheck
+} from 'lucide-react';
+import { Usuario, Jogo, ConfigPoints, ConfigIXC, ConfigFootballApi, AuditLog } from '../types';
+import { CIDADES_ATENDIDAS } from '../data';
+
+interface AdminPanelProps {
+  token: string | null;
+  onRefreshLeaderboard: () => void;
+}
+
+export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelProps) {
+  const [activeSubTab, setActiveSubTab] = React.useState<'METRICAS' | 'IXC' | 'REGRAS' | 'SOCCER_API' | 'JOGADORES' | 'JOGOS' | 'RELATORIOS' | 'LOGS'>('METRICAS');
+
+  // Server state caches
+  const [metrics, setMetrics] = React.useState<any | null>(null);
+  const [usuarios, setUsuarios] = React.useState<Usuario[]>([]);
+  const [jogos, setJogos] = React.useState<Jogo[]>([]);
+  const [logs, setLogs] = React.useState<AuditLog[]>([]);
+  
+  // Configurations states
+  const [ixcUrl, setIxcUrl] = React.useState("");
+  const [ixcToken, setIxcToken] = React.useState("");
+  const [ixcChave, setIxcChave] = React.useState("");
+  const [ixcTimeout, setIxcTimeout] = React.useState(5000);
+  const [ixcOfflineMode, setIxcOfflineMode] = React.useState(true);
+
+  const [ptsWinner, setPtsWinner] = React.useState(4);
+  const [ptsDraw, setPtsDraw] = React.useState(4);
+  const [ptsExact, setPtsExact] = React.useState(6);
+  const [ptsBonusRound, setPtsBonusRound] = React.useState(5);
+  const [ptsBonusSeq, setPtsBonusSeq] = React.useState(3);
+  const [ptsBonusPerfect, setPtsBonusPerfect] = React.useState(15);
+
+  const [soccerKey, setSoccerKey] = React.useState("");
+  const [soccerUrl, setSoccerUrl] = React.useState("https://v3.football.api-sports.io");
+  const [soccerManualOverride, setSoccerManualOverride] = React.useState(true);
+  const [soccerCronActive, setSoccerCronActive] = React.useState(true);
+
+  // Connection testing states
+  const [testingIxc, setTestingIxc] = React.useState(false);
+  const [ixcTestFeedback, setIxcTestFeedback] = React.useState<{ success: boolean; msg: string } | null>(null);
+
+  // Sync state
+  const [syncingFootball, setSyncingFootball] = React.useState(false);
+
+  // Search parameters for players list
+  const [userSearchText, setUserSearchText] = React.useState("");
+
+  // Managing user attributes popup modal or quick fields
+  const [editingUserId, setEditingUserId] = React.useState<number | null>(null);
+  const [editUserNome, setEditUserNome] = React.useState("");
+  const [editUserCidade, setEditUserCidade] = React.useState("");
+  const [editUserTelefone, setEditUserTelefone] = React.useState("");
+  const [editUserEmail, setEditUserEmail] = React.useState("");
+  const [editUserPontos, setEditUserPontos] = React.useState(0);
+
+  // Match addition / editing states
+  const [creatingMatch, setCreatingMatch] = React.useState(false);
+  const [newHomeTeam, setNewHomeTeam] = React.useState("");
+  const [newAwayTeam, setNewAwayTeam] = React.useState("");
+  const [newHomeFlag, setNewHomeFlag] = React.useState("🇧🇷");
+  const [newAwayFlag, setNewAwayFlag] = React.useState("🇦🇷");
+  const [newMatchDate, setNewMatchDate] = React.useState("2026-06-11T20:00");
+  const [newMatchRound, setNewMatchRound] = React.useState(1);
+
+  const [editingMatchId, setEditingMatchId] = React.useState<number | null>(null);
+  const [editMatchCasaPlacar, setEditMatchCasaPlacar] = React.useState("");
+  const [editMatchForaPlacar, setEditMatchForaPlacar] = React.useState("");
+  const [editMatchStatus, setEditMatchStatus] = React.useState<'PENDENTE' | 'AO_VIVO' | 'ENCERRADO'>('PENDENTE');
+
+  const [feedbackSuccess, setFeedbackSuccess] = React.useState<string | null>(null);
+  const [feedbackError, setFeedbackError] = React.useState<string | null>(null);
+
+  // Load and cache settings states
+  const loadAdminMetrics = async () => {
+    try {
+      const response = await fetch("/api/admin/metrics", {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setMetrics(data);
+        if (data.logs_recents) {
+          setLogs(data.logs_recents);
+        }
+      }
+    } catch (err) {}
+  };
+
+  const loadPlayers = async () => {
+    try {
+      const response = await fetch("/api/admin/usuarios", {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setUsuarios(data);
+      }
+    } catch (err) {}
+  };
+
+  const loadMatches = async () => {
+    try {
+      const response = await fetch("/api/admin/jogos", {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setJogos(data);
+      }
+    } catch (err) {}
+  };
+
+  const loadServerConfigs = async () => {
+    try {
+      const response = await fetch("/api/admin/configs", {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        // Load ixc
+        setIxcUrl(data.configs_ixc.url);
+        setIxcToken(data.configs_ixc.token);
+        setIxcChave(data.configs_ixc.chave);
+        setIxcTimeout(data.configs_ixc.timeout);
+        setIxcOfflineMode(data.configs_ixc.offline_mode);
+
+        // Load points
+        setPtsWinner(data.configs_points.pontos_acertar_vencedor);
+        setPtsDraw(data.configs_points.pontos_acertar_empate);
+        setPtsExact(data.configs_points.pontos_acertar_placar_exato);
+        setPtsBonusRound(data.configs_points.bonus_rodada);
+        setPtsBonusSeq(data.configs_points.bonus_sequencia);
+        setPtsBonusPerfect(data.configs_points.bonus_jogos_perfeitos);
+
+        // Load API Football
+        setSoccerKey(data.configs_football.key);
+        setSoccerUrl(data.configs_football.url);
+        setSoccerManualOverride(data.configs_football.manual_override);
+        setSoccerCronActive(data.configs_football.cron_active);
+      }
+    } catch (err) {}
+  };
+
+  const triggerAuditLogsLoading = async () => {
+    try {
+      const response = await fetch("/api/admin/logs", {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setLogs(data);
+      }
+    } catch (err) {}
+  };
+
+  React.useEffect(() => {
+    if (token) {
+      loadAdminMetrics();
+      loadPlayers();
+      loadMatches();
+      loadServerConfigs();
+    }
+  }, [token, activeSubTab]);
+
+  // Flash UI Alert
+  const showFeedback = (msg: string, isErr = false) => {
+    if (isErr) {
+      setFeedbackError(msg);
+      setTimeout(() => setFeedbackError(null), 4000);
+    } else {
+      setFeedbackSuccess(msg);
+      setTimeout(() => setFeedbackSuccess(null), 4000);
+    }
+  };
+
+  // IXC Connection Test Action 
+  const handleTestIxcConnection = async () => {
+    setTestingIxc(true);
+    setIxcTestFeedback(null);
+    try {
+      const response = await fetch("/api/admin/ixc-test", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          url: ixcUrl,
+          token: ixcToken,
+          timeout: ixcTimeout
+        })
+      });
+
+      const data = await response.json();
+      setIxcTestFeedback({
+        success: data.success,
+        msg: data.mensagem
+      });
+
+      if (data.success) {
+        showFeedback("Teste de conexão estabelecido com sucesso!");
+      } else {
+        showFeedback("Falha na validação do link IXC.", true);
+      }
+    } catch (err: any) {
+      setIxcTestFeedback({ success: false, msg: err.message });
+      showFeedback("Não foi possível acessar a rota de validação de rede.", true);
+    } finally {
+      setTestingIxc(false);
+    }
+  };
+
+  // Save IXC Params Action
+  const handleSaveIxcConfigs = async () => {
+    try {
+      const response = await fetch("/api/admin/configs/ixc", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          url: ixcUrl,
+          token: ixcToken,
+          chave: ixcChave,
+          timeout: ixcTimeout,
+          offline_mode: ixcOfflineMode
+        })
+      });
+
+      if (response.ok) {
+        showFeedback("Definições do cliente API IXC salvas.");
+        loadAdminMetrics();
+      } else {
+        throw new Error();
+      }
+    } catch (err) {
+      showFeedback("Erro ao registrar parâmetros do IXC.", true);
+    }
+  };
+
+  // Save Config scoring points parameters
+  const handleSaveScoringParams = async () => {
+    try {
+      const response = await fetch("/api/admin/configs/points", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          pontos_acertar_vencedor: ptsWinner,
+          pontos_acertar_empate: ptsDraw,
+          pontos_acertar_placar_exato: ptsExact,
+          bonus_rodada: ptsBonusRound,
+          bonus_sequencia: ptsBonusSeq,
+          bonus_jogos_perfeitos: ptsBonusPerfect
+        })
+      });
+
+      if (response.ok) {
+        showFeedback("Tabela de pontuação salva. Re-calculado placares de todos utilizadores.");
+        onRefreshLeaderboard();
+      } else {
+        throw new Error();
+      }
+    } catch (err) {
+      showFeedback("Falha salvando recalibração.", true);
+    }
+  };
+
+  // Save Football API Params
+  const handleSaveSoccerParams = async () => {
+    try {
+      const response = await fetch("/api/admin/configs/football", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          key: soccerKey,
+          url: soccerUrl,
+          manual_override: soccerManualOverride,
+          cron_active: soccerCronActive
+        })
+      });
+
+      if (response.ok) {
+        showFeedback("Definições estruturais de Futebol salvas.");
+      } else {
+        throw new Error();
+      }
+    } catch (err) {
+      showFeedback("Erro gravando futebol.", true);
+    }
+  };
+
+  // Manual Trigger Football Sync simulation
+  const handleSyncFootballManual = async () => {
+    setSyncingFootball(true);
+    try {
+      const response = await fetch("/api/admin/games-sync-football", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const data = await response.json();
+      if (response.ok) {
+        showFeedback(data.mensagem);
+        loadMatches();
+        onRefreshLeaderboard();
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (err: any) {
+      showFeedback(`Falha ao forçar sincronização: ${err.message}`, true);
+    } finally {
+      setSyncingFootball(false);
+    }
+  };
+
+  // User Actions: Toggle Blocking
+  const handleToggleBlockUser = async (userId: number) => {
+    try {
+      const response = await fetch(`/api/admin/usuarios/${userId}/block`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (response.ok) {
+        showFeedback("Status de bloqueio atualizado.");
+        loadPlayers();
+        onRefreshLeaderboard();
+      }
+    } catch (err) {
+      showFeedback("Falha ao atualizar bloqueio.", true);
+    }
+  };
+
+  // User Actions: Edit profile or manual score overrides
+  const handleEditUserClick = (user: Usuario) => {
+    setEditingUserId(user.id);
+    setEditUserNome(user.nome);
+    setEditUserCidade(user.cidade);
+    setEditUserTelefone(user.telefone);
+    setEditUserEmail(user.email);
+    setEditUserPontos(user.pontos_total);
+  };
+
+  const handleSaveUserEdit = async (userId: number) => {
+    try {
+      const response = await fetch(`/api/admin/usuarios/${userId}`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          nome: editUserNome,
+          cidade: editUserCidade,
+          telefone: editUserTelefone,
+          email: editUserEmail,
+          pontos_total: editUserPontos
+        })
+      });
+
+      if (response.ok) {
+        showFeedback("Dados do utilizador salvos com sucesso.");
+        setEditingUserId(null);
+        loadPlayers();
+        onRefreshLeaderboard();
+      }
+    } catch (err) {
+      showFeedback("Falha gravando alterações.", true);
+    }
+  };
+
+  const handleResetUserScores = async (userId: number) => {
+    if (!confirm("🚨 ATENÇÃO: Deseja realmente ZERAR os pontos deste usuário e EXCLUIR todos os palpites dele? Esta ação é irreversível.")) return;
+
+    try {
+      const response = await fetch(`/api/admin/usuarios/${userId}`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ reset: true })
+      });
+
+      if (response.ok) {
+        showFeedback("Pontuações redefinidas e palpites apagados.");
+        setEditingUserId(null);
+        loadPlayers();
+        onRefreshLeaderboard();
+      }
+    } catch (err) {
+      showFeedback("Falha limpando cadastro.", true);
+    }
+  };
+
+  const handleDeleteUserAll = async (userId: number) => {
+     if (!confirm("🚨 EXCLUIR DEFINITIVAMENTE: Isso irá remover por completo o participante do ranking e apagar todos os palpites. Confirmar?")) return;
+     try {
+       const response = await fetch(`/api/admin/usuarios/${userId}`, {
+         method: "DELETE",
+         headers: { "Authorization": `Bearer ${token}` }
+       });
+       if (response.ok) {
+          showFeedback("Participante removido do bolão.");
+          loadPlayers();
+          onRefreshLeaderboard();
+       }
+     } catch (err) {
+       showFeedback("Houve um problema de rede deletando.", true);
+     }
+  };
+
+  // Match: Create manual Match
+  const handleCreateMatchSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newHomeTeam || !newAwayTeam) {
+      alert("Defina as seleções concorrentes.");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/admin/jogos", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          time_casa: newHomeTeam,
+          time_fora: newAwayTeam,
+          time_casa_bandeira: newHomeFlag,
+          time_fora_bandeira: newAwayFlag,
+          data_jogo: new Date(newMatchDate).toISOString(),
+          rodada: newMatchRound
+        })
+      });
+
+      if (response.ok) {
+        showFeedback("Partida incluída no calendário Copa 2026.");
+        setCreatingMatch(false);
+        setNewHomeTeam("");
+        setNewAwayTeam("");
+        loadMatches();
+      }
+    } catch (err) {
+      showFeedback("Falha cadastrando jogo.", true);
+    }
+  };
+
+  // Match: Insert/Submit results scores (Saves and triggers recalculate automatically!)
+  const handleOpenMatchScoreEditor = (jogo: Jogo) => {
+    setEditingMatchId(jogo.id);
+    setEditMatchCasaPlacar(jogo.placar_casa !== null ? String(jogo.placar_casa) : "");
+    setEditMatchForaPlacar(jogo.placar_fora !== null ? String(jogo.placar_fora) : "");
+    setEditMatchStatus(jogo.status);
+  };
+
+  const handleSaveMatchScore = async (jogoId: number) => {
+    try {
+      const response = await fetch(`/api/admin/jogos/${jogoId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          placar_casa: editMatchCasaPlacar === "" ? null : Number(editMatchCasaPlacar),
+          placar_fora: editMatchForaPlacar === "" ? null : Number(editMatchForaPlacar),
+          status: editMatchStatus
+        })
+      });
+
+      if (response.ok) {
+        showFeedback("Resultado atualizado e pontuação recalculada!");
+        setEditingMatchId(null);
+        loadMatches();
+        onRefreshLeaderboard();
+      }
+    } catch (err) {
+      showFeedback("Erro guardando placar.", true);
+    }
+  };
+
+  const handleDeleteMatch = async (jogoId: number) => {
+    if (!confirm("Deseja realmente REMOVER esta partida do sistema? Todos os palpites de clientes para este jogo serão invalidados.")) return;
+    try {
+      const response = await fetch(`/api/admin/jogos/${jogoId}`, {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (response.ok) {
+        showFeedback("Jogo deletado com sucesso.");
+        loadMatches();
+        onRefreshLeaderboard();
+      }
+    } catch (err) {
+      showFeedback("Erro ao apagar partida.", true);
+    }
+  };
+
+  // Export files: Direct Raw download of CSV data
+  const handleExportCSV = async (type: 'JOGADORES' | 'JOGOS' | 'CIDADES') => {
+    try {
+      const response = await fetch("/api/admin/reports", {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error();
+      const reportData = await response.json();
+
+      let csvContent = "";
+      let filename = "relatorio.csv";
+
+      if (type === 'JOGADORES') {
+        filename = "palpiteiros_copa_2026.csv";
+        csvContent = "ID;ID_IXC;Nome;Cidade;Telefone;Email;Pontos;Placares_Exatos;Vitorias;Erros;Data_Cadastro\r\n";
+        reportData.lideranca_geral.forEach((u: any) => {
+          csvContent += `"${u.id}";"${u.ixc_id}";"${u.nome}";"${u.cidade}";"${u.telefone}";"${u.email}";"${u.pontos}";"${u.exatos}";"${u.vencedores}";"${u.erros}";"${u.cadastro}"\r\n`;
+        });
+      } else if (type === 'JOGOS') {
+        filename = "partidas_mais_palpitadas.csv";
+        csvContent = "ID_Jogo;Partida;Data;Palpites_Recebidos;Status\r\n";
+        reportData.jogos_relat.forEach((g: any) => {
+          csvContent += `"${g.id}";"${g.partida}";"${g.data}";"${g.total_palpites}";"${g.status}"\r\n`;
+        });
+      } else if (type === 'CIDADES') {
+        filename = "engajamento_por_cidade.csv";
+        csvContent = "Cidade;Total_Usuarios;Total_Palpites;Media_Pontos\r\n";
+        reportData.participacao.forEach((c: any) => {
+          csvContent += `"${c.cidade}";"${c.usuarios}";"${c.palpites}";"${c.media_pontos}"\r\n`;
+        });
+      }
+
+      // Download trigger
+      const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.setAttribute("download", filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showFeedback(`Arquivo ${filename} baixado.`);
+    } catch (err) {
+      showFeedback("Falha emitindo CSV.", true);
+    }
+  };
+
+  // Printing report trigger
+  const handlePrintReport = () => {
+    window.print();
+  };
+
+  // Searching filter on client records
+  const filteredPlayersList = usuarios.filter(u => {
+    const raw = `${u.nome} ${u.cpf_cnpj} ${u.cidade} ${u.ixc_id}`.toLowerCase();
+    return raw.includes(userSearchText.toLowerCase());
+  });
+
+  return (
+    <div className="space-y-6 text-left">
+      
+      {/* Upper Alerts Indicator */}
+      {feedbackSuccess && (
+        <div id="admin-alert-toast" className="fixed top-20 right-4 z-50 p-4 bg-emerald-900 border border-emerald-500 text-slate-100 rounded-2xl shadow-xl animate-bounce flex items-center gap-2">
+          <Check className="h-4 w-4 bg-emerald-500 text-slate-950 rounded-full p-0.5" />
+          <span className="text-xs font-bold">{feedbackSuccess}</span>
+        </div>
+      )}
+
+      {feedbackError && (
+        <div id="admin-alert-toast-err" className="fixed top-20 right-4 z-50 p-4 bg-red-950 border border-red-500 text-slate-100 rounded-2xl shadow-xl flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 text-red-500" />
+          <span className="text-xs font-bold">{feedbackError}</span>
+        </div>
+      )}
+
+      {/* Main Admin title, navigation */}
+      <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+              <Shield className="h-5 w-5 text-yellow-500" />
+              Painel de Controle Administrador
+            </h2>
+          </div>
+          <p className="text-xs text-slate-400 mt-1">
+            Superusuário logado. Gerencie as pontuações dos clientes, conexões IXC Soft, APIs e jogos da Copa do Mundo 2026.
+          </p>
+        </div>
+
+        <button
+          onClick={loadAdminMetrics}
+          className="px-3.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-[10px] uppercase font-bold text-slate-300 hover:text-emerald-400 transition flex items-center gap-1.5"
+          title="Recarregar Métricas"
+        >
+          <RefreshCw className="h-3 w-3" />
+          Atualizar Dados
+        </button>
+      </div>
+
+      {/* Navigation Subtabs menu lists */}
+      <div className="flex flex-wrap border-b border-slate-900 gap-1 select-none">
+        {[
+          { id: 'METRICAS', label: 'Estatísticas', icon: Activity },
+          { id: 'IXC', label: 'Integração IXC', icon: Database },
+          { id: 'REGRAS', label: 'Regras de Pontos', icon: Sliders },
+          { id: 'SOCCER_API', label: 'API Futebol', icon: Play },
+          { id: 'JOGADORES', label: 'Participantes', icon: Users },
+          { id: 'JOGOS', label: 'Calendário Copa', icon: PlusCircle },
+          { id: 'RELATORIOS', label: 'Relatórios & Export', icon: FileSpreadsheet },
+          { id: 'LOGS', label: 'Auditoria Logs', icon: Shield }
+        ].map(tab => {
+          const Icon = tab.icon;
+          const isActive = activeSubTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveSubTab(tab.id as any)}
+              className={`flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-semibold border-b-2 -mb-[2px] transition ${
+                isActive
+                  ? 'border-yellow-500 text-yellow-500 bg-slate-900/50 rounded-t-xl font-black'
+                  : 'border-transparent text-slate-400 hover:text-slate-150'
+              }`}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Subtab Contents rendering logic */}
+      
+      {/* 1. METRIQUES/ESTATÍSTICAS */}
+      {activeSubTab === 'METRICAS' && metrics && (
+        <div className="space-y-6">
+          <div className="grid gap-4 sm:grid-cols-5 text-center">
+            
+            <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-4 shadow">
+              <span className="text-[10px] font-bold text-slate-400 uppercase">Utilizadores Ativos</span>
+              <div className="text-2xl font-black text-slate-100 font-mono mt-1">{metrics.counters.total_usuarios}</div>
+              <span className="text-[9px] text-emerald-400 mt-1 block">Conectados via IXC</span>
+            </div>
+
+            <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-4 shadow">
+              <span className="text-[10px] font-bold text-slate-400 uppercase">Palpites Atribuídos</span>
+              <div className="text-2xl font-black text-emerald-400 font-mono mt-1">{metrics.counters.total_palpites}</div>
+              <span className="text-[9px] text-slate-500 mt-1 block">Cravados no sistema</span>
+            </div>
+
+            <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-4 shadow">
+              <span className="text-[10px] font-bold text-slate-400 uppercase">Partidas Listadas</span>
+              <div className="text-2xl font-black text-slate-100 font-mono mt-1">{metrics.counters.total_jogos}</div>
+              <span className="text-[9px] text-yellow-500 mt-1 block">{metrics.counters.jogos_ativo} jogos Ao Vivo</span>
+            </div>
+
+            <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-4 shadow">
+              <span className="text-[10px] font-bold text-slate-400 uppercase">Integração IXC</span>
+              <div className="text-sm font-black text-slate-150 mt-2 truncate bg-slate-950 px-2 py-1 rounded font-mono">
+                {ixcOfflineMode ? "⚠️ SIMULAÇÃO" : "✅ PRODUÇÃO"}
+              </div>
+              <span className="text-[9px] text-slate-500 mt-1 block">Servidor Provedor</span>
+            </div>
+
+            <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-4 shadow">
+              <span className="text-[10px] font-bold text-slate-400 uppercase">Futebol Live Sync</span>
+              <div className="text-xs font-bold text-emerald-400 mt-2 tracking-widest bg-emerald-950/40 border border-emerald-900/40 px-2 py-1 rounded">
+                API-SPORTS
+              </div>
+              <span className="text-[9px] text-emerald-400 mt-1 block">Operação: Normal</span>
+            </div>
+
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2">
+            
+            {/* Left: Score Brackets distribution representation */}
+            <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 space-y-4">
+              <h3 className="text-xs font-extrabold uppercase text-slate-300 tracking-wider">Distribuição de Pontos</h3>
+              <div className="space-y-3">
+                {Object.keys(metrics.distribuicao).map((bracket) => {
+                  const count = metrics.distribuicao[bracket];
+                  const total = metrics.counters.total_usuarios || 1;
+                  const ratio = Math.min(100, Math.round((count / total) * 100));
+                  return (
+                    <div key={bracket} className="space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-slate-450 font-bold">{bracket}</span>
+                        <span className="font-mono text-slate-300">{count} jogadores ({ratio}%)</span>
+                      </div>
+                      <div className="h-2 w-full bg-slate-950 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-emerald-500 to-yellow-500 transition-all duration-500" 
+                          style={{ width: `${ratio}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Right: Active Cities Stats */}
+            <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 space-y-3">
+              <h3 className="text-xs font-extrabold uppercase text-slate-300 tracking-wider">Top Cidades em Engajamento</h3>
+              <div className="divide-y divide-slate-950 max-h-[190px] overflow-y-auto pr-1">
+                {metrics.cities.map((city: any, idx: number) => (
+                  <div key={idx} className="flex justify-between items-center py-2 text-xs">
+                    <span className="text-slate-300 font-semibold">{city.name}</span>
+                    <span className="font-mono text-emerald-400 font-bold bg-slate-950 px-2 py-0.5 rounded">
+                      {city.count} participantes
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+          </div>
+
+          {/* Quick audit feed */}
+          <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-4">
+            <div className="flex justify-between items-center mb-3">
+              <h4 className="text-xs font-black uppercase text-slate-300">Auditoria Rápida de Atividades</h4>
+              <button 
+                onClick={() => setActiveSubTab('LOGS')}
+                className="text-[10px] text-yellow-500 hover:underline"
+              >
+                Ver histórico de logs
+              </button>
+            </div>
+            
+            <div className="bg-slate-950 rounded-xl p-3 divide-y divide-slate-900 max-h-[220px] overflow-y-auto">
+              {logs.slice(0, 5).map((lg) => (
+                <div key={lg.id} className="py-2 text-[11px] font-mono flex items-start gap-2">
+                  <span className="text-[10px] text-slate-500 shrink-0">[{new Date(lg.data).toLocaleTimeString('pt-BR')}]</span>
+                  <span className="text-yellow-500/95 font-bold shrink-0">{lg.acao}:</span>
+                  <span className="text-slate-300 flex-1">{lg.descricao}</span>
+                  <span className="text-slate-550 shrink-0 text-[10px]">{lg.usuario} ({lg.ip})</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* 2. CONFIGURAÇÃO INTEGRACAO IXC */}
+      {activeSubTab === 'IXC' && (
+        <div className="bg-slate-900/40 border border-slate-805/85 p-6 rounded-2xl space-y-6">
+          <div className="space-y-1">
+            <h3 className="text-base font-bold text-slate-200">WebService IXC Soft Integration</h3>
+            <p className="text-xs text-slate-400">
+              Gerencie as credenciais de sua API IXC para validação automática de clientes com o CPF cadastrado.
+            </p>
+          </div>
+
+          {/* Alert of simulation settings */}
+          <div className="bg-slate-950/80 border border-slate-850 p-4 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <span className="text-xs font-bold text-slate-200 block">Modo Simulação e Demonstração</span>
+              <p className="text-[11px] text-slate-400 mt-1 max-w-xl">
+                Se você não possui uma URL do IXC Soft real ou quer apenas demonstrar o bolão na equipe de vendas, 
+                deixe o <span className="text-yellow-500 font-bold">Modo Simulação Ativo</span>. Qualquer CPF/CNPJ ou CPFs de teste entrarão sem barreiras técnicas de conexão.
+              </p>
+            </div>
+
+            <div className="shrink-0 flex items-center gap-2 bg-slate-900 px-3.5 py-2 rounded-lg border border-slate-800">
+              <span className="text-xs text-slate-300">Modo Simulação:</span>
+              <button
+                onClick={() => setIxcOfflineMode(!ixcOfflineMode)}
+                id="btn-toggle-ixc-simulation"
+                className={`px-3 py-1 text-[10px] font-black uppercase rounded ${
+                  ixcOfflineMode 
+                    ? 'bg-yellow-500/20 border border-yellow-700/60 text-yellow-500' 
+                    : 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                }`}
+              >
+                {ixcOfflineMode ? "LIGADO (SEGURO)" : "DESLIGADO (REAL)"}
+              </button>
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-450">
+                URL Webservice IXC
+              </label>
+              <input
+                type="text"
+                placeholder="https://177.200.x.x/webservice/v1"
+                value={ixcUrl}
+                onChange={(e) => setIxcUrl(e.target.value)}
+                className="w-full px-4 py-2.5 bg-slate-950 border border-slate-850 focus:border-yellow-500 hover:border-slate-800 rounded-xl text-xs font-mono text-slate-300"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-450">
+                Token de Autorização (Basic/Token)
+              </label>
+              <input
+                type="password"
+                placeholder="Token de Webservice ixcsoft..."
+                value={ixcToken}
+                onChange={(e) => setIxcToken(e.target.value)}
+                className="w-full px-4 py-2.5 bg-slate-950 border border-slate-850 focus:border-yellow-500 hover:border-slate-800 rounded-xl text-xs font-mono text-slate-300"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-450">
+                Chave de Criptografia IXC
+              </label>
+              <input
+                type="text"
+                placeholder="i_key_xxx"
+                value={ixcChave}
+                onChange={(e) => setIxcChave(e.target.value)}
+                className="w-full px-4 py-2.5 bg-slate-950 border border-slate-850 focus:border-yellow-500 hover:border-slate-800 rounded-xl text-xs font-mono text-slate-300"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-semibold text-slate-450 block">
+                Timeout de Requisição: {ixcTimeout}ms
+              </label>
+              <input
+                type="range"
+                min="2000"
+                max="10000"
+                step="500"
+                value={ixcTimeout}
+                onChange={(e) => setIxcTimeout(Number(e.target.value))}
+                className="w-full h-1 bg-slate-950 rounded-lg appearance-none cursor-pointer accent-yellow-500 mt-3"
+              />
+            </div>
+
+          </div>
+
+          {/* Test results screen */}
+          {ixcTestFeedback && (
+            <div className={`p-4 rounded-xl border text-xs leading-normal font-sans ${
+              ixcTestFeedback.success 
+                ? 'bg-emerald-950/20 border-emerald-900/60 text-emerald-400' 
+                : 'bg-red-950/10 border-red-900/40 text-red-400'
+            }`}>
+              <strong className="block mb-1">{ixcTestFeedback.success ? "Conexão Bem Sucedida:" : "Conexão Offline:"}</strong>
+              {ixcTestFeedback.msg}
+            </div>
+          )}
+
+          {/* Buttons interactions */}
+          <div className="pt-3 border-t border-slate-950 flex flex-wrap gap-3">
+            <button
+              onClick={handleSaveIxcConfigs}
+              id="btn-save-ixc-config"
+              className="flex items-center gap-1.5 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-black rounded-lg cursor-pointer transition shadow"
+            >
+              <Save className="h-4 w-4" />
+              Salvar Configurações
+            </button>
+            <button
+              onClick={handleTestIxcConnection}
+              id="btn-test-ixc-conn"
+              disabled={testingIxc}
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-950 border border-slate-800 hover:text-emerald-400 text-slate-300 text-xs font-extrabold rounded-lg cursor-pointer transition"
+            >
+              <RefreshCw className={`h-4 w-4 ${testingIxc ? 'animate-spin' : ''}`} />
+              {testingIxc ? "Testando webservice..." : "Testar Conexão IXC"}
+            </button>
+          </div>
+
+        </div>
+      )}
+
+      {/* 3. PARÂMETROS DE PONTÚAÇÃO */}
+      {activeSubTab === 'REGRAS' && (
+        <div className="bg-slate-900/40 border border-slate-800/80 p-6 rounded-2xl space-y-6">
+          <div className="space-y-1">
+            <h3 className="text-base font-bold text-slate-200">Fórmula de Geração de Pontos</h3>
+            <p className="text-xs text-slate-400">
+              Ajuste granularmente quantos pontos seus clientes levam por jogo. Salvar este formulário recalculará a pontuação do ranking automaticamente.
+            </p>
+          </div>
+
+          <div className="grid gap-5 sm:grid-cols-3">
+            
+            <div className="bg-slate-950 p-4 rounded-xl space-y-2 text-left">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Acerto de Vencedor</label>
+              <input
+                type="number"
+                value={ptsWinner}
+                onChange={(e) => setPtsWinner(Number(e.target.value))}
+                className="w-full p-2 bg-slate-900/80 border border-slate-800 rounded font-mono text-center text-sm font-bold text-emerald-400"
+              />
+              <span className="text-[9px] text-slate-500 block leading-normal">
+                Dado ao apostador que indicar o time vencedor correto (ou empate simples, se cadastrar draw).
+              </span>
+            </div>
+
+            <div className="bg-slate-950 p-4 rounded-xl space-y-2 text-left">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Acerto de Empate</label>
+              <input
+                type="number"
+                value={ptsDraw}
+                onChange={(e) => setPtsDraw(Number(e.target.value))}
+                className="w-full p-2 bg-slate-900/80 border border-slate-800 rounded font-mono text-center text-sm font-bold text-emerald-400"
+              />
+              <span className="text-[9px] text-slate-500 block leading-normal">
+                Atribuído a chutes que craveem empates (por exemplo: Brasil 1 x 1 Itália, apostou 2 x 2).
+              </span>
+            </div>
+
+            <div className="bg-slate-950 p-4 rounded-xl space-y-2 text-left">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Bônus Placar Exato</label>
+              <input
+                type="number"
+                value={ptsExact}
+                onChange={(e) => setPtsExact(Number(e.target.value))}
+                className="w-full p-2 bg-slate-900/80 border border-slate-800 rounded font-mono text-center text-sm font-bold text-yellow-500"
+              />
+              <span className="text-[9px] text-slate-500 block leading-normal">
+                Pontos extras somados caso acerte o placar inteiro exato (Ex: cravou Brasil 2 x 1, terminou 2 x 1).
+              </span>
+            </div>
+
+          </div>
+
+          {/* Gamification Extras Config */}
+          <div className="space-y-3">
+            <h4 className="text-xs font-black uppercase text-slate-400 tracking-wider">Bônus Adicionais de Gamificação</h4>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {[
+                { label: "Bônus Rodada Completa", val: ptsBonusRound, hook: setPtsBonusRound, desc: "Se fizer palpite em todos os jogos da mesma rodada" },
+                { label: "Bônus Sequência Vitória", val: ptsBonusSeq, hook: setPtsBonusSeq, desc: "A cada 3 palpites consecutivos com vitória acertada" },
+                { label: "Bônus Jogo Perfeito", val: ptsBonusPerfect, hook: setPtsBonusPerfect, desc: "Cravou 5 jogos exatos no campeonato inteiro" }
+              ].map((item, idx) => (
+                <div key={idx} className="bg-slate-950/60 p-3 rounded-xl space-y-1.5 text-left text-xs">
+                  <span className="text-slate-300 font-bold block truncate">{item.label}</span>
+                  <input
+                    type="number"
+                    value={item.val}
+                    onChange={(e) => item.hook(Number(e.target.value))}
+                    className="w-full p-2 bg-slate-900/80 border border-slate-800 rounded font-mono text-center text-slate-200"
+                  />
+                  <span className="text-[9px] text-slate-500 block leading-tight">{item.desc}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="pt-3 border-t border-slate-950">
+            <button
+              onClick={handleSaveScoringParams}
+              id="btn-save-scoring-recalculates"
+              className="flex items-center gap-1.5 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-black rounded-lg cursor-pointer transition shadow"
+            >
+              <Save className="h-4 w-4" />
+              Salvar Regras de Pontos
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 4. SOCCER API FOOTBALL SYNCHRONIZATION */}
+      {activeSubTab === 'SOCCER_API' && (
+        <div className="bg-slate-900/40 border border-slate-850/85 p-6 rounded-2xl space-y-6">
+          <div className="space-y-1">
+            <h3 className="text-base font-bold text-slate-200">Sincronizador Automático API-Football</h3>
+            <p className="text-xs text-slate-400">
+              Configure chaves de transmissão do portal API-SPORTS para puxar resultados automaticamente em tempo real nas horas dos jogos.
+            </p>
+          </div>
+
+          {/* Quick sync metrics alert box */}
+          <div className="bg-slate-950/70 border border-slate-850 p-4 rounded-xl grid gap-4 sm:grid-cols-3">
+            <div>
+              <span className="text-slate-500 text-[10px] uppercase font-bold tracking-wider">Status Conexão API</span>
+              <span className="text-xs font-extrabold text-emerald-400 block mt-1">● EM REDE ONLINE</span>
+            </div>
+            <div>
+              <span className="text-slate-500 text-[10px] uppercase font-bold tracking-wider">Tarefa Agendada (CRON)</span>
+              <span className="text-xs font-bold text-slate-300 block mt-1">A cada 15 Minutos</span>
+            </div>
+            <div>
+              <span className="text-slate-500 text-[10px] uppercase font-bold tracking-wider">Sobrecarga de Edição Manual</span>
+              <span className="text-xs font-bold text-yellow-500 block mt-1">Ativada (Mantenha ligada para ajustes)</span>
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-450 text-left">URL de Endpoint</label>
+              <input
+                type="text"
+                value={soccerUrl}
+                onChange={(e) => setSoccerUrl(e.target.value)}
+                className="w-full px-4 py-2.5 bg-slate-950 border border-slate-850 focus:border-yellow-500 hover:border-slate-800 rounded-xl text-xs font-mono text-slate-300"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-450 text-left">Chave Secundária (API-Sports Key)</label>
+              <input
+                type="password"
+                placeholder="Ex b7a6cb56ecbd..."
+                value={soccerKey}
+                onChange={(e) => setSoccerKey(e.target.value)}
+                className="w-full px-4 py-2.5 bg-slate-950 border border-slate-850 focus:border-yellow-500 hover:border-slate-800 rounded-xl text-xs font-mono text-slate-300"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2 pt-2 text-xs text-slate-400 text-left">
+            <label className="flex items-center gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={soccerManualOverride}
+                onChange={(e) => setSoccerManualOverride(e.target.checked)}
+                className="rounded border-slate-800 text-emerald-500 focus:ring-emerald-500 bg-slate-950 h-4 w-4"
+              />
+              <span>Permitir alteração de resultados manual pelo administrador (Recomendado caso a API falhe)</span>
+            </label>
+
+            <label className="flex items-center gap-2.5 cursor-pointer mt-1">
+              <input
+                type="checkbox"
+                checked={soccerCronActive}
+                onChange={(e) => setSoccerCronActive(e.target.checked)}
+                className="rounded border-slate-800 text-emerald-500 focus:ring-emerald-500 bg-slate-950 h-4 w-4"
+              />
+              <span>Executar Varredura Cron Job automático no plano de fundo</span>
+            </label>
+          </div>
+
+          <div className="pt-3 border-t border-slate-950 flex flex-wrap gap-3">
+            <button
+              onClick={handleSaveSoccerParams}
+              id="btn-save-soccer-config"
+              className="flex items-center gap-1.5 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-black rounded-lg cursor-pointer transition shadow"
+            >
+              <Save className="h-4 w-4" />
+              Salvar Parâmetros Futebol
+            </button>
+            <button
+              onClick={handleSyncFootballManual}
+              id="btn-sync-football-trigger"
+              disabled={syncingFootball}
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-950 border border-slate-800 hover:text-emerald-400 text-slate-300 text-xs font-extrabold rounded-lg cursor-pointer transition"
+            >
+              <RefreshCw className={`h-4 w-4 ${syncingFootball ? 'animate-spin' : ''}`} />
+              {syncingFootball ? "Executando carga..." : "Forçar Sincronização Agora"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 5. GERENCIAMENTO DE JOGADORES PARTICIPANTES */}
+      {activeSubTab === 'JOGADORES' && (
+        <div className="space-y-4">
+          
+          {/* List Search and actions bar */}
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-950/60 p-3 rounded-xl border border-slate-900">
+            <div className="relative flex-1 min-w-[240px]">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
+              <input
+                type="text"
+                placeholder="Procurar concorrente por nome, CPF/CNPJ, Id IXC..."
+                value={userSearchText}
+                onChange={(e) => setUserSearchText(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 bg-slate-900/80 border border-slate-850 hover:border-slate-800 focus:border-yellow-500 rounded-lg text-xs font-semibold text-slate-200"
+              />
+            </div>
+            
+            <button
+              onClick={() => handleExportCSV('JOGADORES')}
+              id="btn-export-users-csv"
+              className="px-4 py-2 bg-slate-900 border border-slate-800 hover:text-emerald-500 text-xs font-bold text-slate-300 rounded-lg transition flex items-center gap-1.5"
+            >
+              <Download className="h-4 w-4" />
+              Exportar Cadastro CSV
+            </button>
+          </div>
+
+          {/* Player details editor modal display inline if set */}
+          {editingUserId !== null && (
+            <div className="bg-slate-950/80 border border-yellow-700/30 p-5 rounded-2xl space-y-4 text-left animate-fadeIn">
+              <h4 className="text-xs font-black uppercase text-yellow-500 tracking-wider flex items-center gap-1">
+                <Edit2 className="h-3.5 w-3.5" /> Alterar Atributos e Pontuações do Participante
+              </h4>
+              
+              <div className="grid gap-3 sm:grid-cols-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Nome Razão</label>
+                  <input
+                    type="text"
+                    value={editUserNome}
+                    onChange={(e) => setEditUserNome(e.target.value)}
+                    className="w-full p-2 bg-slate-900 border border-slate-800 rounded text-xs text-slate-250 font-semibold"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Município</label>
+                  <select
+                    value={editUserCidade}
+                    onChange={(e) => setEditUserCidade(e.target.value)}
+                    className="w-full p-2 bg-slate-900 border border-slate-800 rounded text-xs text-slate-250 font-semibold"
+                  >
+                    {CIDADES_ATENDIDAS.map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Pontuação Total (Sobrecarga Manual)</label>
+                  <input
+                    type="number"
+                    value={editUserPontos}
+                    onChange={(e) => setEditUserPontos(Number(e.target.value))}
+                    className="w-full p-2 bg-slate-900 border border-slate-800 rounded font-mono text-center text-xs font-bold text-yellow-500"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Ações Especiais</label>
+                  <button
+                    type="button"
+                    onClick={() => handleResetUserScores(editingUserId)}
+                    className="w-full py-2 bg-red-950/40 border border-red-900/40 hover:bg-red-900 hover:text-slate-950 text-red-400 font-bold text-[10px] rounded transition"
+                  >
+                    ⚠️ Resetar Pontos e Zerar Apostas
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex gap-2 justify-end border-t border-slate-900 pt-3 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setEditingUserId(null)}
+                  className="px-3 py-1.5 bg-slate-900 text-slate-400 hover:text-slate-200 font-bold rounded"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSaveUserEdit(editingUserId)}
+                  className="px-4 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-black rounded transition"
+                >
+                  Gravar Alterações
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Directory grid table */}
+          <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl overflow-hidden shadow">
+            
+            <table className="w-full text-xs text-left">
+              <thead className="bg-slate-950/80 text-[10px] font-bold uppercase text-slate-450 border-b border-slate-900">
+                <tr>
+                  <th className="px-4 py-3 text-center w-12">IDC</th>
+                  <th className="px-4 py-3">Nome / Detalhes</th>
+                  <th className="px-4 py-3">Documento</th>
+                  <th className="px-4 py-3 text-center">Cidade</th>
+                  <th className="px-4 py-3 text-center w-24">Pontuação</th>
+                  <th className="px-4 py-3 text-center w-36">Operações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-900">
+                {filteredPlayersList.length > 0 ? (
+                  filteredPlayersList.map((user) => (
+                    <tr key={user.id} className={`hover:bg-slate-905/30 transition ${user.bloqueado ? 'bg-red-950/5' : ''}`}>
+                      <td className="px-4 py-3.5 text-center font-mono font-bold text-slate-400">{user.ixc_id}</td>
+                      <td className="px-4 py-3.5 font-bold">
+                        <div className="text-slate-205">{user.nome}</div>
+                        <div className="text-[10px] text-slate-500 font-medium">{user.email || 'Não cadastrado'} • {user.telefone}</div>
+                      </td>
+                      <td className="px-4 py-3.5 font-mono text-slate-400">{user.cpf_cnpj}</td>
+                      <td className="px-4 py-3.5 text-center text-slate-400 font-semibold">{user.cidade}</td>
+                      <td className="px-4 py-3.5 text-center font-mono font-black text-emerald-400 text-sm">
+                        {user.pontos_total} p
+                      </td>
+                      <td className="px-4 py-3.5 text-center flex items-center justify-center gap-1 pt-4">
+                        <button
+                          title="Bloquear/Liberar"
+                          onClick={() => handleToggleBlockUser(user.id)}
+                          className={`p-1 px-2 text-[10px] font-bold rounded transition ${
+                            user.bloqueado 
+                              ? 'bg-red-500 text-slate-950' 
+                              : 'bg-slate-950 text-red-400 hover:bg-slate-900'
+                          }`}
+                        >
+                          {user.bloqueado ? "BLOQUEADO" : "SUSPENDER"}
+                        </button>
+                        
+                        <button
+                          onClick={() => handleEditUserClick(user)}
+                          className="p-1 bg-slate-950 border border-slate-800 hover:text-yellow-500 p-1.5 rounded"
+                          title="Ajustes rápidos"
+                        >
+                          <Edit2 className="h-3 w-3" />
+                        </button>
+
+                        <button
+                           onClick={() => handleDeleteUserAll(user.id)}
+                           className="p-1 bg-slate-950 text-red-500/80 hover:bg-slate-900 rounded"
+                           title="Excluir do bolão"
+                        >
+                           <Trash className="h-3 w-3" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={6} className="py-12 text-center text-slate-500 text-xs">
+                      Nenhum utilizador encontrado nos parâmetros.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+
+          </div>
+
+        </div>
+      )}
+
+      {/* 6. CALENDÁRIO PLANILHA JOGOS DA COPA */}
+      {activeSubTab === 'JOGOS' && (
+        <div className="space-y-4 text-left">
+          
+          {/* Title block */}
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-950/60 p-3 rounded-xl border border-slate-900">
+            <div>
+              <span className="text-xs font-black uppercase text-emerald-400">Varreduras do Calendário</span>
+              <p className="text-[11px] text-slate-500 mt-0.5">Adicione partidas manualmente ou gerencie o fechamento e fechamento de placares.</p>
+            </div>
+
+            <button
+              onClick={() => setCreatingMatch(!creatingMatch)}
+              id="btn-show-add-match-form"
+              className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-black rounded-lg transition flex items-center gap-1.5 cursor-pointer"
+            >
+              <PlusCircle className="h-4 w-4" />
+              Adicionar Partida Manual
+            </button>
+          </div>
+
+          {/* Add Match Form (Conditional rendering) */}
+          {creatingMatch && (
+            <form onSubmit={handleCreateMatchSubmit} className="bg-slate-950 border border-emerald-950/40 p-5 rounded-2xl space-y-4 animate-fadeIn">
+              <h3 className="text-xs font-black uppercase text-emerald-400">Criar Partida Copa do Mundo 2026</h3>
+              
+              <div className="grid gap-4 sm:grid-cols-4">
+                
+                <div className="space-y-1 grid gap-1">
+                  <label className="text-[10px] font-bold text-slate-450 uppercase">Time Casa (E.g. Brasil)</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Brasil"
+                    value={newHomeTeam}
+                    onChange={(e) => setNewHomeTeam(e.target.value)}
+                    className="p-2 bg-slate-900 border border-slate-800 rounded text-xs text-slate-205 font-semibold"
+                  />
+                  <input
+                    type="text"
+                    required
+                    maxLength={2}
+                    placeholder="E.g 🇧🇷"
+                    value={newHomeFlag}
+                    onChange={(e) => setNewHomeFlag(e.target.value)}
+                    className="p-2 bg-slate-900 border border-slate-800 rounded font-bold text-center text-xs mt-1 w-16"
+                  />
+                </div>
+
+                <div className="space-y-1 grid gap-1">
+                  <label className="text-[10px] font-bold text-slate-450 uppercase">Time Fora (E.g. Argentina)</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Argentina"
+                    value={newAwayTeam}
+                    onChange={(e) => setNewAwayTeam(e.target.value)}
+                    className="p-2 bg-slate-900 border border-slate-800 rounded text-xs text-slate-210 font-semibold"
+                  />
+                  <input
+                    type="text"
+                    required
+                    maxLength={2}
+                    placeholder="E.g 🇦🇷"
+                    value={newAwayFlag}
+                    onChange={(e) => setNewAwayFlag(e.target.value)}
+                    className="p-2 bg-slate-900 border border-slate-800 rounded font-bold text-center text-xs mt-1 w-16"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-450 uppercase">Data e Horário Partida (Servidor)</label>
+                  <input
+                    type="datetime-local"
+                    required
+                    value={newMatchDate}
+                    onChange={(e) => setNewMatchDate(e.target.value)}
+                    className="w-full p-2 bg-slate-900 border border-slate-800 rounded font-mono text-xs text-slate-300"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-450 uppercase">Rodada do Grupo</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="10"
+                    required
+                    value={newMatchRound}
+                    onChange={(e) => setNewMatchRound(Number(e.target.value))}
+                    className="w-full p-2 bg-slate-900 border border-slate-800 rounded text-xs font-semibold text-center text-slate-300"
+                  />
+                </div>
+
+              </div>
+
+              <div className="flex gap-2 justify-end border-t border-slate-900 pt-3 text-xs select-none">
+                <button
+                  type="button"
+                  onClick={() => setCreatingMatch(false)}
+                  className="px-3 py-1.5 bg-slate-900 text-slate-400 hover:text-slate-250 font-bold rounded"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 bg-emerald-500 text-slate-950 font-black rounded transition"
+                >
+                  Confirmar Jogo
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Matches grid listing with inline score update */}
+          <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl overflow-hidden shadow">
+            
+            <table className="w-full text-xs text-left">
+              <thead className="bg-slate-950/80 text-[10px] font-bold uppercase text-slate-450 border-b border-slate-900">
+                <tr>
+                  <th className="px-4 py-3 text-center w-12">Rod</th>
+                  <th className="px-4 py-3">Partida / Times Concorrentes</th>
+                  <th className="px-4 py-3">Data Prevista</th>
+                  <th className="px-4 py-3 text-center">Placares Atuais</th>
+                  <th className="px-4 py-3 text-center w-24">Status</th>
+                  <th className="px-4 py-3 text-center w-32">Ação</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-900">
+                {jogos.map((jogo) => {
+                  const isEditingThis = editingMatchId === jogo.id;
+                  return (
+                    <tr key={jogo.id}>
+                      <td className="px-4 py-3 text-center font-mono font-bold text-slate-400">{jogo.rodada}</td>
+                      <td className="px-4 py-3 font-semibold text-slate-250">
+                        <span className="text-sm mr-1">{jogo.time_casa_bandeira}</span>
+                        {jogo.time_casa} <span className="text-slate-500 font-bold mx-1">x</span> 
+                        <span className="text-sm mr-1 ml-0.5">{jogo.time_fora_bandeira}</span>
+                        {jogo.time_fora}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-slate-400">
+                        {new Date(jogo.data_jogo).toLocaleDateString('pt-BR')} às {new Date(jogo.data_jogo).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                      </td>
+                      
+                      <td className="px-4 py-3 text-center">
+                        {isEditingThis ? (
+                          <div className="flex items-center gap-1.5 justify-center">
+                            <input
+                              type="number"
+                              placeholder="-"
+                              value={editMatchCasaPlacar}
+                              onChange={(e) => setEditMatchCasaPlacar(e.target.value)}
+                              className="w-10 p-1 bg-slate-950 border border-slate-800 rounded font-mono font-bold text-center text-xs text-yellow-500"
+                            />
+                            <span className="text-slate-650">x</span>
+                            <input
+                              type="number"
+                              placeholder="-"
+                              value={editMatchForaPlacar}
+                              onChange={(e) => setEditMatchForaPlacar(e.target.value)}
+                              className="w-10 p-1 bg-slate-950 border border-slate-800 rounded font-mono font-bold text-center text-xs text-yellow-500"
+                            />
+                          </div>
+                        ) : (
+                          <span className="font-mono font-extrabold text-sm text-yellow-500 bg-slate-950 px-2 py-0.5 rounded">
+                            {jogo.placar_casa !== null ? jogo.placar_casa : '-'} x {jogo.placar_fora !== null ? jogo.placar_fora : '-'}
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="px-4 py-3 text-center">
+                        {isEditingThis ? (
+                          <select
+                            value={editMatchStatus}
+                            onChange={(e) => setEditMatchStatus(e.target.value as any)}
+                            className="bg-slate-950 border border-slate-800 rounded text-[10px] py-1 font-bold text-yellow-500"
+                          >
+                            <option value="PENDENTE">Aberto</option>
+                            <option value="AO_VIVO">Ao Vivo</option>
+                            <option value="ENCERRADO">Encerrado</option>
+                          </select>
+                        ) : (
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            jogo.status === 'AO_VIVO' 
+                              ? 'bg-red-950/80 border border-red-800/40 text-red-400 animate-pulse' 
+                              : jogo.status === 'ENCERRADO'
+                                ? 'bg-slate-950 border border-slate-800 text-slate-400'
+                                : 'bg-emerald-950 text-emerald-400 border border-emerald-900/40'
+                          }`}>
+                            {jogo.status === 'AO_VIVO' ? 'Ao vivo' : jogo.status === 'ENCERRADO' ? 'Encerrado' : 'Aberto'}
+                          </span>
+                        )}
+                      </td>
+                      
+                      <td className="px-4 py-3 text-center">
+                        {isEditingThis ? (
+                          <div className="flex items-center justify-center gap-1 text-[10px]">
+                            <button
+                              onClick={() => handleSaveMatchScore(jogo.id)}
+                              className="p-1 px-2.5 bg-emerald-500 text-slate-950 font-black rounded cursor-pointer transition hover:scale-105"
+                              title="Salvar e recalcular pontos"
+                            >
+                              SALVAR 🎯
+                            </button>
+                            <button
+                              onClick={() => setEditingMatchId(null)}
+                              className="p-1 px-1.5 bg-slate-95 w-12 text-slate-350 cursor-pointer text-center font-bold"
+                            >
+                              Voltar
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              onClick={() => handleOpenMatchScoreEditor(jogo)}
+                              title="Editar partida ou fechar placar"
+                              className="p-1 bg-slate-950 hover:text-yellow-500/90 border border-slate-850 p-1.5 rounded text-slate-300"
+                            >
+                              <Edit2 className="h-3 w-3" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteMatch(jogo.id)}
+                              title="Deletar partida do calendário"
+                              className="p-1 bg-slate-950 text-red-500/80 hover:bg-slate-900 rounded"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+
+          </div>
+
+        </div>
+      )}
+
+      {/* 7. RELATÓRIOS E COMPILADORES IMPRESSIVEIS */}
+      {activeSubTab === 'RELATORIOS' && (
+        <div className="bg-slate-900/40 border border-slate-800/80 p-6 rounded-2xl space-y-6">
+          <div className="space-y-1">
+            <h3 className="text-base font-bold text-slate-205">Sessão de Relatórios & Geração de Arquivos</h3>
+            <p className="text-xs text-slate-400">
+              Emitir e extrair inteligência do campeonato para apresentações executivas das gerências ou distribuição local do provedor.
+            </p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-3">
+            
+            <div className="bg-slate-950 p-4 rounded-xl space-y-3 flex flex-col justify-between text-left border border-slate-900 shadow">
+              <div>
+                <span className="text-[10px] font-black text-yellow-500 uppercase tracking-widest block font-mono">CADASTRO GERAL</span>
+                <span className="text-sm font-bold text-slate-200 mt-2 block">Lista de Palpiteiros</span>
+                <p className="text-[10px] text-slate-450 mt-1 leading-snug">
+                  Arquivo contendo listagem inteira dos apostadores, municípios, CPFs associados, e-mail de contato, e pontuações consolidadas.
+                </p>
+              </div>
+              <button
+                onClick={() => handleExportCSV('JOGADORES')}
+                className="w-full py-2 bg-slate-905 border border-slate-800 text-slate-350 select-none hover:text-emerald-400 text-xs font-bold rounded flex items-center justify-center gap-1.5 transition"
+              >
+                <Download className="h-4 w-4" /> Baixar Planilha CSV
+              </button>
+            </div>
+
+            <div className="bg-slate-950 p-4 rounded-xl space-y-3 flex flex-col justify-between text-left border border-slate-900 shadow">
+              <div>
+                <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest block font-mono">ANÁLISE DE ENGAJAMENTO</span>
+                <span className="text-sm font-bold text-slate-200 mt-2 block">Cidade & Municípios</span>
+                <p className="text-[10px] text-slate-450 mt-1 leading-snug">
+                  Dados consolidados de quantidade de participantes e média aritmética de pontos obtidos segmentados por filial de cidades atendidas no provedor.
+                </p>
+              </div>
+              <button
+                onClick={() => handleExportCSV('CIDADES')}
+                className="w-full py-2 bg-slate-905 border border-slate-800 text-slate-350 select-none hover:text-emerald-400 text-xs font-bold rounded flex items-center justify-center gap-1.5 transition"
+              >
+                <Download className="h-4 w-4" /> Baixar Planilha CSV
+              </button>
+            </div>
+
+            <div className="bg-slate-950 p-4 rounded-xl space-y-3 flex flex-col justify-between text-left border border-slate-900 shadow">
+              <div>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block font-mono">TRÁFEGO DE APOSTAS</span>
+                <span className="text-sm font-bold text-slate-200 mt-2 block">Ranking de Jogos</span>
+                <p className="text-[10px] text-slate-450 mt-1 leading-snug">
+                  Tabela que ordena as partidas da Copa do Mundo mais palpitadas e o fluxo dinâmico de apostas recebidas em cada rodada.
+                </p>
+              </div>
+              <button
+                onClick={() => handleExportCSV('JOGOS')}
+                className="w-full py-2 bg-slate-905 border border-slate-800 text-slate-350 select-none hover:text-emerald-400 text-xs font-bold rounded flex items-center justify-center gap-1.5 transition"
+              >
+                <Download className="h-4 w-4" /> Baixar Planilha CSV
+              </button>
+            </div>
+
+          </div>
+
+          {/* Styled actions to print report format */}
+          <div className="bg-slate-955 border border-slate-900 p-5 rounded-xl text-left space-y-3">
+            <h4 className="text-xs font-bold text-slate-205 flex items-center gap-1">
+              <ShieldCheck className="h-4 w-4 text-emerald-400" /> Relatório para Impressão de Alta Fidelidade
+            </h4>
+            <p className="text-[11px] text-slate-450 leading-relaxed">
+              O botão abaixo reorganiza e formata todo o painel de classificação em modelo limpo de cor clara para impressão direta no seu navegador (PDF ou Impressora Física).
+            </p>
+            <button
+              onClick={handlePrintReport}
+              className="px-4 py-2 bg-slate-900 border border-slate-800 text-slate-300 hover:text-yellow-500 font-bold text-xs rounded transition flex items-center gap-1.5 select-none cursor-pointer"
+            >
+              <FileSpreadsheet className="h-4 w-4 text-yellow-500" />
+              Imprimir / Salvar PDF do Ranking
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 8. AUDITORIA DE REGRAS E LOGS */}
+      {activeSubTab === 'LOGS' && (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center bg-slate-950/65 p-3 rounded-xl border border-slate-900 select-none">
+            <div>
+              <span className="text-xs font-black uppercase text-yellow-500">Trilhas de Auditoria (Logs)</span>
+              <p className="text-[10px] text-slate-500 mt-0.5">Visão transparente de chamadas IXC, criação de jogos, e palpites efetuados.</p>
+            </div>
+            
+            <button
+              onClick={triggerAuditLogsLoading}
+              className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-850 hover:text-emerald-400 border border-slate-800 text-[10px] uppercase font-bold text-slate-300 rounded-lg transition flex items-center gap-1"
+            >
+              <RefreshCw className="h-3 w-3" /> Limpar Filtros / Recarregar
+            </button>
+          </div>
+
+          <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl overflow-hidden">
+            <div className="bg-slate-950 text-[10px] font-bold uppercase text-slate-400 px-4 py-2.5 border-b border-slate-900 grid grid-cols-12 gap-2">
+              <span className="col-span-2">Data / Hora</span>
+              <span className="col-span-2">Tipo Ação</span>
+              <span className="col-span-5">Descrição Completa</span>
+              <span className="col-span-2 font-semibold">Originador</span>
+              <span className="col-span-1 text-right">IP Cliente</span>
+            </div>
+
+            <div className="divide-y divide-slate-900 font-mono text-[11px] leading-relaxed max-h-[440px] overflow-y-auto">
+              {logs.length > 0 ? (
+                logs.map((lg) => (
+                  <div key={lg.id} className="px-4 py-3 bg-slate-905/30 hover:bg-slate-905/60 transition grid grid-cols-12 gap-2">
+                    <span className="col-span-2 text-slate-500">{new Date(lg.data).toLocaleString('pt-BR')}</span>
+                    <span className="col-span-2 text-yellow-500 font-bold tracking-tight truncate pr-1" title={lg.acao}>{lg.acao}</span>
+                    <span className="col-span-5 text-slate-300">{lg.descricao}</span>
+                    <span className="col-span-2 text-slate-400 font-sans font-bold truncate pr-1">{lg.usuario}</span>
+                    <span className="col-span-1 text-slate-500 text-right truncate">{lg.ip}</span>
+                  </div>
+                ))
+              ) : (
+                <div className="py-12 text-center text-slate-500 text-xs">
+                  Ainda não há logs de auditoria gravados.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}

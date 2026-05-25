@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  # 1. Full-Stack Node application (Express API + Vite frontend bundle)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bolao_copa_app
+    restart: always
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URL=mysql://copa_user:copa_secure_pass_2026@mysql_db:3306/copa_bolao_db
+      - JWT_SECRET=copa-bolao-2026-super-secret-key-isp
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mysql_db
+    networks:
+      - bolao_network
+
+  # 2. Production MySQL Database
+  mysql_db:
+    image: mysql:8.0
+    container_name: bolao_copa_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root_extreme_secure_password_2026
+      MYSQL_DATABASE: copa_bolao_db
+      MYSQL_USER: copa_user
+      MYSQL_PASSWORD: copa_secure_pass_2026
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - bolao_network
+
+  # 3. Secure Nginx Proxy Router
+  nginx:
+    image: nginx:alpine
+    container_name: bolao_copa_nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      - app
+    networks:
+      - bolao_network
+
+volumes:
+  mysql_data:
+
+networks:
+  bolao_network:
+    driver: bridge
