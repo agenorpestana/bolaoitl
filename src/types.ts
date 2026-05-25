@@ -51,7 +51,7 @@ export interface ConfigPoints {
 export interface ConfigIXC {
   url: string;
   token: string;
-  chave: string;
+  chave?: string;
   timeout: number;
   offline_mode: boolean; // For demonstration/fallback
 }

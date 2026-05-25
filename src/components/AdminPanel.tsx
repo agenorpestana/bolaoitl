@@ -124,7 +124,7 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
         // Load ixc
         setIxcUrl(data.configs_ixc.url);
         setIxcToken(data.configs_ixc.token);
-        setIxcChave(data.configs_ixc.chave);
+        setIxcChave(data.configs_ixc.chave || "");
         setIxcTimeout(data.configs_ixc.timeout);
         setIxcOfflineMode(data.configs_ixc.offline_mode);
 
@@ -812,19 +812,6 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
                 placeholder="Token de Webservice ixcsoft..."
                 value={ixcToken}
                 onChange={(e) => setIxcToken(e.target.value)}
-                className="w-full px-4 py-2.5 bg-slate-950 border border-slate-850 focus:border-yellow-500 hover:border-slate-800 rounded-xl text-xs font-mono text-slate-300"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-450">
-                Chave de Criptografia IXC
-              </label>
-              <input
-                type="text"
-                placeholder="i_key_xxx"
-                value={ixcChave}
-                onChange={(e) => setIxcChave(e.target.value)}
                 className="w-full px-4 py-2.5 bg-slate-950 border border-slate-850 focus:border-yellow-500 hover:border-slate-800 rounded-xl text-xs font-mono text-slate-300"
               />
             </div>
