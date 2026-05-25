@@ -797,7 +797,7 @@ async function startServer() {
         const payloadClean = {
           qtype: "cliente.cnpj_cpf",
           query: cleanedCpfCnpj,
-          oper: "equal",
+          oper: "=",
           rp: "1",
           sortname: "cliente.id",
           sortorder: "desc"
@@ -821,7 +821,7 @@ async function startServer() {
           const payloadFormatted = {
             qtype: "cliente.cnpj_cpf",
             query: cpf_cnpj,
-            oper: "equal",
+            oper: "=",
             rp: "1",
             sortname: "cliente.id",
             sortorder: "desc"
