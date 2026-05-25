@@ -876,7 +876,45 @@ async function startServer() {
                     if (matchedCity.nome) {
                       cityName = matchedCity.nome;
                       if (matchedCity.uf) {
-                        cityName = `${matchedCity.nome} - ${String(matchedCity.uf).toUpperCase()}`;
+                        const ufId = String(matchedCity.uf).trim();
+                        if (/^\d+$/.test(ufId)) {
+                          try {
+                            const ufPayload = {
+                              qtype: "uf.id",
+                              query: ufId,
+                              oper: "=",
+                              rp: "1",
+                              sortname: "uf.id",
+                              sortorder: "desc"
+                            };
+                            
+                            const ufResponse = await axios.post(
+                              `${db.configs_ixc.url}/webservice/v1/uf`,
+                              ufPayload,
+                              {
+                                headers: {
+                                  "Authorization": `Basic ${authStr}`,
+                                  "Content-Type": "application/json",
+                                  "ixcsoft": "listar"
+                                },
+                                timeout: db.configs_ixc.timeout || 5000
+                              }
+                            );
+                            
+                            if (ufResponse.data && ufResponse.data.registros && ufResponse.data.registros.length > 0) {
+                              const matchedUf = ufResponse.data.registros[0];
+                              const ufLabel = matchedUf.sigla || matchedUf.nome || ufId;
+                              cityName = `${matchedCity.nome} - ${String(ufLabel).toUpperCase()}`;
+                            } else {
+                              cityName = `${matchedCity.nome} - ${ufId}`;
+                            }
+                          } catch (ufErr: any) {
+                            console.error("[IXC UF API] Failed to fetch UF details for ID: " + ufId, ufErr.message);
+                            cityName = `${matchedCity.nome} - ${ufId}`;
+                          }
+                        } else {
+                          cityName = `${matchedCity.nome} - ${String(matchedCity.uf).toUpperCase()}`;
+                        }
                       }
                     }
                   }
