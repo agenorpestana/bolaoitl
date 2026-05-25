@@ -767,23 +767,26 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
             <div>
               <span className="text-xs font-bold text-slate-200 block">Modo Simulação e Demonstração</span>
               <p className="text-[11px] text-slate-400 mt-1 max-w-xl">
-                Se você não possui uma URL do IXC Soft real ou quer apenas demonstrar o bolão na equipe de vendas, 
-                deixe o <span className="text-yellow-500 font-bold">Modo Simulação Ativo</span>. Qualquer CPF/CNPJ ou CPFs de teste entrarão sem barreiras técnicas de conexão.
+                Se você não possui uma URL do IXC Soft real ou quer apenas demonstrar o bolão, 
+                deixe o <span className="text-yellow-500 font-bold">Modo Simulação Ativo</span>. 
+                Se deseja fazer consultas reais no seu banco do IXC, defina como <span className="text-emerald-400 font-bold">PRODUÇÃO (DESLIGADO)</span>. 
+                <span className="block mt-2 font-bold text-yellow-350">⚠️ Importante: Após alternar, lembre-se de clicar em &quot;Salvar Configurações&quot; abaixo para gravar!</span>
               </p>
             </div>
 
             <div className="shrink-0 flex items-center gap-2 bg-slate-900 px-3.5 py-2 rounded-lg border border-slate-800">
-              <span className="text-xs text-slate-300">Modo Simulação:</span>
+              <span className="text-xs text-slate-350">Status:</span>
               <button
+                type="button"
                 onClick={() => setIxcOfflineMode(!ixcOfflineMode)}
                 id="btn-toggle-ixc-simulation"
-                className={`px-3 py-1 text-[10px] font-black uppercase rounded ${
+                className={`px-3 py-1.5 text-[10px] font-black uppercase rounded transition duration-200 ${
                   ixcOfflineMode 
-                    ? 'bg-yellow-500/20 border border-yellow-700/60 text-yellow-500' 
-                    : 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                    ? 'bg-yellow-500/20 border border-yellow-700/60 text-yellow-500 shadow-inner' 
+                    : 'bg-emerald-500/10 border border-emerald-500/50 text-emerald-400 shadow-lg'
                 }`}
               >
-                {ixcOfflineMode ? "LIGADO (SEGURO)" : "DESLIGADO (REAL)"}
+                {ixcOfflineMode ? "⚠️ SIMULAÇÃO ATIVA" : "✅ API REAL (PRODUÇÃO)"}
               </button>
             </div>
           </div>

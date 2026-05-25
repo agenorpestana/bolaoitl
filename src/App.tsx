@@ -33,6 +33,7 @@ export default function App() {
   const [ranking, setRanking] = React.useState<any[]>([]);
   const [publicMetrics, setPublicMetrics] = React.useState<any | null>(null);
   const [dataServidor, setDataServidor] = React.useState<string>(new Date().toISOString());
+  const [ixcOfflineMode, setIxcOfflineMode] = React.useState<boolean>(true);
 
   // Global flash messages
   const [alertInfo, setAlertInfo] = React.useState<{ msg: string; isErr: boolean } | null>(null);
@@ -51,6 +52,9 @@ export default function App() {
         const mData = await mRes.json();
         setPublicMetrics(mData);
         setDataServidor(mData.data_servidor);
+        if (mData.ixc_offline_mode !== undefined) {
+          setIxcOfflineMode(mData.ixc_offline_mode);
+        }
       }
 
       // 2. Rankings List
@@ -249,6 +253,7 @@ export default function App() {
                 onLoginSuccess={handleClientLoginSuccess} 
                 onAdminLoginSuccess={handleAdminLoginSuccess}
                 dataServidor={dataServidor}
+                ixcOfflineMode={ixcOfflineMode}
               />
             )}
 

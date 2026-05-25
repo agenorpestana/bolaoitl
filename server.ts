@@ -791,20 +791,21 @@ async function startServer() {
     } else {
       // Live Mode API Request via Curl implementation
       try {
-        const payload = {
+        const authStr = Buffer.from(db.configs_ixc.token).toString("base64");
+
+        // Try standard unformatted numbers-only query first (how IXC standardizes storage)
+        const payloadClean = {
           qtype: "cliente.cnpj_cpf",
-          query: cpf_cnpj,
+          query: cleanedCpfCnpj,
           oper: "equal",
           rp: "1",
           sortname: "cliente.id",
           sortorder: "desc"
         };
-
-        const authStr = Buffer.from(db.configs_ixc.token).toString("base64");
         
-        const response = await axios.post(
+        let response = await axios.post(
           `${db.configs_ixc.url}/webservice/v1/cliente`,
-          payload,
+          payloadClean,
           {
             headers: {
               "Authorization": `Basic ${authStr}`,
@@ -814,6 +815,30 @@ async function startServer() {
             timeout: db.configs_ixc.timeout || 5000
           }
         );
+
+        // Fallback to formatted string query if clean CPF didn't match and the original has formatting
+        if ((!response.data || !response.data.registros || response.data.registros.length === 0) && cpf_cnpj !== cleanedCpfCnpj) {
+          const payloadFormatted = {
+            qtype: "cliente.cnpj_cpf",
+            query: cpf_cnpj,
+            oper: "equal",
+            rp: "1",
+            sortname: "cliente.id",
+            sortorder: "desc"
+          };
+          response = await axios.post(
+            `${db.configs_ixc.url}/webservice/v1/cliente`,
+            payloadFormatted,
+            {
+              headers: {
+                "Authorization": `Basic ${authStr}`,
+                "Content-Type": "application/json",
+                "ixcsoft": "listar"
+              },
+              timeout: db.configs_ixc.timeout || 5000
+            }
+          );
+        }
 
         // Parse result
         if (response.data && response.data.registros && response.data.registros.length > 0) {
@@ -1080,8 +1105,9 @@ async function startServer() {
     res.json({
       total_usuarios: countUsers,
       total_palpites: countBets,
-      top_10: topUsers,
-      data_servidor: new Date().toISOString()
+      top_15: topUsers,
+      data_servidor: new Date().toISOString(),
+      ixc_offline_mode: db.configs_ixc.offline_mode
     });
   });
 

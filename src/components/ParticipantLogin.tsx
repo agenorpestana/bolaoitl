@@ -6,9 +6,10 @@ interface ParticipantLoginProps {
   onLoginSuccess: (token: string, usuario: any) => void;
   onAdminLoginSuccess: (token: string, admin: any) => void;
   dataServidor: string;
+  ixcOfflineMode?: boolean;
 }
 
-export default function ParticipantLogin({ onLoginSuccess, onAdminLoginSuccess, dataServidor }: ParticipantLoginProps) {
+export default function ParticipantLogin({ onLoginSuccess, onAdminLoginSuccess, dataServidor, ixcOfflineMode = true }: ParticipantLoginProps) {
   const [isAdminForm, setIsAdminForm] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
@@ -163,6 +164,17 @@ export default function ParticipantLogin({ onLoginSuccess, onAdminLoginSuccess, 
             <div id="login-error-alert" className="p-3 bg-red-950/40 border border-red-900/40 rounded-xl text-xs text-red-400 flex gap-2">
               <AlertCircle className="h-4 w-4 shrink-0 text-red-500 mt-0.5" />
               <div className="font-semibold leading-relaxed">{errorMsg}</div>
+            </div>
+          )}
+
+          {/* Simulation mode info box */}
+          {!isAdminForm && ixcOfflineMode && (
+            <div className="p-3 bg-yellow-950/40 border border-yellow-600/30 rounded-xl text-[11px] text-yellow-300 flex gap-2 leading-relaxed">
+              <Info className="h-4 w-4 shrink-0 text-yellow-400 mt-0.5 animate-pulse" />
+              <div>
+                <span className="font-extrabold uppercase text-[10px] tracking-wider text-yellow-400 block mb-0.5">⚠️ MODO SIMULAÇÃO ATIVO</span>
+                O sistema de cadastro de apostas está em <strong>Modo Simulação local</strong>. Por isso, qualquer CPF digitado é aceito automaticamente sem consultar a API real do IXC Soft. Desative este modo no Painel Admin (aba IXC) para validar clientes reais via API!
+              </div>
             </div>
           )}
 
