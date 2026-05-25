@@ -844,13 +844,57 @@ async function startServer() {
         if (response.data && response.data.registros && response.data.registros.length > 0) {
           const matchedReg = response.data.registros[0];
           if (matchedReg.ativo === 'S') {
+            let cityName = "Chapecó";
+            if (matchedReg.cidade) {
+              const cityQuery = String(matchedReg.cidade).trim();
+              if (/^\d+$/.test(cityQuery)) {
+                try {
+                  const cityPayload = {
+                    qtype: "cidade.id",
+                    query: cityQuery,
+                    oper: "=",
+                    rp: "1",
+                    sortname: "cidade.id",
+                    sortorder: "desc"
+                  };
+                  
+                  const cityResponse = await axios.post(
+                    `${db.configs_ixc.url}/webservice/v1/cidade`,
+                    cityPayload,
+                    {
+                      headers: {
+                        "Authorization": `Basic ${authStr}`,
+                        "Content-Type": "application/json",
+                        "ixcsoft": "listar"
+                      },
+                      timeout: db.configs_ixc.timeout || 5000
+                    }
+                  );
+                  
+                  if (cityResponse.data && cityResponse.data.registros && cityResponse.data.registros.length > 0) {
+                    const matchedCity = cityResponse.data.registros[0];
+                    if (matchedCity.nome) {
+                      cityName = matchedCity.nome;
+                      if (matchedCity.uf) {
+                        cityName = `${matchedCity.nome} - ${String(matchedCity.uf).toUpperCase()}`;
+                      }
+                    }
+                  }
+                } catch (cityErr: any) {
+                  console.error("[IXC City API] Failed to fetch city details for ID: " + cityQuery, cityErr.message);
+                }
+              } else {
+                cityName = matchedReg.cidade;
+              }
+            }
+
             customerFoundFromIxc = {
               id: matchedReg.id,
               razao: matchedReg.razao,
               cnpj_cpf: matchedReg.cnpj_cpf,
               telefone_celular: matchedReg.telefone_celular || matchedReg.whatsapp || matchedReg.fone || "",
               email: matchedReg.email,
-              cidade: matchedReg.cidade || "Chapecó",
+              cidade: cityName,
               ativo: matchedReg.ativo
             };
           } else {
