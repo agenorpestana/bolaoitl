@@ -47,8 +47,9 @@ function loadDatabase(): LocalDatabase {
   }
 
   // Create initial structure
+  const isProd = process.env.NODE_ENV === "production";
   const initialDb: LocalDatabase = {
-    usuarios: [
+    usuarios: isProd ? [] : [
       {
         id: 101,
         ixc_id: "4420",
@@ -99,7 +100,7 @@ function loadDatabase(): LocalDatabase {
       }
     ],
     jogos: INITIAL_GAMES,
-    palpites: [
+    palpites: isProd ? [] : [
       { id: 1, usuario_id: 101, jogo_id: 1, placar_casa: 2, placar_fora: 1, pontos: 10, created_at: new Date().toISOString() },
       { id: 2, usuario_id: 101, jogo_id: 2, placar_casa: 1, placar_fora: 1, pontos: 4, created_at: new Date().toISOString() },
       { id: 3, usuario_id: 102, jogo_id: 1, placar_casa: 2, placar_fora: 1, pontos: 10, created_at: new Date().toISOString() },
@@ -254,7 +255,7 @@ function refreshLeaderboard() {
 // Express app initialization
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
 
   // Middleware setups
   app.use(express.json());

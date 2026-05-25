@@ -104,11 +104,11 @@ export default function HomePublic({ onParticipateCta, metrics, jogos }: HomePub
           {/* Platform Performance Metrics Badges */}
           <div className="grid grid-cols-3 divide-x divide-slate-900 pt-8 border-t border-slate-900 max-w-lg mx-auto">
             <div className="px-2 text-center">
-              <div id="metric-clients-count" className="text-xl md:text-2xl font-black text-slate-100 font-mono">{metrics?.total_usuarios || 342}</div>
+              <div id="metric-clients-count" className="text-xl md:text-2xl font-black text-slate-100 font-mono">{metrics?.total_usuarios ?? 0}</div>
               <div className="text-[10px] text-slate-400 uppercase font-semibold">Competidores</div>
             </div>
             <div className="px-2 text-center">
-              <div id="metric-bets-count" className="text-xl md:text-2xl font-black text-emerald-400 font-mono">{metrics?.total_palpites || 1482}</div>
+              <div id="metric-bets-count" className="text-xl md:text-2xl font-black text-emerald-400 font-mono">{metrics?.total_palpites ?? 0}</div>
               <div className="text-[10px] text-slate-400 uppercase font-semibold">Palpites Feitos</div>
             </div>
             <div className="px-2 text-center">

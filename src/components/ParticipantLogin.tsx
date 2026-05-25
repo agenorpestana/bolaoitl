@@ -193,79 +193,81 @@ export default function ParticipantLogin({ onLoginSuccess, onAdminLoginSuccess, 
               </div>
 
               {/* Sandbox toggle drawer for custom testing names */}
-              <div className="bg-slate-950/50 border border-slate-800/40 p-3 rounded-xl space-y-2">
-                <button
-                  type="button"
-                  onClick={() => setShowSandboxOptions(!showSandboxOptions)}
-                  className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 hover:text-emerald-400 transition"
-                >
-                  <CircleHelp className="h-3.5 w-3.5" />
-                  {showSandboxOptions ? "Fechar Opções Sandbox" : "Não é cliente? Simular cadastro aqui"}
-                </button>
+              {(import.meta as any).env?.DEV && (
+                <div className="bg-slate-950/50 border border-slate-800/40 p-3 rounded-xl space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowSandboxOptions(!showSandboxOptions)}
+                    className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 hover:text-emerald-400 transition"
+                  >
+                    <CircleHelp className="h-3.5 w-3.5" />
+                    {showSandboxOptions ? "Fechar Opções Sandbox" : "Não é cliente? Simular cadastro aqui"}
+                  </button>
 
-                {showSandboxOptions && (
-                  <div className="space-y-3 pt-2 border-t border-slate-900 text-xs text-left animate-fadeIn">
-                    <div className="p-2 bg-emerald-950/20 border border-emerald-900/30 rounded text-[10px] text-emerald-400 leading-normal flex gap-1.5">
-                      <Info className="h-3.5 w-3.5 shrink-0" />
-                      <div>
-                        <strong>Modo Simulação Ativo:</strong> Se o CPF fornecido ainda não existir, você será cadastrado na hora com os atributos abaixo!
+                  {showSandboxOptions && (
+                    <div className="space-y-3 pt-2 border-t border-slate-900 text-xs text-left animate-fadeIn">
+                      <div className="p-2 bg-emerald-950/20 border border-emerald-900/30 rounded text-[10px] text-emerald-400 leading-normal flex gap-1.5">
+                        <Info className="h-3.5 w-3.5 shrink-0" />
+                        <div>
+                          <strong>Modo Simulação Ativo:</strong> Se o CPF fornecido ainda não existir, você será cadastrado na hora com os atributos abaixo!
+                        </div>
+                      </div>
+
+                      <div className="grid gap-2 grid-cols-2">
+                        <div>
+                          <label className="text-[9px] font-bold text-slate-500 uppercase">Seu Nome</label>
+                          <input 
+                            type="text" 
+                            placeholder="Ex: João da Silva" 
+                            value={nome}
+                            onChange={e => setNome(e.target.value)}
+                            className="w-full p-2 bg-slate-950 border border-slate-850 rounded text-xs text-slate-300"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[9px] font-bold text-slate-500 uppercase">Telefone</label>
+                          <input 
+                            type="text" 
+                            placeholder="(49) 99120-2211" 
+                            value={tel}
+                            onChange={e => setTel(e.target.value)}
+                            className="w-full p-2 bg-slate-950 border border-slate-850 rounded text-xs text-slate-300"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid gap-2 grid-cols-2">
+                        <div>
+                          <label className="text-[9px] font-bold text-slate-500 uppercase">Email</label>
+                          <input 
+                            type="email" 
+                            placeholder="joao@exemplo.com" 
+                            value={email}
+                            onChange={e => setEmail(e.target.value)}
+                            className="w-full p-2 bg-slate-950 border border-slate-850 rounded text-xs text-slate-300"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[9px] font-bold text-slate-500 uppercase">Município</label>
+                          <select 
+                            value={cidade}
+                            onChange={e => setCidade(e.target.value)}
+                            className="w-full p-2 bg-slate-950 border border-slate-850 rounded text-xs text-slate-300"
+                          >
+                            {CIDADES_ATENDIDAS.map(ct => (
+                              <option key={ct} value={ct}>{ct}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="text-[10px] text-slate-500 leading-normal border-t border-slate-900 pt-2">
+                        Dica: Você também pode usar um CPF de teste pré-definido como: <code className="text-yellow-500 font-mono">123.456.789-00</code> ou <code className="text-yellow-500 font-mono">987.654.321-11</code>.
                       </div>
                     </div>
-
-                    <div className="grid gap-2 grid-cols-2">
-                      <div>
-                        <label className="text-[9px] font-bold text-slate-500 uppercase">Seu Nome</label>
-                        <input 
-                          type="text" 
-                          placeholder="Ex: João da Silva" 
-                          value={nome}
-                          onChange={e => setNome(e.target.value)}
-                          className="w-full p-2 bg-slate-950 border border-slate-850 rounded text-xs text-slate-300"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[9px] font-bold text-slate-500 uppercase">Telefone</label>
-                        <input 
-                          type="text" 
-                          placeholder="(49) 99120-2211" 
-                          value={tel}
-                          onChange={e => setTel(e.target.value)}
-                          className="w-full p-2 bg-slate-950 border border-slate-850 rounded text-xs text-slate-300"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid gap-2 grid-cols-2">
-                      <div>
-                        <label className="text-[9px] font-bold text-slate-500 uppercase">Email</label>
-                        <input 
-                          type="email" 
-                          placeholder="joao@exemplo.com" 
-                          value={email}
-                          onChange={e => setEmail(e.target.value)}
-                          className="w-full p-2 bg-slate-950 border border-slate-850 rounded text-xs text-slate-300"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[9px] font-bold text-slate-500 uppercase">Município</label>
-                        <select 
-                          value={cidade}
-                          onChange={e => setCidade(e.target.value)}
-                          className="w-full p-2 bg-slate-950 border border-slate-850 rounded text-xs text-slate-300"
-                        >
-                          {CIDADES_ATENDIDAS.map(ct => (
-                            <option key={ct} value={ct}>{ct}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="text-[10px] text-slate-500 leading-normal border-t border-slate-900 pt-2">
-                      Dica: Você também pode usar um CPF de teste pré-definido como: <code className="text-yellow-500 font-mono">123.456.789-00</code> ou <code className="text-yellow-500 font-mono">987.654.321-11</code>.
-                    </div>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              )}
 
               <button
                 type="submit"
@@ -289,7 +291,7 @@ export default function ParticipantLogin({ onLoginSuccess, onAdminLoginSuccess, 
                   type="email"
                   required
                   id="input-admin-email"
-                  placeholder="suporte@unityautomacoes.com.br"
+                  placeholder="admin@provedor.com.br"
                   value={adminEmail}
                   onChange={(e) => setAdminEmail(e.target.value)}
                   className="w-full px-4 py-2 bg-slate-950 border border-slate-850 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 rounded-xl text-xs font-semibold text-slate-200"
@@ -304,7 +306,7 @@ export default function ParticipantLogin({ onLoginSuccess, onAdminLoginSuccess, 
                   type="password"
                   required
                   id="input-admin-password"
-                  placeholder="Senha Padrão (200616)"
+                  placeholder="••••••"
                   value={adminPassword}
                   onChange={(e) => setAdminPassword(e.target.value)}
                   className="w-full px-4 py-2 bg-slate-950 border border-slate-850 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 rounded-xl text-xs font-semibold text-slate-200"
