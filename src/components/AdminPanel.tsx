@@ -22,8 +22,9 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
   const [jogos, setJogos] = React.useState<Jogo[]>([]);
   const [logs, setLogs] = React.useState<AuditLog[]>([]);
 
-  // Libertadores config and sync states
+  // Libertadores and Copa do Mundo config and sync states
   const [libertadoresAtivo, setLibertadoresAtivo] = React.useState(false);
+  const [copaMundoAtivo, setCopaMundoAtivo] = React.useState(true);
   const [syncingLibertadores, setSyncingLibertadores] = React.useState(false);
   
   // Configurations states
@@ -150,6 +151,10 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
 
         if (data.configs_libertadores) {
           setLibertadoresAtivo(data.configs_libertadores.ativo);
+        }
+
+        if (data.configs_copa_mundo) {
+          setCopaMundoAtivo(data.configs_copa_mundo.ativo);
         }
       }
     } catch (err) {}
@@ -536,6 +541,26 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
       }
     } catch (err) {
       showFeedback("Erro ao alterar ativação da Libertadores", true);
+    }
+  };
+
+  const handleToggleCopaMundo = async () => {
+    try {
+      const response = await fetch("/api/admin/configs/copa_mundo", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ ativo: !copaMundoAtivo })
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setCopaMundoAtivo(data.configs_copa_mundo.ativo);
+        showFeedback(`Copa do Mundo para clientes: ${data.configs_copa_mundo.ativo ? 'LIBERADA/ATIVA' : 'OCULTA/INATIVA'}`);
+      }
+    } catch (err) {
+      showFeedback("Erro ao alterar ativação da Copa do Mundo", true);
     }
   };
 
@@ -1347,6 +1372,35 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
             </button>
           </div>
 
+          {/* Copa do Mundo Status and Activation Settings */}
+          <div className="bg-slate-950/65 p-4 rounded-xl border border-slate-900 select-none flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Play className="h-4 w-4 text-emerald-400" />
+                <span className="text-xs font-black uppercase text-emerald-400">Status Campanha: Copa do Mundo 2026</span>
+              </div>
+              <p className="text-[11px] text-slate-400 max-w-2xl">
+                Altere a visibilidade do Bolão da Copa do Mundo 2026 para os participantes. Se desativado, os jogos da Copa do Mundo serão ocultados na interface do cliente.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-bold text-slate-400 shrink-0">Aba Copa para Clientes:</span>
+              <button
+                type="button"
+                onClick={handleToggleCopaMundo}
+                className={`px-4 py-2 rounded-xl text-xs font-black select-none transition flex items-center gap-2 cursor-pointer ${
+                  copaMundoAtivo
+                    ? 'bg-emerald-950 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-900/60'
+                    : 'bg-red-950 border border-red-500/40 text-red-400 hover:bg-red-900/60'
+                }`}
+              >
+                <Power className="h-4 w-4" />
+                {copaMundoAtivo ? 'LIBERADA (ATIVADO PARA CLIENTES)' : 'BLOQUEADA (OCULTO PARA CLIENTES)'}
+              </button>
+            </div>
+          </div>
+
           {/* Add Match Form (Conditional rendering) */}
           {creatingMatch && (
             <form onSubmit={handleCreateMatchSubmit} className="bg-slate-950 border border-emerald-950/40 p-5 rounded-2xl space-y-4 animate-fadeIn">
@@ -1713,19 +1767,38 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
               </p>
             </div>
 
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-slate-400 shrink-0">Status para Clientes:</span>
-              <button
-                onClick={handleToggleLibertadores}
-                className={`px-4 py-2 rounded-xl text-xs font-black select-none transition flex items-center gap-2 cursor-pointer ${
-                  libertadoresAtivo
-                    ? 'bg-emerald-950 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-900/60'
-                    : 'bg-slate-900 border border-slate-800 text-slate-400 hover:bg-slate-800'
-                }`}
-              >
-                <Power className="h-4 w-4" />
-                {libertadoresAtivo ? 'LIBERADA (ATIVO PARA CLIENTES)' : 'BLOQUEADA (OCULTO PARA CLIENTES)'}
-              </button>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <div className="flex items-center gap-3 bg-slate-900/50 p-2 rounded-xl border border-slate-900">
+                <span className="text-xs font-bold text-slate-400 shrink-0">Copa:</span>
+                <button
+                  type="button"
+                  onClick={handleToggleCopaMundo}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black select-none transition flex items-center gap-1.5 cursor-pointer ${
+                    copaMundoAtivo
+                      ? 'bg-emerald-950 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-900/60'
+                      : 'bg-red-950 border border-red-500/40 text-red-400 hover:bg-red-900/60'
+                  }`}
+                >
+                  <Power className="h-3.5 w-3.5" />
+                  {copaMundoAtivo ? 'ATIVO' : 'BLOQUEADO'}
+                </button>
+              </div>
+
+              <div className="flex items-center gap-3 bg-slate-900/50 p-2 rounded-xl border border-slate-900">
+                <span className="text-xs font-bold text-slate-400 shrink-0">Libertadores:</span>
+                <button
+                  type="button"
+                  onClick={handleToggleLibertadores}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black select-none transition flex items-center gap-1.5 cursor-pointer ${
+                    libertadoresAtivo
+                      ? 'bg-emerald-950 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-900/60'
+                      : 'bg-red-950 border border-red-500/40 text-red-400 hover:bg-red-900/60'
+                  }`}
+                >
+                  <Power className="h-3.5 w-3.5" />
+                  {libertadoresAtivo ? 'ATIVO' : 'BLOQUEADO'}
+                </button>
+              </div>
             </div>
           </div>
 

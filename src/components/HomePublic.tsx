@@ -211,9 +211,9 @@ export default function HomePublic({ onParticipateCta, metrics, jogos }: HomePub
     return () => clearInterval(interval);
   }, []);
 
-  // Filter 3 closest matches, excluding Copa Libertadores
+  // Filter 3 closest matches from the permitted games array
   const matchHighlights = jogos
-    .filter(g => g.status === 'PENDENTE' && (!g.api_id || !g.api_id.startsWith("libertadores_")))
+    .filter(g => g.status === 'PENDENTE')
     .slice(0, 3);
 
   return (

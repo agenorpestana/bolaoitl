@@ -41,6 +41,9 @@ interface LocalDatabase {
   configs_libertadores?: {
     ativo: boolean;
   };
+  configs_copa_mundo?: {
+    ativo: boolean;
+  };
 }
 
 // ==========================================
@@ -72,6 +75,10 @@ function loadDatabase(): LocalDatabase {
 
   if (!cachedDb.configs_libertadores) {
     cachedDb.configs_libertadores = { ativo: false };
+  }
+
+  if (!cachedDb.configs_copa_mundo) {
+    cachedDb.configs_copa_mundo = { ativo: true };
   }
 
   // If we have real Football API games, we automatically hide/purge any initial dummy wc2026_ games
@@ -143,6 +150,9 @@ function loadDatabaseFromFile(): LocalDatabase {
     ],
     configs_libertadores: {
       ativo: false
+    },
+    configs_copa_mundo: {
+      ativo: true
     }
   };
 
@@ -304,7 +314,8 @@ async function saveDatabaseToMySqlIncremental(db: LocalDatabase | null) {
 
     // 4. Sync Configs (Configuracoes)
     const isLibAtivoStr = db.configs_libertadores?.ativo ? "true" : "false";
-    const ixcChaveCompound = `${db.configs_ixc.chave || ""}|libertadores:${isLibAtivoStr}`;
+    const isCopaAtivoStr = db.configs_copa_mundo?.ativo !== false ? "true" : "false";
+    const ixcChaveCompound = `${db.configs_ixc.chave || ""}|libertadores:${isLibAtivoStr}|copa:${isCopaAtivoStr}`;
 
     await prisma.configuracoes.upsert({
       where: { id: 1 },
@@ -494,6 +505,15 @@ async function loadDatabaseFromMySql(): Promise<LocalDatabase> {
     ixcChaveOriginal = ixcChaveOriginal.replace("|libertadores:false", "");
   }
 
+  let isCopaAtivo = true;
+  if (ixcChaveOriginal.includes("|copa:true")) {
+    isCopaAtivo = true;
+    ixcChaveOriginal = ixcChaveOriginal.replace("|copa:true", "");
+  } else if (ixcChaveOriginal.includes("|copa:false")) {
+    isCopaAtivo = false;
+    ixcChaveOriginal = ixcChaveOriginal.replace("|copa:false", "");
+  }
+
   return {
     usuarios: dbUsuarios.map(u => ({
       id: u.id,
@@ -568,6 +588,9 @@ async function loadDatabaseFromMySql(): Promise<LocalDatabase> {
     ],
     configs_libertadores: {
       ativo: isLibertadoresAtivo
+    },
+    configs_copa_mundo: {
+      ativo: isCopaAtivo
     }
   };
 }
@@ -1163,9 +1186,15 @@ async function startServer() {
     }
 
     const isLibActive = db.configs_libertadores?.ativo === true;
+    const isCopaActive = db.configs_copa_mundo?.ativo !== false;
     let filteredGames = sortedGames;
-    if (!isLibActive && !isAdmin) {
-      filteredGames = filteredGames.filter(j => !j.api_id || !j.api_id.startsWith("libertadores_"));
+    if (!isAdmin) {
+      if (!isLibActive) {
+        filteredGames = filteredGames.filter(j => !j.api_id || !j.api_id.startsWith("libertadores_"));
+      }
+      if (!isCopaActive) {
+        filteredGames = filteredGames.filter(j => j.api_id && j.api_id.startsWith("libertadores_"));
+      }
     }
 
     let rawUserGuesses: Palpite[] = [];
@@ -1589,7 +1618,8 @@ async function startServer() {
       configs_ixc: db.configs_ixc,
       configs_points: db.configs_points,
       configs_football: db.configs_football,
-      configs_libertadores: db.configs_libertadores || { ativo: false }
+      configs_libertadores: db.configs_libertadores || { ativo: false },
+      configs_copa_mundo: db.configs_copa_mundo || { ativo: true }
     });
   });
 
@@ -1666,6 +1696,21 @@ async function startServer() {
     saveDatabase(db);
     addLog("Admin (Suporte)", "TOGGLE_LIBERTADORES", `Alterou ativação da Libertadores para clientes para: ${db.configs_libertadores.ativo}`, req);
     res.json({ success: true, configs_libertadores: db.configs_libertadores });
+  });
+
+  // Save Copa do Mundo configurations
+  app.post("/api/admin/configs/copa_mundo", verifyAdminToken, (req: any, res) => {
+    const db = loadDatabase();
+    const { ativo } = req.body;
+    if (ativo !== undefined) {
+      if (!db.configs_copa_mundo) {
+        db.configs_copa_mundo = { ativo: true };
+      }
+      db.configs_copa_mundo.ativo = Boolean(ativo);
+    }
+    saveDatabase(db);
+    addLog("Admin (Suporte)", "TOGGLE_COPA_MUNDO", `Alterou ativação da Copa do Mundo para clientes para: ${db.configs_copa_mundo.ativo}`, req);
+    res.json({ success: true, configs_copa_mundo: db.configs_copa_mundo });
   });
 
   // Sync today's Libertadores games from Football API with high quality fallback
