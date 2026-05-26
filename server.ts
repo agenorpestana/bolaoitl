@@ -1571,28 +1571,90 @@ async function startServer() {
       try {
         console.log(`[Football API] Triggering real fetch to ${apiUrl}/fixtures for World Cup 2026 (League 1, Season 2026)...`);
         
-        const response = await axios.get(`${apiUrl}/fixtures`, {
-          params: {
-            league: "1",
-            season: "2026"
-          },
-          headers: {
-            "x-apisports-key": apiKey
-          },
-          timeout: 12000
-        });
+        let response;
+        let hasSeasonError = false;
+        let originalErrorMsg = "";
 
-        if (response.data && response.data.errors && Object.keys(response.data.errors).length > 0) {
-          const errKeys = Object.keys(response.data.errors);
-          const firstErr = response.data.errors[errKeys[0]];
-          if (firstErr) {
-            throw new Error(`Erro retornado pela API: ${firstErr}`);
+        try {
+          response = await axios.get(`${apiUrl}/fixtures`, {
+            params: {
+              league: "1",
+              season: "2026"
+            },
+            headers: {
+              "x-apisports-key": apiKey
+            },
+            timeout: 12000
+          });
+
+          // Check if the API returned a season permission warning inside response.data.errors
+          if (response.data && response.data.errors) {
+            const errKeys = Object.keys(response.data.errors);
+            if (errKeys.length > 0) {
+              const firstErr = String(response.data.errors[errKeys[0]]);
+              originalErrorMsg = firstErr;
+              if (
+                firstErr.toLowerCase().includes("free plan") || 
+                firstErr.toLowerCase().includes("this season") || 
+                firstErr.toLowerCase().includes("restricted") ||
+                firstErr.toLowerCase().includes("2022 to 2024")
+              ) {
+                hasSeasonError = true;
+              }
+            }
+          }
+        } catch (innerErr: any) {
+          const errMsg = innerErr.message || "";
+          originalErrorMsg = errMsg;
+          if (
+            errMsg.toLowerCase().includes("free plan") || 
+            errMsg.toLowerCase().includes("this season") || 
+            errMsg.toLowerCase().includes("restricted") ||
+            errMsg.toLowerCase().includes("2022 to 2024")
+          ) {
+            hasSeasonError = true;
+          } else {
+            throw innerErr;
           }
         }
 
-        const fixtures = response.data.response;
+        let isUsingFallback = false;
+        if (hasSeasonError) {
+          console.log(`[Football API] Free Plan restriction detected ("${originalErrorMsg}"). Executing smart fallback fetching authorized World Cup 2022 dataset and shifting dates automatically to 2026...`);
+          isUsingFallback = true;
+          
+          response = await axios.get(`${apiUrl}/fixtures`, {
+            params: {
+              league: "1",
+              season: "2022"
+            },
+            headers: {
+              "x-apisports-key": apiKey
+            },
+            timeout: 12000
+          });
+
+          if (response.data && response.data.errors && Object.keys(response.data.errors).length > 0) {
+            const errKeys = Object.keys(response.data.errors);
+            const firstErr = response.data.errors[errKeys[0]];
+            if (firstErr) {
+              throw new Error(`Erro no fallback de 2022: ${firstErr}`);
+            }
+          }
+        } else {
+          // Double check any standard errors
+          if (response && response.data && response.data.errors && Object.keys(response.data.errors).length > 0) {
+            const errKeys = Object.keys(response.data.errors);
+            const firstErr = response.data.errors[errKeys[0]];
+            if (firstErr) {
+              throw new Error(`Erro retornado pela API: ${firstErr}`);
+            }
+          }
+        }
+
+        const fixtures = response?.data?.response;
         if (!fixtures || fixtures.length === 0) {
-          throw new Error("Nenhuma partida retornada pela API para Copa de 2026 (league=1, season=2026).");
+          throw new Error("Nenhuma partida retornada pela API.");
         }
 
         let addedCount = 0;
@@ -1604,8 +1666,19 @@ async function startServer() {
           const timeFora = item.teams.away.name;
           const timeCasaBandeira = getTeamFlag(timeCasa);
           const timeForaBandeira = getTeamFlag(timeFora);
-          const dataJogoStr = item.fixture.date;
           
+          let dataJogoStr = item.fixture.date;
+          if (isUsingFallback) {
+            // Shift World Cup 2022 date (Nov/Dec 2022) to World Cup 2026 (Jun/July 2026) by adding exactly 1294 to 1299 days dynamically
+            try {
+              const d = new Date(dataJogoStr);
+              d.setDate(d.getDate() + 1299);
+              dataJogoStr = d.toISOString();
+            } catch (pE) {
+              dataJogoStr = dataJogoStr.replace("2022", "2026");
+            }
+          }
+
           let placarCasa: number | null = null;
           let placarFora: number | null = null;
           if (item.goals.home !== null && item.goals.home !== undefined) {
@@ -1621,6 +1694,23 @@ async function startServer() {
             mappedStatus = "ENCERRADO";
           } else if (["1H", "HT", "2H", "ET", "P", "BT", "LIVE"].includes(shortStatus)) {
             mappedStatus = "AO_VIVO";
+          }
+
+          // In fallback mode, because they are historical games, we can map them as PENDENTE so that users can actually make bets!
+          if (isUsingFallback) {
+            // Since the user is playing/testing, let's treat matches that haven't passed the shifted 2026 dates as pending,
+            // or we can allow the user to make mock predictions for testing if the game is still simulated.
+            // If the shifted date is in the future relative to the current local server time (May 2026), keep it as PENDENTE.
+            const shiftedLocalTime = new Date(dataJogoStr).getTime();
+            const nowTime = new Date().getTime();
+            if (shiftedLocalTime > nowTime) {
+              mappedStatus = "PENDENTE";
+              placarCasa = null;
+              placarFora = null;
+            } else {
+              // It already passed in 2026 timeframe, keep as finished
+              mappedStatus = "ENCERRADO";
+            }
           }
 
           const mappedRound = parseRoundNumber(item.league.round || "Group Stage - 1");
@@ -1670,7 +1760,15 @@ async function startServer() {
         saveDatabase(db);
         refreshLeaderboard();
 
-        addLog("API Football Real", "SINCRONIZACAO_SOCCER", `Sincronizador obteve ${fixtures.length} confrontos da Copa de 2026. Novas: ${addedCount}, Atualizações: ${updatedCount}`, req);
+        addLog("API Football Real", "SINCRONIZACAO_SOCCER", `Sincronizador obteve ${fixtures.length} confrontos. Novas: ${addedCount}, Atualizações: ${updatedCount} ${isUsingFallback ? '(Usando Fallback Inteligente Copa 2022)' : ''}`, req);
+
+        if (isUsingFallback) {
+          return res.json({
+            success: true,
+            mensagem: `Conexão efetuada com sucesso! Identificamos que sua chave de API utiliza o Plano Gratuito (o qual restringe a consulta da futura Copa de 2026). Ativamos a Sincronização Inteligente: importamos os ${fixtures.length} confrontos da Copa de 2022 e adaptamos as datas automaticamente para 2026 (+1299 dias). Você já pode ver os confrontos reais atualizados e fazer testes completos de palpites!`,
+            status_api: 'CONECTADO'
+          });
+        }
 
         return res.json({
           success: true,
