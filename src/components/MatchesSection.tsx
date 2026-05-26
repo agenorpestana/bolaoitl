@@ -22,7 +22,7 @@ export default function MatchesSection({
   dataServidor 
 }: MatchesSectionProps) {
   
-  const [activeRodada, setActiveRodada] = React.useState<number | 'TODOS'>('TODOS');
+  const [activeRodada, setActiveRodada] = React.useState<number | 'TODOS' | null>(null);
   const [filterStatus, setFilterStatus] = React.useState<'TODOS' | 'ABERTO' | 'AO_VIVO' | 'ENCERRADO'>('TODOS');
   
   // Temporary score inputs state mapped to game id
@@ -72,9 +72,34 @@ export default function MatchesSection({
   // Determine rounds available in database
   const rounds = Array.from(new Set(jogos.map(g => g.rodada))).sort((a, b) => a - b);
 
+  // Determine current active/open round dynamically
+  const isRdFinished = (rdNum: number) => {
+    const matchesInRd = jogos.filter(j => j.rodada === rdNum);
+    return matchesInRd.length > 0 && matchesInRd.every(j => j.status === 'ENCERRADO');
+  };
+  const currentRound = rounds.find(rd => !isRdFinished(rd)) || (rounds.length > 0 ? rounds[rounds.length - 1] : null);
+
+  const currentRoundIdx = rounds.findIndex(rd => rd === currentRound);
+  const nextRound = currentRoundIdx !== -1 && currentRoundIdx + 1 < rounds.length ? rounds[currentRoundIdx + 1] : null;
+
+  // Initialize active rodada to currentRound once on load
+  const hasInitializedRound = React.useRef(false);
+  React.useEffect(() => {
+    if (jogos.length > 0 && !hasInitializedRound.current) {
+      if (currentRound !== undefined && currentRound !== null) {
+        setActiveRodada(currentRound);
+        hasInitializedRound.current = true;
+      }
+    }
+  }, [jogos, currentRound]);
+
   // Time-locked assessment
   const isMatchLocked = (jogo: Jogo): boolean => {
     if (jogo.status !== 'PENDENTE') return true;
+    
+    // Only matches belonging to the current active round are open for guesses!
+    if (jogo.rodada !== currentRound) return true;
+
     const nowMs = new Date(dataServidor || new Date().toISOString()).getTime();
     const gameMs = new Date(jogo.data_jogo).getTime();
     const lockMarginMs = 1 * 60 * 60 * 1000; // 1 Hour
@@ -82,6 +107,13 @@ export default function MatchesSection({
   };
 
   const getLockTimeLeftStr = (jogo: Jogo): string => {
+    if (jogo.rodada !== currentRound) {
+      if (currentRound && jogo.rodada > currentRound) {
+        return "Disponível em breve";
+      }
+      return "Rodada encerrada";
+    }
+
     const nowMs = new Date(dataServidor || new Date().toISOString()).getTime();
     const gameMs = new Date(jogo.data_jogo).getTime();
     const lockMarginMs = 1 * 60 * 60 * 1050; // lock margin
@@ -100,7 +132,7 @@ export default function MatchesSection({
 
   // Filtered games list calculation
   const filteredGames = jogos.filter(jogo => {
-    const matchesRound = activeRodada === 'TODOS' || jogo.rodada === activeRodada;
+    const matchesRound = activeRodada === 'TODOS' || activeRodada === null || jogo.rodada === activeRodada;
     
     let matchesStatus = true;
     if (filterStatus === 'ABERTO') {
@@ -120,9 +152,9 @@ export default function MatchesSection({
       {/* Header Banner info */}
       <div className="bg-slate-900 border border-emerald-950 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-100">Painel de Palpites</h2>
+          <h2 className="text-xl font-bold text-slate-100 font-sans">Painel de Palpites</h2>
           <p className="text-xs text-slate-400 mt-1 max-w-xl leading-relaxed">
-            Importante: Palpites são bloqueados automaticamente <span className="text-yellow-500 font-bold">1 hora antes</span> ao pontapé inicial de cada jogo. Garanta o seu palpite antecipadamente!
+            Importante: Palpites são bloqueados automaticamente <span className="text-yellow-500 font-bold">1 hora antes</span> do pontapé inicial. Apenas a rodada atual está aberta para palpites!
           </p>
         </div>
         
@@ -137,37 +169,61 @@ export default function MatchesSection({
         )}
       </div>
 
+      {/* Warning current active round explanation banner */}
+      {currentRound && (
+        <div className="bg-emerald-950/20 border border-emerald-500/20 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center gap-3 text-xs text-slate-350">
+          <div className="h-8 w-8 rounded-lg bg-emerald-950 border border-emerald-800 flex items-center justify-center shrink-0">
+            <Unlock className="h-4 w-4 text-emerald-400" />
+          </div>
+          <div>
+            <b>Mecânica Automatizada das Rodadas:</b> Atualmente estamos na <span className="text-emerald-400 font-black">Rodada {currentRound} (Atual)</span>. Palpites estão autorizados unicamente para esta rodada. As partidas das próximas rodadas serão liberadas para palpite de forma 100% dinâmica assim que findar o último confronto da rodada vigente!
+          </div>
+        </div>
+      )}
+
       {/* Filter Options */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-950/60 p-2.5 rounded-xl border border-slate-900">
+      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-slate-950/60 p-2.5 rounded-xl border border-slate-900">
         
         {/* Rodadas select tab */}
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-1.5 font-sans">
+          {rounds.map((rd) => {
+            // Determine label suffix dynamically as requested
+            let suffix = "";
+            if (rd === currentRound) {
+              suffix = " (Atual)";
+            } else if (isRdFinished(rd)) {
+              suffix = " (Encerrada)";
+            } else if (rd === nextRound) {
+              suffix = " (Próxima)";
+            }
+
+            return (
+              <button
+                key={rd}
+                id={`btn-filter-rodada-${rd}`}
+                onClick={() => setActiveRodada(rd)}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition ${
+                  activeRodada === rd
+                    ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                    : 'bg-slate-900/40 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Rodada {rd}{suffix}
+              </button>
+            );
+          })}
+
           <button
             id="btn-filter-rodada-all"
             onClick={() => setActiveRodada('TODOS')}
             className={`px-3 py-1.5 text-xs font-bold rounded-lg transition ${
               activeRodada === 'TODOS'
-                ? 'bg-emerald-950 text-emerald-400 border border-emerald-900/60'
+                ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
                 : 'bg-slate-900/40 text-slate-400 hover:text-slate-200'
             }`}
           >
             Todas as Partidas
           </button>
-          
-          {rounds.map((rd) => (
-            <button
-              key={rd}
-              id={`btn-filter-rodada-${rd}`}
-              onClick={() => setActiveRodada(rd)}
-              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition ${
-                activeRodada === rd
-                  ? 'bg-emerald-900 text-emerald-300 border border-emerald-800'
-                  : 'bg-slate-900/40 text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Rodada {rd}
-            </button>
-          ))}
         </div>
 
         {/* Game status filter toggle switches */}
@@ -241,7 +297,7 @@ export default function MatchesSection({
                     </span>
                   ) : isReadonly ? (
                     <span className="text-yellow-500 bg-yellow-950/30 border border-yellow-950/60 px-2 py-0.5 rounded flex items-center gap-1">
-                      <Lock className="h-3 w-3" /> Bloqueado
+                      <Lock className="h-3 w-3" /> {getLockTimeLeftStr(jogo)}
                     </span>
                   ) : (
                     <span className="text-emerald-400 bg-emerald-950/40 border border-emerald-900/40 px-2 py-0.5 rounded flex items-center gap-1">

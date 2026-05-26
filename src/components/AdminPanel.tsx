@@ -1278,74 +1278,74 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
           )}
 
           {/* Directory grid table */}
-          <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl overflow-hidden shadow">
-            
-            <table className="w-full text-xs text-left">
-              <thead className="bg-slate-950/80 text-[10px] font-bold uppercase text-slate-450 border-b border-slate-900">
-                <tr>
-                  <th className="px-4 py-3 text-center w-12">IDC</th>
-                  <th className="px-4 py-3">Nome / Detalhes</th>
-                  <th className="px-4 py-3">Documento</th>
-                  <th className="px-4 py-3 text-center">Cidade</th>
-                  <th className="px-4 py-3 text-center w-24">Pontuação</th>
-                  <th className="px-4 py-3 text-center w-36">Operações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-900">
-                {filteredPlayersList.length > 0 ? (
-                  filteredPlayersList.map((user) => (
-                    <tr key={user.id} className={`hover:bg-slate-905/30 transition ${user.bloqueado ? 'bg-red-950/5' : ''}`}>
-                      <td className="px-4 py-3.5 text-center font-mono font-bold text-slate-400">{user.ixc_id}</td>
-                      <td className="px-4 py-3.5 font-bold">
-                        <div className="text-slate-205">{user.nome}</div>
-                        <div className="text-[10px] text-slate-500 font-medium">{user.email || 'Não cadastrado'} • {user.telefone}</div>
-                      </td>
-                      <td className="px-4 py-3.5 font-mono text-slate-400">{user.cpf_cnpj}</td>
-                      <td className="px-4 py-3.5 text-center text-slate-400 font-semibold">{user.cidade}</td>
-                      <td className="px-4 py-3.5 text-center font-mono font-black text-emerald-400 text-sm">
-                        {user.pontos_total} p
-                      </td>
-                      <td className="px-4 py-3.5 text-center flex items-center justify-center gap-1 pt-4">
-                        <button
-                          title="Bloquear/Liberar"
-                          onClick={() => handleToggleBlockUser(user.id)}
-                          className={`p-1 px-2 text-[10px] font-bold rounded transition ${
-                            user.bloqueado 
-                              ? 'bg-red-500 text-slate-950' 
-                              : 'bg-slate-950 text-red-400 hover:bg-slate-900'
-                          }`}
-                        >
-                          {user.bloqueado ? "BLOQUEADO" : "SUSPENDER"}
-                        </button>
-                        
-                        <button
-                          onClick={() => handleEditUserClick(user)}
-                          className="p-1 bg-slate-950 border border-slate-800 hover:text-yellow-500 p-1.5 rounded"
-                          title="Ajustes rápidos"
-                        >
-                          <Edit2 className="h-3 w-3" />
-                        </button>
+          <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl overflow-hidden shadow overflow-x-auto">
+            <div className="min-w-[800px]">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-slate-950/80 text-[10px] font-bold uppercase text-slate-450 border-b border-slate-900">
+                  <tr>
+                    <th className="px-4 py-3 text-center w-12">IDC</th>
+                    <th className="px-4 py-3">Nome / Detalhes</th>
+                    <th className="px-4 py-3">Documento</th>
+                    <th className="px-4 py-3 text-center">Cidade</th>
+                    <th className="px-4 py-3 text-center w-24">Pontuação</th>
+                    <th className="px-4 py-3 text-center w-36">Operações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-900">
+                  {filteredPlayersList.length > 0 ? (
+                    filteredPlayersList.map((user) => (
+                      <tr key={user.id} className={`hover:bg-slate-905/30 transition ${user.bloqueado ? 'bg-red-950/5' : ''}`}>
+                        <td className="px-4 py-3.5 text-center font-mono font-bold text-slate-400">{user.ixc_id}</td>
+                        <td className="px-4 py-3.5 font-bold">
+                          <div className="text-slate-205">{user.nome}</div>
+                          <div className="text-[10px] text-slate-500 font-medium">{user.email || 'Não cadastrado'} • {user.telefone}</div>
+                        </td>
+                        <td className="px-4 py-3.5 font-mono text-slate-400">{user.cpf_cnpj}</td>
+                        <td className="px-4 py-3.5 text-center text-slate-400 font-semibold">{user.cidade}</td>
+                        <td className="px-4 py-3.5 text-center font-mono font-black text-emerald-400 text-sm">
+                          {user.pontos_total} p
+                        </td>
+                        <td className="px-4 py-3.5 text-center flex items-center justify-center gap-1 pt-4">
+                          <button
+                            title="Bloquear/Liberar"
+                            onClick={() => handleToggleBlockUser(user.id)}
+                            className={`p-1 px-2 text-[10px] font-bold rounded transition ${
+                              user.bloqueado 
+                                ? 'bg-red-500 text-slate-950' 
+                                : 'bg-slate-950 text-red-400 hover:bg-slate-900'
+                            }`}
+                          >
+                            {user.bloqueado ? "BLOQUEADO" : "SUSPENDER"}
+                          </button>
+                          
+                          <button
+                            onClick={() => handleEditUserClick(user)}
+                            className="p-1 bg-slate-950 border border-slate-800 hover:text-yellow-500 p-1.5 rounded"
+                            title="Ajustes rápidos"
+                          >
+                            <Edit2 className="h-3 w-3" />
+                          </button>
 
-                        <button
-                           onClick={() => handleDeleteUserAll(user.id)}
-                           className="p-1 bg-slate-950 text-red-500/80 hover:bg-slate-900 rounded"
-                           title="Excluir do bolão"
-                        >
-                           <Trash className="h-3 w-3" />
-                        </button>
+                          <button
+                             onClick={() => handleDeleteUserAll(user.id)}
+                             className="p-1 bg-slate-950 text-red-500/80 hover:bg-slate-900 rounded"
+                             title="Excluir do bolão"
+                          >
+                             <Trash className="h-3 w-3" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={6} className="py-12 text-center text-slate-500 text-xs">
+                        Nenhum utilizador encontrado nos parâmetros.
                       </td>
                     </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={6} className="py-12 text-center text-slate-500 text-xs">
-                      Nenhum utilizador encontrado nos parâmetros.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
 
         </div>
@@ -1722,31 +1722,33 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
             </button>
           </div>
 
-          <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl overflow-hidden">
-            <div className="bg-slate-950 text-[10px] font-bold uppercase text-slate-400 px-4 py-2.5 border-b border-slate-900 grid grid-cols-12 gap-2">
-              <span className="col-span-2">Data / Hora</span>
-              <span className="col-span-2">Tipo Ação</span>
-              <span className="col-span-5">Descrição Completa</span>
-              <span className="col-span-2 font-semibold">Originador</span>
-              <span className="col-span-1 text-right">IP Cliente</span>
-            </div>
+          <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl overflow-hidden overflow-x-auto">
+            <div className="min-w-[800px]">
+              <div className="bg-slate-950 text-[10px] font-bold uppercase text-slate-400 px-4 py-2.5 border-b border-slate-900 grid grid-cols-12 gap-2">
+                <span className="col-span-2">Data / Hora</span>
+                <span className="col-span-2">Tipo Ação</span>
+                <span className="col-span-5">Descrição Completa</span>
+                <span className="col-span-2 font-semibold">Originador</span>
+                <span className="col-span-1 text-right">IP Cliente</span>
+              </div>
 
-            <div className="divide-y divide-slate-900 font-mono text-[11px] leading-relaxed max-h-[440px] overflow-y-auto">
-              {logs.length > 0 ? (
-                logs.map((lg) => (
-                  <div key={lg.id} className="px-4 py-3 bg-slate-905/30 hover:bg-slate-905/60 transition grid grid-cols-12 gap-2">
-                    <span className="col-span-2 text-slate-500">{new Date(lg.data).toLocaleString('pt-BR')}</span>
-                    <span className="col-span-2 text-yellow-500 font-bold tracking-tight truncate pr-1" title={lg.acao}>{lg.acao}</span>
-                    <span className="col-span-5 text-slate-300">{lg.descricao}</span>
-                    <span className="col-span-2 text-slate-400 font-sans font-bold truncate pr-1">{lg.usuario}</span>
-                    <span className="col-span-1 text-slate-500 text-right truncate">{lg.ip}</span>
+              <div className="divide-y divide-slate-900 font-mono text-[11px] leading-relaxed max-h-[440px] overflow-y-auto">
+                {logs.length > 0 ? (
+                  logs.map((lg) => (
+                    <div key={lg.id} className="px-4 py-3 bg-slate-905/30 hover:bg-slate-905/60 transition grid grid-cols-12 gap-2">
+                      <span className="col-span-2 text-slate-500">{new Date(lg.data).toLocaleString('pt-BR')}</span>
+                      <span className="col-span-2 text-yellow-500 font-bold tracking-tight truncate pr-1" title={lg.acao}>{lg.acao}</span>
+                      <span className="col-span-5 text-slate-300">{lg.descricao}</span>
+                      <span className="col-span-2 text-slate-400 font-sans font-bold truncate pr-1">{lg.usuario}</span>
+                      <span className="col-span-1 text-slate-500 text-right truncate">{lg.ip}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="py-12 text-center text-slate-500 text-xs">
+                    Ainda não há logs de auditoria gravados.
                   </div>
-                ))
-              ) : (
-                <div className="py-12 text-center text-slate-500 text-xs">
-                  Ainda não há logs de auditoria gravados.
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -1836,16 +1838,17 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
           </div>
 
           {/* Matches and bet results display */}
-          <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">
-            <div className="bg-slate-950 text-xs font-black uppercase text-slate-400 px-4 py-3.5 border-b border-slate-900 grid grid-cols-12 gap-2 select-none">
-              <span className="col-span-2">Data / Hora</span>
-              <span className="col-span-4 text-center">Partida / Clubes</span>
-              <span className="col-span-1 text-center font-bold">Placar</span>
-              <span className="col-span-2 text-center">Status</span>
-              <span className="col-span-3 text-right">Ações Administrador / Palpite de Teste</span>
-            </div>
+          <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden overflow-x-auto">
+            <div className="min-w-[950px]">
+              <div className="bg-slate-950 text-xs font-black uppercase text-slate-400 px-4 py-3.5 border-b border-slate-900 grid grid-cols-12 gap-2 select-none">
+                <span className="col-span-2">Data / Hora</span>
+                <span className="col-span-4 text-center">Partida / Clubes</span>
+                <span className="col-span-1 text-center font-bold">Placar</span>
+                <span className="col-span-2 text-center">Status</span>
+                <span className="col-span-3 text-right">Ações Administrador / Palpite de Teste</span>
+              </div>
 
-            <div className="divide-y divide-slate-900/70 max-h-[600px] overflow-y-auto">
+              <div className="divide-y divide-slate-900/70 max-h-[600px] overflow-y-auto">
               {jogos.filter(j => j.api_id && j.api_id.startsWith("libertadores_")).length > 0 ? (
                 jogos
                   .filter(j => j.api_id && j.api_id.startsWith("libertadores_"))
@@ -2006,6 +2009,7 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
                 </div>
               )}
             </div>
+          </div>
           </div>
         </div>
       )}

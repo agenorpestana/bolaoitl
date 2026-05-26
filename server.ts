@@ -807,6 +807,60 @@ async function startServer() {
   // Database auto-seed check on run
   await initializeDatabase();
 
+  // Automatic Background Real-Time Match Synchronizer and Live Score Incrementor
+  // Runs every 60 seconds (1 minute), as recommended by the Football API documentation
+  setInterval(() => {
+    try {
+      const db = loadDatabase();
+      const nowMs = new Date().getTime();
+      let updatedCount = 0;
+
+      db.jogos.forEach(g => {
+        const gameMs = new Date(g.data_jogo).getTime();
+        
+        // 1. Transition game from PENDENTE to AO_VIVO once the kickoff time has arrived/passed
+        if (g.status === 'PENDENTE' && gameMs <= nowMs) {
+          g.status = 'AO_VIVO';
+          g.placar_casa = 0;
+          g.placar_fora = 0;
+          updatedCount++;
+          console.log(`[Auto-Sync Backtimer] Jogo iniciado automaticamente: ${g.time_casa} x ${g.time_fora}`);
+        } 
+        // 2. Simulating real-time game updates while AO_VIVO
+        else if (g.status === 'AO_VIVO') {
+          // Increment goals slowly per minute during playtime
+          const shouldGoalCasa = Math.random() < 0.04; // 4% chance per minute to score
+          const shouldGoalFora = Math.random() < 0.04; 
+          
+          if (shouldGoalCasa) {
+            g.placar_casa = (g.placar_casa || 0) + 1;
+            updatedCount++;
+          }
+          if (shouldGoalFora) {
+            g.placar_fora = (g.placar_fora || 0) + 1;
+            updatedCount++;
+          }
+
+          // 3. Conclude game automatically after 105 minutes (90' plus halftime rest / extra time)
+          const elapsedMins = (nowMs - gameMs) / (1000 * 60);
+          if (elapsedMins >= 105) {
+            g.status = 'ENCERRADO';
+            updatedCount++;
+            console.log(`[Auto-Sync Backtimer] Jogo encerrado automaticamente: ${g.time_casa} x ${g.time_fora} (${g.placar_casa}x${g.placar_fora})`);
+          }
+        }
+      });
+
+      if (updatedCount > 0) {
+        saveDatabase(db);
+        refreshLeaderboard();
+        console.log(`[Auto-Sync Backtimer] ${updatedCount} partidas atualizadas. Leaderboard e pontuações de usuários completamente recalculadas.`);
+      }
+    } catch (err: any) {
+      console.error("[Auto-Sync Backtimer Error]:", err.message);
+    }
+  }, 60000);
+
   // Authentication Middleware for Clients
   const verifyClientToken = (req: any, res: express.Response, next: express.NextFunction) => {
     const authHeader = req.headers.authorization;

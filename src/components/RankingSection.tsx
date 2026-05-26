@@ -185,42 +185,64 @@ export default function RankingSection({ ranking }: RankingSectionProps) {
         <section className="lg:col-span-8 space-y-3">
           <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl overflow-hidden shadow-md">
             
-            <div className="bg-slate-950/80 px-4 py-3 border-b border-slate-900 text-[10px] font-bold uppercase text-slate-450 flex items-center">
-              <span className="w-12 text-center">Pos</span>
+            <div className="bg-slate-950/80 px-4 py-3 border-b border-slate-900 text-[10px] font-bold uppercase text-slate-400 flex items-center gap-2 select-none">
+              <span className="w-8 text-center shrink-0">Pos</span>
               <span className="flex-1">Usuário</span>
-              <span className="w-24 text-right">Cidade</span>
-              <span className="w-12 text-center">EX(10p)</span>
-              <span className="w-12 text-center">VC(4p)</span>
-              <span className="w-12 text-center">ER</span>
-              <span className="w-16 text-right">Pontos</span>
+              <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+                <div className="hidden sm:flex items-center gap-3">
+                  <span className="w-24 text-right hidden lg:inline text-slate-400">Cidade</span>
+                  <span className="w-12 text-center text-slate-400">EX(10p)</span>
+                  <span className="w-12 text-center text-slate-400">VC(4p)</span>
+                  <span className="w-12 text-center text-slate-400">ER</span>
+                </div>
+                <div className="flex sm:hidden text-[9px] text-slate-500 mr-2">Acertos</div>
+                <span className="w-16 text-right">Pontos</span>
+              </div>
             </div>
 
             <div className="divide-y divide-slate-900">
               {filteredUsers.length > 0 ? (
-                // Combine top 3 and remaining for correct full listings
                 filteredUsers.map((user, idx) => (
-                  <div key={user.id} className="px-4 py-3.5 flex items-center text-xs hover:bg-slate-900/40 transition">
+                  <div key={user.id} className="px-4 py-3.5 flex items-center text-xs hover:bg-slate-900/40 transition gap-2">
                     
                     {/* Rank identifier column */}
-                    <span className="w-12 text-center font-bold font-mono text-slate-400">
+                    <span className="w-8 shrink-0 text-center font-bold font-mono text-slate-300">
                       {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `${idx + 1}`}
                     </span>
 
-                    {/* Meta customer data */}
-                    <span className="flex-1 flex items-center gap-2">
-                      <span className="text-sm font-bold bg-slate-950/80 px-1 rounded">⚽</span>
-                      <span className="font-bold text-slate-200 truncate max-w-[120px] md:max-w-none">{user.nome}</span>
-                    </span>
+                    {/* Meta customer data / user cards */}
+                    <div className="flex-1 min-w-0 pr-1">
+                      <div className="font-bold text-slate-200 truncate flex items-center gap-1.5">
+                        <span className="text-sm">⚽</span>
+                        <span className="truncate">{user.nome}</span>
+                      </div>
+                      <div className="text-[10px] text-slate-500 font-medium sm:hidden truncate">
+                        {user.cidade}
+                      </div>
+                    </div>
 
-                    <span className="w-24 text-right text-slate-400 font-medium truncate">{user.cidade}</span>
-                    <span className="w-12 text-center font-bold font-mono text-yellow-500">{user.acertos_exato}</span>
-                    <span className="w-12 text-center font-bold font-mono text-emerald-400">{user.acertos_vencedor}</span>
-                    <span className="w-12 text-center font-bold font-mono text-red-500/80">{user.erros}</span>
-                    
-                    {/* Total points */}
-                    <span className="w-16 text-right font-black font-mono text-emerald-400 text-sm">
-                      {user.pontos} p
-                    </span>
+                    {/* Stats responsive block */}
+                    <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+                      <div className="hidden sm:flex items-center gap-3 font-mono">
+                        <span className="w-24 text-right text-slate-400 font-sans font-medium truncate hidden lg:inline">{user.cidade}</span>
+                        <span className="w-12 text-center font-bold text-yellow-500">{user.acertos_exato}</span>
+                        <span className="w-12 text-center font-bold text-emerald-400">{user.acertos_vencedor}</span>
+                        <span className="w-12 text-center font-bold text-red-500/80">{user.erros}</span>
+                      </div>
+
+                      <div className="flex sm:hidden flex-col items-end text-[10px] text-slate-450 mr-1.5 font-mono leading-none">
+                        <div className="flex gap-1.5">
+                          <span className="text-yellow-500 font-semibold">{user.acertos_exato}EX</span>
+                          <span>|</span>
+                          <span className="text-emerald-400 font-semibold">{user.acertos_vencedor}VC</span>
+                        </div>
+                      </div>
+
+                      {/* Total points */}
+                      <span className="w-16 text-right font-black font-mono text-emerald-400 text-sm">
+                        {user.pontos} p
+                      </span>
+                    </div>
 
                   </div>
                 ))

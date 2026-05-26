@@ -88,8 +88,8 @@ export default function App() {
 
   React.useEffect(() => {
     refreshAppData();
-    // Auto-refresh interval (polling for live sync simulation) every 40s
-    const clock = setInterval(refreshAppData, 40000);
+    // Auto-refresh interval (polling for live sync simulation) every 30s
+    const clock = setInterval(refreshAppData, 30000);
     return () => clearInterval(clock);
   }, [token, adminToken]);
 
