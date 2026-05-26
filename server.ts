@@ -1463,9 +1463,9 @@ async function startServer() {
     saveDatabase(db);
     
     // Auto points triggers!
-    if (game.status === 'ENCERRADO') {
+    if (['ENCERRADO', 'AO_VIVO'].includes(game.status)) {
       refreshLeaderboard();
-      addLog("Sistema de Pontos", "RECALCULO_DOTAÇÕES_AUTOMATICO", `Jogo encabeçado em ENCERRAMENTO. Resultados: ${game.time_casa} ${game.placar_casa} x ${game.placar_fora} ${game.time_fora}.`, req);
+      addLog("Sistema de Pontos", "RECALCULO_DOTAÇÕES_AUTOMATICO", `Jogo em ${game.status}. Resultados: ${game.time_casa} ${game.placar_casa} x ${game.placar_fora} ${game.time_fora}.`, req);
     } else {
       addLog("Admin (Suporte)", "ATUALIZO_JOGO", `Alteração de partida ID ${id}: Status=${game.status}`, req);
     }
@@ -1701,6 +1701,14 @@ async function startServer() {
         const fixtures = response?.data?.response;
         if (!fixtures || fixtures.length === 0) {
           throw new Error("Nenhuma partida retornada pela API.");
+        }
+
+        // Clean up mock/fictional matches (wc2026_1 to wc2026_8) and any orphan guesses so they do not clutter the database
+        const mockGameIds = db.jogos.filter(j => j.api_id && j.api_id.startsWith("wc2026_")).map(j => j.id);
+        if (mockGameIds.length > 0) {
+          console.log(`[Football API Sync] Purging ${mockGameIds.length} simulated starting matches to prevent cluttering real 2026 fixture sync...`);
+          db.jogos = db.jogos.filter(j => !j.api_id || !j.api_id.startsWith("wc2026_"));
+          db.palpites = db.palpites.filter(p => !mockGameIds.includes(p.jogo_id));
         }
 
         let addedCount = 0;

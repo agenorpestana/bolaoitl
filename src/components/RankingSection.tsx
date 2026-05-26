@@ -50,7 +50,7 @@ export default function RankingSection({ ranking }: RankingSectionProps) {
           </div>
           <div>
             <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-              Classificação do Bolão
+              Classificação Cartola ITL
               <span className="text-[10px] uppercase font-bold text-yellow-500 bg-yellow-950/40 border border-yellow-900/30 px-2 py-0.5 rounded">
                 Geral
               </span>

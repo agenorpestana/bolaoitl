@@ -150,7 +150,7 @@ export default function ParticipantLogin({ onLoginSuccess, onAdminLoginSuccess, 
             </div>
             
             <h2 id="login-card-title" className="text-xl font-bold text-slate-100">
-              {isAdminForm ? "Acesso do Administrador" : "Acessar Bolão da Copa"}
+              {isAdminForm ? "Acesso do Administrador" : "Acessar Cartola ITL"}
             </h2>
             <p className="text-xs text-slate-400">
               {isAdminForm 
