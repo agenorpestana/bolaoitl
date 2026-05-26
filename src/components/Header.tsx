@@ -35,10 +35,10 @@ export default function Header({ usuario, adminLogado, onLogout, activeTab, setA
           </div>
           <div>
             <span className="bg-gradient-to-r from-emerald-400 via-emerald-200 to-yellow-400 bg-clip-text text-lg font-extrabold tracking-tight text-transparent">
-              BOLÃO ITLFIBRA
+              CARTOLA ITL
             </span>
             <span className="hidden sm:inline-block ml-2 text-xs font-semibold tracking-wider uppercase text-yellow-500/90 bg-yellow-950/40 border border-yellow-800/30 px-1.5 py-0.5 rounded">
-              PROVEDOR ITL
+              PROVEDOR ITLFIBRA
             </span>
           </div>
         </div>

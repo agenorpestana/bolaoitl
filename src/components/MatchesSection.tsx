@@ -341,18 +341,20 @@ export default function MatchesSection({
                     </button>
                   )}
 
-                  {/* Guess badge points feedback if completed matches */}
-                  {jogo.status === 'ENCERRADO' && userBet && (
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[11px] text-slate-400">Pontuação:</span>
+                  {/* Guess badge points feedback if completed or live matches */}
+                  {['ENCERRADO', 'AO_VIVO'].includes(jogo.status) && userBet && (
+                    <div className="flex items-center gap-1.5 font-sans">
+                      <span className="text-[11px] text-slate-400">
+                        {jogo.status === 'AO_VIVO' ? 'Pontos parciais:' : 'Pontuação:'}
+                      </span>
                       <span className={`px-2.5 py-0.5 rounded font-mono font-extrabold text-[11px] ${
                         pointsWon && pointsWon > 5 
-                          ? 'bg-yellow-950/80 border border-yellow-700/40 text-yellow-500 shadow-md animate-bounce' 
+                          ? 'bg-yellow-950/80 border border-yellow-700/40 text-yellow-500 shadow-md animate-pulse' 
                           : pointsWon && pointsWon > 0
                             ? 'bg-emerald-950/80 border border-emerald-800/40 text-emerald-400'
                             : 'bg-slate-950/80 border border-slate-800/60 text-slate-500'
                       }`}>
-                        +{pointsWon || 0} Pts
+                        +{pointsWon || 0} Pts {jogo.status === 'AO_VIVO' ? '🔴' : ''}
                       </span>
                     </div>
                   )}
@@ -360,6 +362,11 @@ export default function MatchesSection({
                   {jogo.status === 'ENCERRADO' && !userBet && (
                     <span className="text-[10px] text-red-500/80 font-bold bg-red-950/10 border border-red-950/30 px-1.5 py-0.5 rounded">
                       Sem palpite (-0 Pts)
+                    </span>
+                  )}
+                  {jogo.status === 'AO_VIVO' && !userBet && (
+                    <span className="text-[10px] text-yellow-500/80 font-bold bg-yellow-950/10 border border-yellow-950/30 px-1.5 py-0.5 rounded animate-pulse">
+                      Sem palpite (Parcial)
                     </span>
                   )}
                 </div>

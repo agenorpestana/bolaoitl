@@ -5,6 +5,117 @@ import {
 import { REGRAS_PROG, PREMIACOES } from '../data';
 import { Jogo } from '../types';
 
+const COPA_GROUPS = [
+  {
+    name: "Grupo A",
+    teams: [
+      { name: "México", flag: "🇲🇽" },
+      { name: "África do Sul", flag: "🇿🇦" },
+      { name: "Coreia do Sul", flag: "🇰🇷" },
+      { name: "Vencedor Play-off D", flag: "🏳️" }
+    ]
+  },
+  {
+    name: "Grupo B",
+    teams: [
+      { name: "Canadá", flag: "🇨🇦" },
+      { name: "Vencedor Play-off A", flag: "🏳️" },
+      { name: "Catar", flag: "🇶🇦" },
+      { name: "Suíça", flag: "🇨🇭" }
+    ]
+  },
+  {
+    name: "Grupo C",
+    teams: [
+      { name: "Brasil", flag: "🇧🇷" },
+      { name: "Marrocos", flag: "🇲🇦" },
+      { name: "Haiti", flag: "🇭🇹" },
+      { name: "Escócia", flag: "🏴󠁧󠁢󠁳󠁣󠁴󠁿" }
+    ]
+  },
+  {
+    name: "Grupo D",
+    teams: [
+      { name: "Estados Unidos", flag: "🇺🇸" },
+      { name: "Paraguai", flag: "🇵🇾" },
+      { name: "Austrália", flag: "🇦🇺" },
+      { name: "Vencedor Play-off C", flag: "🏳️" }
+    ]
+  },
+  {
+    name: "Grupo E",
+    teams: [
+      { name: "Alemanha", flag: "🇩🇪" },
+      { name: "Curaçao", flag: "🇨🇼" },
+      { name: "Costa do Marfim", flag: "🇨🇮" },
+      { name: "Equador", flag: "🇪🇨" }
+    ]
+  },
+  {
+    name: "Grupo F",
+    teams: [
+      { name: "Holanda", flag: "🇳🇱" },
+      { name: "Japão", flag: "🇯🇵" },
+      { name: "Vencedor Play-off B", flag: "🏳️" },
+      { name: "Tunísia", flag: "🇹🇳" }
+    ]
+  },
+  {
+    name: "Grupo G",
+    teams: [
+      { name: "Bélgica", flag: "🇧🇪" },
+      { name: "Egito", flag: "🇪🇬" },
+      { name: "Irã", flag: "🇮🇷" },
+      { name: "Nova Zelândia", flag: "🇳🇿" }
+    ]
+  },
+  {
+    name: "Grupo H",
+    teams: [
+      { name: "Espanha", flag: "🇪🇸" },
+      { name: "Cabo Verde", flag: "🇨🇻" },
+      { name: "Arábia Saudita", flag: "🇸🇦" },
+      { name: "Uruguai", flag: "🇺🇾" }
+    ]
+  },
+  {
+    name: "Grupo I",
+    teams: [
+      { name: "França", flag: "🇫🇷" },
+      { name: "Senegal", flag: "🇸🇳" },
+      { name: "Vencedor Play-off 2", flag: "🏳️" },
+      { name: "Noruega", flag: "🇳🇴" }
+    ]
+  },
+  {
+    name: "Grupo J",
+    teams: [
+      { name: "Argentina", flag: "🇦🇷" },
+      { name: "Argélia", flag: "🇩🇿" },
+      { name: "Áustria", flag: "🇦🇹" },
+      { name: "Jordânia", flag: "🇯🇴" }
+    ]
+  },
+  {
+    name: "Grupo K",
+    teams: [
+      { name: "Portugal", flag: "🇵🇹" },
+      { name: "Vencedor Play-off 1", flag: "🏳️" },
+      { name: "Uzbequistão", flag: "🇺🇿" },
+      { name: "Colômbia", flag: "🇨🇴" }
+    ]
+  },
+  {
+    name: "Grupo L",
+    teams: [
+      { name: "Inglaterra", flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿" },
+      { name: "Croácia", flag: "🇭🇷" },
+      { name: "Gana", flag: "🇬🇭" },
+      { name: "Panamá", flag: "🇵🇦" }
+    ]
+  }
+];
+
 interface HomePublicProps {
   onParticipateCta: () => void;
   metrics: {
@@ -53,9 +164,9 @@ export default function HomePublic({ onParticipateCta, metrics, jogos }: HomePub
           </div>
 
           <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight text-slate-100">
-            Bolão da Copa <br />
-            <span className="bg-gradient-to-r from-emerald-400 via-green-300 to-yellow-400 bg-clip-text text-transparent">
-              Mundial de 2026
+            CARTOLA ITL <br />
+            <span className="bg-gradient-to-r from-emerald-400 via-green-300 to-yellow-400 bg-clip-text text-transparent text-3xl md:text-5xl block mt-2">
+              PROVEDOR ITLFIBRA
             </span>
           </h1>
 
@@ -176,6 +287,48 @@ export default function HomePublic({ onParticipateCta, metrics, jogos }: HomePub
           </div>
         </section>
       )}
+
+      {/* Grupos Oficiais Copa 2026 Grid */}
+      <section className="space-y-6">
+        <div className="flex items-center gap-2">
+          <div className="h-6 w-1.5 rounded-full bg-emerald-500" />
+          <h2 className="text-xl font-bold text-slate-100">Grupos Oficiais - Copa do Mundo 2026</h2>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {COPA_GROUPS.map((group, gIdx) => (
+            <div 
+              key={gIdx} 
+              className="bg-slate-900/55 rounded-2xl border border-slate-800 p-4 space-y-3 shadow-md hover:border-emerald-600/40 transition-all duration-300"
+            >
+              <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                <span className="text-xs font-black uppercase tracking-wider text-emerald-400 font-mono">
+                  {group.name}
+                </span>
+                <span className="text-[9px] bg-slate-950 px-2 py-0.5 rounded-full border border-slate-800/80 text-slate-400 font-mono">
+                  Fase de Grupos
+                </span>
+              </div>
+              <ul className="space-y-2">
+                {group.teams.map((team, tIdx) => (
+                  <li 
+                    key={tIdx} 
+                    className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-slate-950/40 hover:bg-slate-950/80 border border-transparent hover:border-slate-800/80 transition duration-150"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-sm shrink-0" role="img" aria-label={team.name}>
+                        {team.flag}
+                      </span>
+                      <span className="text-xs font-semibold text-slate-300 truncate">
+                        {team.name}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {/* Ranking Geral Preview & Rules Split Layout */}
       <div id="premios-regras" className="grid gap-8 lg:grid-cols-12 items-start">

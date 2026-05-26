@@ -592,6 +592,17 @@ function saveDatabaseToFile(db: LocalDatabase) {
   }
 }
 
+// Mask name for general public (LGPD compliant)
+function maskName(name: string): string {
+  if (!name) return "";
+  const trimmed = name.trim();
+  if (trimmed.length <= 3) {
+    return trimmed;
+  }
+  const firstThree = trimmed.slice(0, 3);
+  return firstThree + "****";
+}
+
 // Global logger helper
 function addLog(usuario: string, acao: string, descricao: string, req?: express.Request) {
   const db = loadDatabase();
@@ -665,7 +676,7 @@ function refreshLeaderboard() {
   // Calculate scores per bet
   db.palpites.forEach(p => {
     const jogo = db.jogos.find(j => j.id === p.jogo_id);
-    if (jogo && jogo.status === 'ENCERRADO') {
+    if (jogo && (jogo.status === 'ENCERRADO' || jogo.status === 'AO_VIVO')) {
       const pontos = calculatePointsForBet(p, jogo, points_cfg);
       p.pontos = pontos;
 
@@ -1159,19 +1170,34 @@ async function startServer() {
   app.get("/api/ranking", (req, res) => {
     const db = loadDatabase();
     
+    // Optional Bearer token parse for LGPD compliant name unmask of logged in user
+    const authHeader = req.headers.authorization;
+    let loggedInUserId: number | null = null;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      try {
+        const token = authHeader.split(" ")[1];
+        const decoded = jwt.verify(token, JWT_SECRET) as { id: number };
+        loggedInUserId = decoded.id;
+      } catch (e) {}
+    }
+
     // Sort customers descending points, then by success tags, then name
     const leaderData = db.usuarios
       .filter(u => !u.bloqueado)
-      .map(u => ({
-        id: u.id,
-        nome: u.nome,
-        cidade: u.cidade,
-        pontos: u.pontos_total,
-        acertos_exato: u.acertos_exato,
-        acertos_vencedor: u.acertos_vencedor,
-        erros: u.erros,
-        fator: u.pontos_total * 100 + u.acertos_exato * 10 - u.erros // resolving tiebreakers
-      }))
+      .map(u => {
+        const isSelf = loggedInUserId !== null && loggedInUserId === u.id;
+        const displayName = isSelf ? u.nome : maskName(u.nome);
+        return {
+          id: u.id,
+          nome: displayName,
+          cidade: u.cidade,
+          pontos: u.pontos_total,
+          acertos_exato: u.acertos_exato,
+          acertos_vencedor: u.acertos_vencedor,
+          erros: u.erros,
+          fator: u.pontos_total * 100 + u.acertos_exato * 10 - u.erros // resolving tiebreakers
+        };
+      })
       .sort((a,b) => {
         if (b.pontos !== a.pontos) {
           return b.pontos - a.pontos;
@@ -1191,18 +1217,38 @@ async function startServer() {
     const countUsers = db.usuarios.length;
     const countBets = db.palpites.length;
     
+    // Optional Bearer token parse for LGPD compliant name unmask of logged in user
+    const authHeader = req.headers.authorization;
+    let loggedInUserId: number | null = null;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      try {
+        const token = authHeader.split(" ")[1];
+        const decoded = jwt.verify(token, JWT_SECRET) as { id: number };
+        loggedInUserId = decoded.id;
+      } catch (e) {}
+    }
+
     // Top 10 users overview
     const topUsers = db.usuarios
       .filter(u => !u.bloqueado)
-      .sort((a,b) => b.pontos_total - a.pontos_total)
+      .sort((a,b) => {
+        if (b.pontos_total !== a.pontos_total) {
+          return b.pontos_total - a.pontos_total;
+        }
+        return a.nome.localeCompare(b.nome);
+      })
       .slice(0, 10)
-      .map((u, idx) => ({
-        posicao: idx + 1,
-        nome: u.nome,
-        cidade: u.cidade,
-        pontos: u.pontos_total,
-        avatar: u.avatar || "⚽"
-      }));
+      .map((u, idx) => {
+        const isSelf = loggedInUserId !== null && loggedInUserId === u.id;
+        const displayName = isSelf ? u.nome : maskName(u.nome);
+        return {
+          posicao: idx + 1,
+          nome: displayName,
+          cidade: u.cidade,
+          pontos: u.pontos_total,
+          avatar: u.avatar || "⚽"
+        };
+      });
 
     res.json({
       total_usuarios: countUsers,

@@ -46,8 +46,14 @@ export default function App() {
   // Sync caches from Express API
   const refreshAppData = async () => {
     try {
+      const headersArr: any = {};
+      const activeUserToken = token || adminToken; // fetch guesses optionally if user/admin is logged
+      if (activeUserToken) {
+        headersArr["Authorization"] = `Bearer ${activeUserToken}`;
+      }
+
       // 1. Public Metrics
-      const mRes = await fetch("/api/metrics-public");
+      const mRes = await fetch("/api/metrics-public", { headers: headersArr });
       if (mRes.ok) {
         const mData = await mRes.json();
         setPublicMetrics(mData);
@@ -58,19 +64,13 @@ export default function App() {
       }
 
       // 2. Rankings List
-      const rRes = await fetch("/api/ranking");
+      const rRes = await fetch("/api/ranking", { headers: headersArr });
       if (rRes.ok) {
         const rData = await rRes.json();
         setRanking(rData);
       }
 
       // 3. Fixtures combined with User Guesses (if token available)
-      const headersArr: any = {};
-      const activeUserToken = token || adminToken; // fetch guesses optionally if user/admin is logged
-      if (activeUserToken) {
-        headersArr["Authorization"] = `Bearer ${activeUserToken}`;
-      }
-
       const gRes = await fetch("/api/jogos", { headers: headersArr });
       if (gRes.ok) {
         const gData = await gRes.json();
@@ -218,7 +218,7 @@ export default function App() {
               <Dribbble className="h-6 w-6 text-emerald-500 absolute animate-pulse" />
             </div>
             <div>
-              <p className="text-xs font-black uppercase tracking-widest text-emerald-400">Carregando Bolão ITLFibra...</p>
+              <p className="text-xs font-black uppercase tracking-widest text-emerald-400">Carregando Cartola ITL...</p>
               <p className="text-[10px] text-slate-500 font-mono mt-1">Lendo tabelas ixc_usuarios, palpites e rodadas</p>
             </div>
           </div>
@@ -272,7 +272,7 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-2 flex flex-col sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-1.5 justify-center sm:justify-start">
             <span className="font-extrabold text-[10px] tracking-wider uppercase text-emerald-500/80 bg-emerald-950/20 border border-emerald-900/30 px-1.5 py-0.5 rounded">
-              BOLÃO ITLFIBRA
+              CARTOLA ITL - PROVEDOR ITLFIBRA
             </span>
             <span>© Todos os direitos reservados.</span>
           </div>
