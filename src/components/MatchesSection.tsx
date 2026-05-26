@@ -1,6 +1,8 @@
 import React from 'react';
 import { Lock, Unlock, Save, Clock, TrendingUp, CheckCircle, AlertCircle } from 'lucide-react';
 import { Jogo, Palpite } from '../types';
+import { renderBandeira } from './HomePublic';
+
 
 interface MatchesSectionProps {
   jogos: Jogo[];
@@ -253,9 +255,9 @@ export default function MatchesSection({
                   
                   {/* Home Team */}
                   <div className="flex flex-col items-center flex-1 space-y-2 text-center">
-                    <span className="text-3xl filter drop-shadow" role="img" aria-label="home-team-flag">
-                      {jogo.time_casa_bandeira}
-                    </span>
+                    <div className="w-10 h-10 flex items-center justify-center">
+                      {renderBandeira(jogo.time_casa_bandeira, "w-10 h-10 shadow-sm", "text-3xl")}
+                    </div>
                     <span className="text-xs font-bold text-slate-200 mt-1 max-w-[120px] truncate">
                       {jogo.time_casa}
                     </span>
@@ -302,9 +304,9 @@ export default function MatchesSection({
 
                   {/* Away Team */}
                   <div className="flex flex-col items-center flex-1 space-y-2 text-center">
-                    <span className="text-3xl filter drop-shadow" role="img" aria-label="away-team-flag">
-                      {jogo.time_fora_bandeira}
-                    </span>
+                    <div className="w-10 h-10 flex items-center justify-center">
+                      {renderBandeira(jogo.time_fora_bandeira, "w-10 h-10 shadow-sm", "text-3xl")}
+                    </div>
                     <span className="text-xs font-bold text-slate-200 mt-1 max-w-[120px] truncate font-sans">
                       {jogo.time_fora}
                     </span>

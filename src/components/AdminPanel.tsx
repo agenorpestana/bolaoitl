@@ -5,6 +5,8 @@ import {
 } from 'lucide-react';
 import { Usuario, Jogo, ConfigPoints, ConfigIXC, ConfigFootballApi, AuditLog } from '../types';
 import { CIDADES_ATENDIDAS } from '../data';
+import { renderBandeira } from './HomePublic';
+
 
 interface AdminPanelProps {
   token: string | null;
@@ -1359,10 +1361,13 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
                     <tr key={jogo.id}>
                       <td className="px-4 py-3 text-center font-mono font-bold text-slate-400">{jogo.rodada}</td>
                       <td className="px-4 py-3 font-semibold text-slate-250">
-                        <span className="text-sm mr-1">{jogo.time_casa_bandeira}</span>
-                        {jogo.time_casa} <span className="text-slate-500 font-bold mx-1">x</span> 
-                        <span className="text-sm mr-1 ml-0.5">{jogo.time_fora_bandeira}</span>
-                        {jogo.time_fora}
+                        <span className="inline-flex items-center gap-1.5 align-middle">
+                          {renderBandeira(jogo.time_casa_bandeira, "w-6 h-6", "text-sm")}
+                          <span>{jogo.time_casa}</span>
+                          <span className="text-slate-500 font-bold mx-1">x</span>
+                          {renderBandeira(jogo.time_fora_bandeira, "w-6 h-6", "text-sm")}
+                          <span>{jogo.time_fora}</span>
+                        </span>
                       </td>
                       <td className="px-4 py-3 font-mono text-slate-400">
                         {new Date(jogo.data_jogo).toLocaleDateString('pt-BR')} às {new Date(jogo.data_jogo).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}

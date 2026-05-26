@@ -5,6 +5,25 @@ import {
 import { REGRAS_PROG, PREMIACOES } from '../data';
 import { Jogo } from '../types';
 
+export const renderBandeira = (flag: string | undefined, sizeClass: string = "w-6 h-6", textClass: string = "text-2xl") => {
+  if (!flag) return <span className={textClass}>🏳️</span>;
+  if (flag.startsWith("http://") || flag.startsWith("https://")) {
+    return (
+      <img 
+        src={flag} 
+        alt="Bandeira" 
+        className={`${sizeClass} object-contain rounded-sm inline-block`} 
+        referrerPolicy="no-referrer"
+        onError={(e) => {
+          (e.target as HTMLImageElement).src = `https://images.api-sports.io/flags/default.png`;
+        }}
+      />
+    );
+  }
+  return <span className={textClass} role="img" aria-label="flag">{flag}</span>;
+};
+
+
 const COPA_GROUPS = [
   {
     name: "Grupo A",
@@ -263,7 +282,7 @@ export default function HomePublic({ onParticipateCta, metrics, jogos }: HomePub
 
                 <div className="flex items-center justify-center gap-4">
                   <div className="flex flex-col items-center flex-1">
-                    <span className="text-2xl" role="img" aria-label="flag">{jogo.time_casa_bandeira}</span>
+                    {renderBandeira(jogo.time_casa_bandeira, "w-8 h-8", "text-2xl")}
                     <span className="text-xs font-semibold text-slate-200 mt-1 truncate text-center max-w-[80px]">
                       {jogo.time_casa}
                     </span>
@@ -272,7 +291,7 @@ export default function HomePublic({ onParticipateCta, metrics, jogos }: HomePub
                   <span className="text-slate-500 text-xs font-black">VS</span>
 
                   <div className="flex flex-col items-center flex-1">
-                    <span className="text-2xl" role="img" aria-label="flag">{jogo.time_fora_bandeira}</span>
+                    {renderBandeira(jogo.time_fora_bandeira, "w-8 h-8", "text-2xl")}
                     <span className="text-xs font-semibold text-slate-200 mt-1 truncate text-center max-w-[80px]">
                       {jogo.time_fora}
                     </span>

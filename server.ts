@@ -66,6 +66,20 @@ function loadDatabase(): LocalDatabase {
     return cachedDb;
   }
   cachedDb = loadDatabaseFromFile();
+
+  // If we have real Football API games, we automatically hide/purge any initial dummy wc2026_ games
+  const hasRealApiGames = cachedDb.jogos.some(j => j.api_id && j.api_id.startsWith("football_api_"));
+  if (hasRealApiGames) {
+    const originalLength = cachedDb.jogos.length;
+    cachedDb.jogos = cachedDb.jogos.filter(j => !j.api_id || !j.api_id.startsWith("wc2026_"));
+    if (cachedDb.jogos.length !== originalLength) {
+      console.log(`[Database Load] Dynamically purged initial fictional games from live database because real API games exist.`);
+      const mockGameIds = [1, 2, 3, 4, 5, 6, 7, 8];
+      cachedDb.palpites = cachedDb.palpites.filter(p => !mockGameIds.includes(p.jogo_id));
+      saveDatabase(cachedDb);
+    }
+  }
+
   return cachedDb;
 }
 
@@ -1718,8 +1732,8 @@ async function startServer() {
           const apiId = `football_api_${item.fixture.id}`;
           const timeCasa = item.teams.home.name;
           const timeFora = item.teams.away.name;
-          const timeCasaBandeira = getTeamFlag(timeCasa);
-          const timeForaBandeira = getTeamFlag(timeFora);
+          const timeCasaBandeira = item.teams.home.logo || getTeamFlag(timeCasa);
+          const timeForaBandeira = item.teams.away.logo || getTeamFlag(timeFora);
           
           let dataJogoStr = item.fixture.date;
           if (isUsingFallback) {
