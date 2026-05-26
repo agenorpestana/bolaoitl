@@ -5,6 +5,27 @@ import {
 import { REGRAS_PROG, PREMIACOES } from '../data';
 import { Jogo } from '../types';
 
+const flagEmojiToIso = (flag: string): string | null => {
+  if (!flag) return null;
+  if (flag.includes("🏴󠁧󠁢󠁥󠁮󠁧󠁿") || flag === "🏴󠁧󠁢󠁥󠁮󠁧󠁿") return "gb-eng";
+  if (flag.includes("🏴󠁧󠁢󠁳󠁣󠁴󠁿") || flag === "🏴󠁧󠁢󠁳󠁣󠁴󠁿") return "gb-sct";
+  if (flag.includes("🏴󠁧󠁢󠁷󠁬󠁳󠁿") || flag === "🏴󠁧󠁢󠁷󠁬󠁳󠁿") return "gb-wls";
+
+  const chars = Array.from(flag);
+  if (chars.length >= 2) {
+    const codePoint1 = chars[0].codePointAt(0);
+    const codePoint2 = chars[1].codePointAt(0);
+    if (codePoint1 && codePoint2) {
+      if (codePoint1 >= 127462 && codePoint1 <= 127487 && codePoint2 >= 127462 && codePoint2 <= 127487) {
+        const char1 = String.fromCharCode(codePoint1 - 127462 + 65);
+        const char2 = String.fromCharCode(codePoint2 - 127462 + 65);
+        return (char1 + char2).toLowerCase();
+      }
+    }
+  }
+  return null;
+};
+
 export const renderBandeira = (flag: string | undefined, sizeClass: string = "w-6 h-6", textClass: string = "text-2xl") => {
   if (!flag) return <span className={textClass}>🏳️</span>;
   if (flag.startsWith("http://") || flag.startsWith("https://")) {
@@ -20,6 +41,22 @@ export const renderBandeira = (flag: string | undefined, sizeClass: string = "w-
       />
     );
   }
+
+  const iso = flagEmojiToIso(flag);
+  if (iso) {
+    return (
+      <img 
+        src={`https://flagcdn.com/w80/${iso}.png`} 
+        alt="Bandeira" 
+        className={`${sizeClass} object-contain rounded-sm inline-block shadow-sm`} 
+        referrerPolicy="no-referrer"
+        onError={(e) => {
+          (e.target as HTMLImageElement).src = `https://images.api-sports.io/flags/default.png`;
+        }}
+      />
+    );
+  }
+
   return <span className={textClass} role="img" aria-label="flag">{flag}</span>;
 };
 
@@ -334,9 +371,7 @@ export default function HomePublic({ onParticipateCta, metrics, jogos }: HomePub
                     className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-slate-950/40 hover:bg-slate-950/80 border border-transparent hover:border-slate-800/80 transition duration-150"
                   >
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-sm shrink-0" role="img" aria-label={team.name}>
-                        {team.flag}
-                      </span>
+                      {renderBandeira(team.flag, "w-6 h-6", "text-sm")}
                       <span className="text-xs font-semibold text-slate-300 truncate">
                         {team.name}
                       </span>
