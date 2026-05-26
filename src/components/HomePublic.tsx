@@ -31,15 +31,15 @@ const COPA_GROUPS = [
       { name: "México", flag: "🇲🇽" },
       { name: "África do Sul", flag: "🇿🇦" },
       { name: "Coreia do Sul", flag: "🇰🇷" },
-      { name: "Vencedor Play-off D", flag: "🏳️" }
+      { name: "Rep. Tcheca", flag: "🇨🇿" }
     ]
   },
   {
     name: "Grupo B",
     teams: [
       { name: "Canadá", flag: "🇨🇦" },
-      { name: "Vencedor Play-off A", flag: "🏳️" },
-      { name: "Catar", flag: "🇶🇦" },
+      { name: "Bósnia", flag: "🇧🇦" },
+      { name: "Qatar", flag: "🇶🇦" },
       { name: "Suíça", flag: "🇨🇭" }
     ]
   },
@@ -55,10 +55,10 @@ const COPA_GROUPS = [
   {
     name: "Grupo D",
     teams: [
-      { name: "Estados Unidos", flag: "🇺🇸" },
+      { name: "EUA", flag: "🇺🇸" },
       { name: "Paraguai", flag: "🇵🇾" },
       { name: "Austrália", flag: "🇦🇺" },
-      { name: "Vencedor Play-off C", flag: "🏳️" }
+      { name: "Turquia", flag: "🇹🇷" }
     ]
   },
   {
@@ -75,7 +75,7 @@ const COPA_GROUPS = [
     teams: [
       { name: "Holanda", flag: "🇳🇱" },
       { name: "Japão", flag: "🇯🇵" },
-      { name: "Vencedor Play-off B", flag: "🏳️" },
+      { name: "Suécia", flag: "🇸🇪" },
       { name: "Tunísia", flag: "🇹🇳" }
     ]
   },
@@ -85,7 +85,7 @@ const COPA_GROUPS = [
       { name: "Bélgica", flag: "🇧🇪" },
       { name: "Egito", flag: "🇪🇬" },
       { name: "Irã", flag: "🇮🇷" },
-      { name: "Nova Zelândia", flag: "🇳🇿" }
+      { name: "N. Zelândia", flag: "🇳🇿" }
     ]
   },
   {
@@ -102,7 +102,7 @@ const COPA_GROUPS = [
     teams: [
       { name: "França", flag: "🇫🇷" },
       { name: "Senegal", flag: "🇸🇳" },
-      { name: "Vencedor Play-off 2", flag: "🏳️" },
+      { name: "Iraque", flag: "🇮🇶" },
       { name: "Noruega", flag: "🇳🇴" }
     ]
   },
@@ -119,7 +119,7 @@ const COPA_GROUPS = [
     name: "Grupo K",
     teams: [
       { name: "Portugal", flag: "🇵🇹" },
-      { name: "Vencedor Play-off 1", flag: "🏳️" },
+      { name: "RD Congo", flag: "🇨🇩" },
       { name: "Uzbequistão", flag: "🇺🇿" },
       { name: "Colômbia", flag: "🇨🇴" }
     ]
