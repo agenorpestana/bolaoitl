@@ -184,25 +184,36 @@ interface HomePublicProps {
 }
 
 export default function HomePublic({ onParticipateCta, metrics, jogos }: HomePublicProps) {
-  // Simulating countdown to 11th June 2026
-  const [timeLeft, setTimeLeft] = React.useState({ days: 17, hours: 5, mins: 38, secs: 15 });
+  // Real countdown to June 11th 2026 20:00:00 UTC
+  const targetDate = new Date("2026-06-11T20:00:00Z");
+  const [timeLeft, setTimeLeft] = React.useState({ days: 0, hours: 0, mins: 0, secs: 0 });
 
   React.useEffect(() => {
+    const calculateTimeLeft = () => {
+      const now = new Date();
+      const difference = targetDate.getTime() - now.getTime();
+      if (difference <= 0) {
+        return { days: 0, hours: 0, mins: 0, secs: 0 };
+      }
+      return {
+        days: Math.floor(difference / (1000 * 60 * 60 * 24)),
+        hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
+        mins: Math.floor((difference / 1000 / 60) % 60),
+        secs: Math.floor((difference / 1000) % 60)
+      };
+    };
+
+    setTimeLeft(calculateTimeLeft());
+
     const interval = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev.secs > 0) return { ...prev, secs: prev.secs - 1 };
-        if (prev.mins > 0) return { ...prev, mins: prev.mins - 1, secs: 59 };
-        if (prev.hours > 0) return { ...prev, hours: prev.hours - 1, mins: 59, secs: 59 };
-        if (prev.days > 0) return { ...prev, days: prev.days - 1, hours: 23, mins: 59, secs: 59 };
-        return prev;
-      });
+      setTimeLeft(calculateTimeLeft());
     }, 1000);
     return () => clearInterval(interval);
   }, []);
 
-  // Filter 3 closest matches
+  // Filter 3 closest matches, excluding Copa Libertadores
   const matchHighlights = jogos
-    .filter(g => g.status === 'PENDENTE')
+    .filter(g => g.status === 'PENDENTE' && (!g.api_id || !g.api_id.startsWith("libertadores_")))
     .slice(0, 3);
 
   return (

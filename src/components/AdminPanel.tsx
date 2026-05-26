@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
   Sliders, Users, Shield, Database, Activity, FileSpreadsheet, PlusCircle, Trash2, 
-  Save, RefreshCw, Check, Search, Download, Trash, Edit2, Play, Power, AlertTriangle, ShieldCheck
+  Save, RefreshCw, Check, Search, Download, Trash, Edit2, Play, Power, AlertTriangle, ShieldCheck, Trophy
 } from 'lucide-react';
 import { Usuario, Jogo, ConfigPoints, ConfigIXC, ConfigFootballApi, AuditLog } from '../types';
 import { CIDADES_ATENDIDAS } from '../data';
@@ -14,13 +14,17 @@ interface AdminPanelProps {
 }
 
 export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelProps) {
-  const [activeSubTab, setActiveSubTab] = React.useState<'METRICAS' | 'IXC' | 'REGRAS' | 'SOCCER_API' | 'JOGADORES' | 'JOGOS' | 'RELATORIOS' | 'LOGS'>('METRICAS');
+  const [activeSubTab, setActiveSubTab] = React.useState<'METRICAS' | 'IXC' | 'REGRAS' | 'SOCCER_API' | 'JOGADORES' | 'JOGOS' | 'RELATORIOS' | 'LOGS' | 'LIBERTADORES'>('METRICAS');
 
   // Server state caches
   const [metrics, setMetrics] = React.useState<any | null>(null);
   const [usuarios, setUsuarios] = React.useState<Usuario[]>([]);
   const [jogos, setJogos] = React.useState<Jogo[]>([]);
   const [logs, setLogs] = React.useState<AuditLog[]>([]);
+
+  // Libertadores config and sync states
+  const [libertadoresAtivo, setLibertadoresAtivo] = React.useState(false);
+  const [syncingLibertadores, setSyncingLibertadores] = React.useState(false);
   
   // Configurations states
   const [ixcUrl, setIxcUrl] = React.useState("");
@@ -143,6 +147,10 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
         setSoccerUrl(data.configs_football.url);
         setSoccerManualOverride(data.configs_football.manual_override);
         setSoccerCronActive(data.configs_football.cron_active);
+
+        if (data.configs_libertadores) {
+          setLibertadoresAtivo(data.configs_libertadores.ativo);
+        }
       }
     } catch (err) {}
   };
@@ -165,6 +173,9 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
       loadPlayers();
       loadMatches();
       loadServerConfigs();
+      if (activeSubTab === 'LIBERTADORES') {
+        loadAdminPalpites();
+      }
     }
   }, [token, activeSubTab]);
 
@@ -492,6 +503,94 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
     }
   };
 
+  // Local state for temporary prediction fields
+  const [testPlacares, setTestPlacares] = React.useState<Record<string, { casa: string; fora: string }>>({});
+  const [adminPalpites, setAdminPalpites] = React.useState<any[]>([]);
+
+  const loadAdminPalpites = async () => {
+    try {
+      const response = await fetch("/api/jogos", {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAdminPalpites(data.palpites || []);
+      }
+    } catch (err) {}
+  };
+
+  const handleToggleLibertadores = async () => {
+    try {
+      const response = await fetch("/api/admin/configs/libertadores", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ ativo: !libertadoresAtivo })
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setLibertadoresAtivo(data.configs_libertadores.ativo);
+        showFeedback(`Copa Libertadores para clientes: ${data.configs_libertadores.ativo ? 'LIBERADA/ATIVA' : 'OCULTA/INATIVA'}`);
+      }
+    } catch (err) {
+      showFeedback("Erro ao alterar ativação da Libertadores", true);
+    }
+  };
+
+  const handleSyncLibertadores = async () => {
+    setSyncingLibertadores(true);
+    try {
+      const response = await fetch("/api/admin/libertadores/sync", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const data = await response.json();
+      if (response.ok) {
+        showFeedback(data.mensagem || "Sincronização concluída com sucesso!");
+        loadMatches();
+      } else {
+        showFeedback(data.error || "Houve um erro durante a chamada da API.", true);
+      }
+    } catch (err) {
+      showFeedback("Erro ao acessar servidor para sincronização", true);
+    } finally {
+      setSyncingLibertadores(false);
+    }
+  };
+
+  const submitTestPrediction = async (jogoId: number) => {
+    const guessState = testPlacares[jogoId];
+    if (!guessState || guessState.casa === "" || guessState.fora === "") {
+      showFeedback("Informe ambos os placares para enviar seu palpite de teste.", true);
+      return;
+    }
+    try {
+      const response = await fetch("/api/palpites", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          jogo_id: jogoId,
+          placar_casa: guessState.casa,
+          placar_fora: guessState.fora
+        })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        showFeedback("Palpite de teste do Admin registrado perfeitamente!");
+        loadAdminPalpites();
+      } else {
+        showFeedback(data.error || "Ocorreu um erro ao enviar palpite de teste.", true);
+      }
+    } catch (err) {
+      showFeedback("Falha comunicando com API.", true);
+    }
+  };
+
   const handleDeleteMatch = async (jogoId: number) => {
     if (!confirm("Deseja realmente REMOVER esta partida do sistema? Todos os palpites de clientes para este jogo serão invalidados.")) return;
     try {
@@ -617,6 +716,7 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
           { id: 'SOCCER_API', label: 'API Futebol', icon: Play },
           { id: 'JOGADORES', label: 'Participantes', icon: Users },
           { id: 'JOGOS', label: 'Calendário Copa', icon: PlusCircle },
+          { id: 'LIBERTADORES', label: 'Libertadores (Admin)', icon: Trophy },
           { id: 'RELATORIOS', label: 'Relatórios & Export', icon: FileSpreadsheet },
           { id: 'LOGS', label: 'Auditoria Logs', icon: Shield }
         ].map(tab => {
@@ -1591,6 +1691,245 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
               ) : (
                 <div className="py-12 text-center text-slate-500 text-xs">
                   Ainda não há logs de auditoria gravados.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 9. COPA LIBERTADORES (TESTE & GERENCIAMENTO ADMIN) */}
+      {activeSubTab === 'LIBERTADORES' && (
+        <div className="space-y-6">
+          {/* Header Control Segment */}
+          <div className="bg-slate-950/65 p-4 rounded-2xl border border-slate-900 select-none flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Trophy className="h-5 w-5 text-yellow-500" />
+                <span className="text-sm font-black uppercase text-yellow-500">Módulo Libertadores (Teste & Configuração)</span>
+              </div>
+              <p className="text-[11px] text-slate-400 max-w-2xl">
+                Gerencie e teste a integração dos jogos da Libertadores. Por enquanto, esta funcionalidade está visível apenas para administradores e restrita na página inicial dos participantes até que seja explicitamente liberada para os clientes.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-bold text-slate-400 shrink-0">Status para Clientes:</span>
+              <button
+                onClick={handleToggleLibertadores}
+                className={`px-4 py-2 rounded-xl text-xs font-black select-none transition flex items-center gap-2 cursor-pointer ${
+                  libertadoresAtivo
+                    ? 'bg-emerald-950 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-900/60'
+                    : 'bg-slate-900 border border-slate-800 text-slate-400 hover:bg-slate-800'
+                }`}
+              >
+                <Power className="h-4 w-4" />
+                {libertadoresAtivo ? 'LIBERADA (ATIVO PARA CLIENTES)' : 'BLOQUEADA (OCULTO PARA CLIENTES)'}
+              </button>
+            </div>
+          </div>
+
+          {/* Synchronize Match Segment */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="md:col-span-1 bg-slate-900/40 border border-slate-800/80 p-5 rounded-2xl space-y-4">
+              <h3 className="text-xs font-black uppercase text-slate-300">Sincronizador da API Football</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Puxar jogos da Copa Libertadores de hoje de forma 100% automatizada. Caso você não possua uma API Key válida configurada no painel, o sistema utilizará o conjunto de dados fallback oficial desta rodada da Libertadores imediatamente para simulação perfeita (incluindo Junior vs Botafogo, Flamengo vs Millonarios, etc.).
+              </p>
+              <button
+                onClick={handleSyncLibertadores}
+                disabled={syncingLibertadores}
+                className="w-full py-2.5 bg-yellow-500 hover:bg-yellow-400 disabled:bg-slate-800 disabled:text-slate-500 font-bold text-xs text-slate-950 rounded-xl transition flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <RefreshCw className={`h-4 w-4 ${syncingLibertadores ? 'animate-spin' : ''}`} />
+                {syncingLibertadores ? 'Sincronizando...' : 'Sincronizar Libertadores'}
+              </button>
+            </div>
+
+            <div className="md:col-span-2 bg-slate-900/40 border border-slate-800/80 p-5 rounded-2xl space-y-4">
+              <h3 className="text-xs font-black uppercase text-slate-300">Instruções para Testagem de Administrador</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Como administrador, você possui um participante fictício de testes associado ao seu token com ID <b>999999</b> (Suporte Unity Admin).
+                Você pode palpitar nas partidas da Libertadores utilizando o formulário de palpites de teste abaixo de forma a testar o fluxo de registro.
+                Uma vez que os jogos forem iniciados ou encerrados, você poderá atualizar os placares oficiais ao lado para rodar o recálculo do regulamento de pontos e rankings!
+              </p>
+              <div className="p-3 bg-slate-950/85 border border-slate-900 rounded-xl flex items-center gap-3">
+                <ShieldCheck className="h-5 w-5 text-emerald-400 shrink-0" />
+                <div className="text-[11px] text-slate-400">
+                  <b>Dica:</b> Ative os palpites para os clientes apenas quando estiver 100% satisfeito com o fluxo de cálculo.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Matches and bet results display */}
+          <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">
+            <div className="bg-slate-950 text-xs font-black uppercase text-slate-400 px-4 py-3.5 border-b border-slate-900 grid grid-cols-12 gap-2 select-none">
+              <span className="col-span-2">Data / Hora</span>
+              <span className="col-span-4 text-center">Partida / Clubes</span>
+              <span className="col-span-1 text-center font-bold">Placar</span>
+              <span className="col-span-2 text-center">Status</span>
+              <span className="col-span-3 text-right">Ações Administrador / Palpite de Teste</span>
+            </div>
+
+            <div className="divide-y divide-slate-900/70 max-h-[600px] overflow-y-auto">
+              {jogos.filter(j => j.api_id && j.api_id.startsWith("libertadores_")).length > 0 ? (
+                jogos
+                  .filter(j => j.api_id && j.api_id.startsWith("libertadores_"))
+                  .map(jogo => {
+                    const hasTestBet = adminPalpites.find(p => p.jogo_id === jogo.id);
+                    const isEditing = editingMatchId === jogo.id;
+
+                    return (
+                      <div key={jogo.id} className="px-4 py-4 hover:bg-slate-905/30 transition grid grid-cols-12 gap-2 items-center">
+                        <div className="col-span-2 text-[11px] font-mono text-slate-400">
+                          {new Date(jogo.data_jogo).toLocaleString('pt-BR')}
+                        </div>
+
+                        <div className="col-span-4 flex items-center justify-between px-3">
+                          <div className="flex items-center gap-2 w-[45%] justify-end">
+                            <span className="text-xs font-semibold text-slate-200 truncate">{jogo.time_casa}</span>
+                            <span className="text-base select-none">{renderBandeira(jogo.time_casa_bandeira)}</span>
+                          </div>
+                          <span className="text-[11px] font-black text-slate-500 uppercase shrink-0">vs</span>
+                          <div className="flex items-center gap-2 w-[45%]">
+                            <span className="text-base select-none">{renderBandeira(jogo.time_fora_bandeira)}</span>
+                            <span className="text-xs font-semibold text-slate-200 truncate">{jogo.time_fora}</span>
+                          </div>
+                        </div>
+
+                        <div className="col-span-1 text-center font-mono text-sm font-bold text-yellow-500 col-span-1">
+                          {jogo.status === 'PENDENTE' ? (
+                            <span className="text-xs text-slate-500">- x -</span>
+                          ) : (
+                            <span>{jogo.placar_casa} x {jogo.placar_fora}</span>
+                          )}
+                        </div>
+
+                        <div className="col-span-2 text-center select-none">
+                          <span className={`inline-block px-2 py-0.5 text-[9px] font-black rounded ${
+                            jogo.status === 'PENDENTE'
+                              ? 'bg-slate-800 text-slate-400'
+                              : jogo.status === 'AO_VIVO'
+                              ? 'bg-red-950 border border-red-500/20 text-red-400 animate-pulse'
+                              : 'bg-emerald-950 border border-emerald-500/20 text-emerald-400'
+                          }`}>
+                            {jogo.status}
+                          </span>
+                        </div>
+
+                        <div className="col-span-3">
+                          {isEditing ? (
+                            <div className="bg-slate-950 p-2 border border-slate-800 rounded-xl space-y-2">
+                              <div className="flex items-center justify-center gap-2 font-mono">
+                                <input
+                                  type="number"
+                                  maxLength={2}
+                                  value={editMatchCasaPlacar}
+                                  onChange={(e) => setEditMatchCasaPlacar(e.target.value)}
+                                  className="w-10 text-center bg-slate-900 border border-slate-700 text-yellow-500 text-xs py-1 rounded-md"
+                                />
+                                <span className="text-slate-500">x</span>
+                                <input
+                                  type="number"
+                                  maxLength={2}
+                                  value={editMatchForaPlacar}
+                                  onChange={(e) => setEditMatchForaPlacar(e.target.value)}
+                                  className="w-10 text-center bg-slate-900 border border-slate-700 text-yellow-500 text-xs py-1 rounded-md"
+                                />
+                              </div>
+                              <select
+                                value={editMatchStatus}
+                                onChange={(e: any) => setEditMatchStatus(e.target.value)}
+                                className="w-full bg-slate-900 border border-slate-700 text-[10px] text-slate-300 rounded px-1.5 py-1"
+                              >
+                                <option value="PENDENTE">PENDENTE</option>
+                                <option value="AO_VIVO">AO_VIVO</option>
+                                <option value="ENCERRADO">ENCERRADO</option>
+                              </select>
+                              <div className="flex gap-1.5 justify-end">
+                                <button
+                                  onClick={() => setEditingMatchId(null)}
+                                  className="px-2 py-1 bg-slate-800 rounded text-[9px] text-slate-400 hover:text-slate-200"
+                                >
+                                  Cancelar
+                                </button>
+                                <button
+                                  onClick={() => handleSaveMatchScore(jogo.id)}
+                                  className="px-2.5 py-1 bg-yellow-500 rounded text-[9px] font-black text-slate-950 hover:bg-yellow-400"
+                                >
+                                  Salvar
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="space-y-2 text-right">
+                              <div className="flex gap-1.5 justify-end">
+                                <button
+                                  onClick={() => {
+                                    setEditingMatchId(jogo.id);
+                                    setEditMatchCasaPlacar(jogo.placar_casa !== null ? String(jogo.placar_casa) : "");
+                                    setEditMatchForaPlacar(jogo.placar_fora !== null ? String(jogo.placar_fora) : "");
+                                    setEditMatchStatus(jogo.status);
+                                  }}
+                                  className="px-2 py-1 bg-slate-900 border border-slate-850 hover:border-slate-700 hover:text-yellow-500 rounded text-[10px] font-semibold text-slate-400 transition cursor-pointer"
+                                >
+                                  Oficializar Placar
+                                </button>
+                              </div>
+
+                              {/* Bet test flow for admin */}
+                              {jogo.status === 'PENDENTE' && (
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <span className="text-[10px] text-slate-400 font-medium mr-1">Palpite Teste:</span>
+                                  <input
+                                    type="number"
+                                    placeholder="C"
+                                    value={testPlacares[jogo.id]?.casa || ""}
+                                    onChange={(e) => setTestPlacares(prev => ({
+                                      ...prev,
+                                      [jogo.id]: { casa: e.target.value, fora: prev[jogo.id]?.fora || "" }
+                                    }))}
+                                    className="w-7 text-center bg-slate-950 border border-slate-850 focus:border-slate-700 text-yellow-500 font-black text-xs h-6 rounded"
+                                  />
+                                  <span className="text-slate-600 text-[10px]">x</span>
+                                  <input
+                                    type="number"
+                                    placeholder="F"
+                                    value={testPlacares[jogo.id]?.fora || ""}
+                                    onChange={(e) => setTestPlacares(prev => ({
+                                      ...prev,
+                                      [jogo.id]: { casa: prev[jogo.id]?.casa || "", fora: e.target.value }
+                                    }))}
+                                    className="w-7 text-center bg-slate-950 border border-slate-850 focus:border-slate-700 text-yellow-500 font-black text-xs h-6 rounded"
+                                  />
+                                  <button
+                                    onClick={() => submitTestPrediction(jogo.id)}
+                                    className="px-2 py-1 bg-emerald-900/60 hover:bg-emerald-800 border border-emerald-500/20 rounded text-[10px] text-emerald-400 font-bold transition ml-1 cursor-pointer"
+                                  >
+                                    {hasTestBet ? 'Reenviar' : 'Palpitar'}
+                                  </button>
+                                </div>
+                              )}
+
+                              {hasTestBet && (
+                                <div className="text-[10px] text-slate-400 flex items-center gap-1.5 justify-end uppercase tracking-tight select-none mt-1">
+                                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                  Palpitado de Teste ({hasTestBet.placar_casa} x {hasTestBet.placar_fora})
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+              ) : (
+                <div className="py-20 text-center text-slate-500 space-y-2">
+                  <Trophy className="h-10 w-10 text-slate-700 mx-auto" />
+                  <p className="text-xs">
+                    Nenhuma partida da Libertadores foi encontrada na base de dados. Sincronize usando o painel acima!
+                  </p>
                 </div>
               )}
             </div>
