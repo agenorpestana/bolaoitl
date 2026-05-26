@@ -781,22 +781,30 @@ async function startServer() {
           ativo: "S"
         };
       } else {
-        // Automatically accept valid CPF formatting in simulation mode to allow easy testing and prevent blockers
-        // We auto-register the client using inputs or fallback mocks
-        const inputNome = nome_complementar || `Apostador Provedor ${cleanedCpfCnpj.slice(-4)}`;
-        const inputTel = telefone || "(49) 99100-2026";
-        const inputEmail = email || `cliente.${cleanedCpfCnpj.slice(-4)}@exemplo.com`;
-        const inputCidade = cidade || CIDADES_ATENDIDAS[Math.floor(Math.random() * CIDADES_ATENDIDAS.length)];
+        // Only allow automatic mock generation if the CPF is in our official mock list.
+        // This prevents creating fictitious participants like "Apostador Provedor" with real customers' documents.
+        const mockCpfList = ["12345678900", "98765432111", "11122233344"];
+        if (mockCpfList.includes(cleanedCpfCnpj)) {
+          const inputNome = nome_complementar || `Apostador Provedor ${cleanedCpfCnpj.slice(-4)}`;
+          const inputTel = telefone || "(49) 99100-2026";
+          const inputEmail = email || `cliente.${cleanedCpfCnpj.slice(-4)}@exemplo.com`;
+          const inputCidade = cidade || CIDADES_ATENDIDAS[Math.floor(Math.random() * CIDADES_ATENDIDAS.length)];
 
-        customerFoundFromIxc = {
-          id: String(Math.floor(Math.random() * 8000) + 1200),
-          razao: inputNome,
-          cnpj_cpf: cpf_cnpj,
-          telefone_celular: inputTel,
-          email: inputEmail,
-          cidade: inputCidade,
-          ativo: "S"
-        };
+          customerFoundFromIxc = {
+            id: String(Math.floor(Math.random() * 8000) + 1200),
+            razao: inputNome,
+            cnpj_cpf: cpf_cnpj,
+            telefone_celular: inputTel,
+            email: inputEmail,
+            cidade: inputCidade,
+            ativo: "S"
+          };
+        } else {
+          // It's a real CPF. In simulation mode, we prevent generating fictitious user entries.
+          return res.status(404).json({ 
+            error: "Cliente não localizado. O modo offline de simulação está ativo e apenas aceita CPFs de teste recomendados. Para usar este CPF de um cliente real, mude as definições de Integração IXC para Modo Real no painel administrativo." 
+          });
+        }
       }
 
       addLog("Sistema IXC (Simulação)", "CONSULTA_CLIENTE", `Cliente consultado no CPF ${cpf_cnpj}. Encontrado: S`, req);
@@ -1499,11 +1507,187 @@ async function startServer() {
     res.json({ success: true, configs_football: db.configs_football });
   });
 
-  // Manual Trigger for Live Syncing API Football simulator
-  app.post("/api/admin/games-sync-football", verifyAdminToken, (req: any, res) => {
+  // Local helper: maps country name to flag emoji
+  const getTeamFlag = (teamName: string): string => {
+    const name = teamName.toLowerCase().trim();
+    if (name.includes("brazil") || name.includes("brasil")) return "🇧🇷";
+    if (name.includes("argentina")) return "🇦🇷";
+    if (name.includes("canada") || name.includes("canadá")) return "🇨🇦";
+    if (name.includes("united states") || name.includes("usa") || name.includes("estados unidos")) return "🇺🇸";
+    if (name.includes("mexico") || name.includes("méxico")) return "🇲🇽";
+    if (name.includes("france") || name.includes("frança")) return "🇫🇷";
+    if (name.includes("germany") || name.includes("alemanha")) return "🇩🇪";
+    if (name.includes("spain") || name.includes("espanha")) return "🇪🇸";
+    if (name.includes("italy") || name.includes("itália")) return "🇮🇹";
+    if (name.includes("england") || name.includes("inglaterra")) return "🇬🇧";
+    if (name.includes("netherlands") || name.includes("holanda")) return "🇳🇱";
+    if (name.includes("portugal")) return "🇵🇹";
+    if (name.includes("uruguay") || name.includes("urugua")) return "🇺🇾";
+    if (name.includes("japan") || name.includes("japão")) return "🇯🇵";
+    if (name.includes("belgium") || name.includes("bélgica")) return "🇧🇪";
+    if (name.includes("croatia") || name.includes("croácia")) return "🇭🇷";
+    if (name.includes("morocco") || name.includes("marrocos")) return "🇲🇦";
+    if (name.includes("switzerland") || name.includes("suíça")) return "🇨🇭";
+    if (name.includes("ecuador") || name.includes("equador")) return "🇪🇨";
+    if (name.includes("senegal")) return "🇸🇳";
+    if (name.includes("poland") || name.includes("polônia")) return "🇵🇱";
+    if (name.includes("saudi arabia") || name.includes("arábia saudita")) return "🇸🇦";
+    if (name.includes("denmark") || name.includes("dinamarca")) return "🇩🇰";
+    if (name.includes("tunisia") || name.includes("tunísia")) return "🇹🇳";
+    if (name.includes("costa rica")) return "🇨🇷";
+    if (name.includes("colombia") || name.includes("colômbia")) return "🇨🇴";
+    if (name.includes("south korea") || name.includes("coréia do sul") || name.includes("korea")) return "🇰🇷";
+    if (name.includes("sweden") || name.includes("suécia")) return "🇸🇪";
+    if (name.includes("chile")) return "🇨🇱";
+    if (name.includes("peru")) return "🇵🇪";
+    if (name.includes("ukraine") || name.includes("ucrânia")) return "🇺🇦";
+    if (name.includes("czech") || name.includes("república tcheca")) return "🇨🇿";
+    return "🏳️";
+  };
+
+  // Local helper: parses round name to index
+  const parseRoundNumber = (roundStr: string): number => {
+    const norm = roundStr.toLowerCase();
+    if (norm.includes("group stage - 1") || norm.includes("rodada 1")) return 1;
+    if (norm.includes("group stage - 2") || norm.includes("rodada 2")) return 2;
+    if (norm.includes("group stage - 3") || norm.includes("rodada 3")) return 3;
+    if (norm.includes("32")) return 4;
+    if (norm.includes("16") || norm.includes("eighth")) return 5;
+    if (norm.includes("quarter") || norm.includes("quartas")) return 6;
+    if (norm.includes("semi")) return 7;
+    if (norm.includes("final")) return 8;
+    return 1;
+  };
+
+  // Manual Trigger for Live Syncing API Football simulator & Real API integration
+  app.post("/api/admin/games-sync-football", verifyAdminToken, async (req: any, res) => {
     const db = loadDatabase();
     
-    // Simulate updating active or pending games with live scores
+    const apiKey = db.configs_football.key;
+    const apiUrl = db.configs_football.url || "https://v3.football.api-sports.io";
+    const isRealApi = apiKey && apiKey.trim() !== "" && !apiKey.toLowerCase().includes("dummy") && apiKey.length > 10;
+
+    if (isRealApi) {
+      try {
+        console.log(`[Football API] Triggering real fetch to ${apiUrl}/fixtures for World Cup 2026 (League 1, Season 2026)...`);
+        
+        const response = await axios.get(`${apiUrl}/fixtures`, {
+          params: {
+            league: "1",
+            season: "2026"
+          },
+          headers: {
+            "x-apisports-key": apiKey
+          },
+          timeout: 12000
+        });
+
+        if (response.data && response.data.errors && Object.keys(response.data.errors).length > 0) {
+          const errKeys = Object.keys(response.data.errors);
+          const firstErr = response.data.errors[errKeys[0]];
+          if (firstErr) {
+            throw new Error(`Erro retornado pela API: ${firstErr}`);
+          }
+        }
+
+        const fixtures = response.data.response;
+        if (!fixtures || fixtures.length === 0) {
+          throw new Error("Nenhuma partida retornada pela API para Copa de 2026 (league=1, season=2026).");
+        }
+
+        let addedCount = 0;
+        let updatedCount = 0;
+
+        for (const item of fixtures) {
+          const apiId = `football_api_${item.fixture.id}`;
+          const timeCasa = item.teams.home.name;
+          const timeFora = item.teams.away.name;
+          const timeCasaBandeira = getTeamFlag(timeCasa);
+          const timeForaBandeira = getTeamFlag(timeFora);
+          const dataJogoStr = item.fixture.date;
+          
+          let placarCasa: number | null = null;
+          let placarFora: number | null = null;
+          if (item.goals.home !== null && item.goals.home !== undefined) {
+            placarCasa = Number(item.goals.home);
+          }
+          if (item.goals.away !== null && item.goals.away !== undefined) {
+            placarFora = Number(item.goals.away);
+          }
+
+          const shortStatus = item.fixture.status.short;
+          let mappedStatus = "PENDENTE";
+          if (["FT", "AET", "PEN"].includes(shortStatus)) {
+            mappedStatus = "ENCERRADO";
+          } else if (["1H", "HT", "2H", "ET", "P", "BT", "LIVE"].includes(shortStatus)) {
+            mappedStatus = "AO_VIVO";
+          }
+
+          const mappedRound = parseRoundNumber(item.league.round || "Group Stage - 1");
+
+          // Search existing match
+          let existingJogo = db.jogos.find(j => j.api_id === apiId);
+          if (!existingJogo) {
+            // Closeness match within 24 hours with exact match of teams
+            existingJogo = db.jogos.find(j => 
+              j.time_casa.toLowerCase() === timeCasa.toLowerCase() &&
+              j.time_fora.toLowerCase() === timeFora.toLowerCase() &&
+              Math.abs(new Date(j.data_jogo).getTime() - new Date(dataJogoStr).getTime()) < 24 * 60 * 60 * 1000
+            );
+          }
+
+          if (existingJogo) {
+            existingJogo.api_id = apiId;
+            existingJogo.time_casa = timeCasa;
+            existingJogo.time_fora = timeFora;
+            existingJogo.time_casa_bandeira = timeCasaBandeira;
+            existingJogo.time_fora_bandeira = timeForaBandeira;
+            existingJogo.data_jogo = dataJogoStr;
+            existingJogo.placar_casa = placarCasa;
+            existingJogo.placar_fora = placarFora;
+            existingJogo.status = mappedStatus as any;
+            existingJogo.rodada = mappedRound;
+            updatedCount++;
+          } else {
+            const newId = db.jogos.length > 0 ? Math.max(...db.jogos.map(j => j.id)) + 1 : 1;
+            db.jogos.push({
+              id: newId,
+              api_id: apiId,
+              time_casa: timeCasa,
+              time_fora: timeFora,
+              time_casa_bandeira: timeCasaBandeira,
+              time_fora_bandeira: timeForaBandeira,
+              data_jogo: dataJogoStr,
+              placar_casa: placarCasa,
+              placar_fora: placarFora,
+              status: mappedStatus as any,
+              rodada: mappedRound
+            });
+            addedCount++;
+          }
+        }
+
+        saveDatabase(db);
+        refreshLeaderboard();
+
+        addLog("API Football Real", "SINCRONIZACAO_SOCCER", `Sincronizador obteve ${fixtures.length} confrontos da Copa de 2026. Novas: ${addedCount}, Atualizações: ${updatedCount}`, req);
+
+        return res.json({
+          success: true,
+          mensagem: `API-Football integrada executada com sucesso! ${fixtures.length} partidas da Copa do Mundo 2026 sincronizadas. Adicionadas: ${addedCount}, Atualizadas: ${updatedCount}.`,
+          status_api: 'CONECTADO'
+        });
+
+      } catch (err: any) {
+        console.error("[Football API Real error]", err.message);
+        addLog("Erro Football API", "EXCECAO_CONEXAO", `Erro ao consultar a API-football: ${err.message}`, req);
+        return res.status(502).json({
+          error: `Erro ao conectar com API-Football: ${err.message}. Verifique sua credencial ou conexão.`
+        });
+      }
+    }
+
+    // Fallback Simulator: Used if key is empty/dummy for safe development & testing
     let updatedCount = 0;
     const now = new Date().getTime();
 
@@ -1516,7 +1700,7 @@ async function startServer() {
         g.placar_fora = Math.floor(Math.random() * 3);
         updatedCount++;
       } else if (g.status === 'AO_VIVO') {
-        // Encerra após simulação
+        // Classify as finished
         g.status = 'ENCERRADO';
         updatedCount++;
       }
@@ -1526,14 +1710,14 @@ async function startServer() {
     
     if (updatedCount > 0) {
       refreshLeaderboard();
-      addLog("Cron API Football", "SINCRONIZACAO_SOCCER", `Sincronizador automático obteve resultados para ${updatedCount} partidas ativo-pendente.`, req);
+      addLog("Cron API Football", "SINCRONIZACAO_SOCCER", `Sincronizador automático obteve resultados para ${updatedCount} partidas ativo-pendente (Modo Simulação).`, req);
     } else {
       addLog("Cron API Football", "SINCRONIZACAO_IDLE", "Atualização executada sem partidas em horário de jogo ativo.", req);
     }
 
     res.json({
       success: true,
-      mensagem: `Sincronização executada. ${updatedCount} partidas atualizadas.`,
+      mensagem: `Sincronização simulada executada (Modo simulação pois Chave API não inserida). ${updatedCount} partidas atualizadas.`,
       status_api: 'CONECTADO'
     });
   });
