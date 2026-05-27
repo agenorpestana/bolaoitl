@@ -182,9 +182,17 @@ interface HomePublicProps {
     data_servidor: string;
   } | null;
   jogos: Jogo[];
+  vencedoresRodadas?: any[];
+  usuarioLogado?: { id: number; nome: string } | null;
 }
 
-export default function HomePublic({ onParticipateCta, metrics, jogos }: HomePublicProps) {
+export default function HomePublic({ 
+  onParticipateCta, 
+  metrics, 
+  jogos,
+  vencedoresRodadas = [],
+  usuarioLogado = null
+}: HomePublicProps) {
   // Real countdown to June 11th 2026 20:00:00 UTC
   const targetDate = new Date("2026-06-11T20:00:00Z");
   const [timeLeft, setTimeLeft] = React.useState({ days: 0, hours: 0, mins: 0, secs: 0 });
@@ -192,6 +200,17 @@ export default function HomePublic({ onParticipateCta, metrics, jogos }: HomePub
   const matchHighlights = React.useMemo(() => {
     return (jogos || []).filter(j => j.status === 'PENDENTE').slice(0, 3);
   }, [jogos]);
+
+  // Find rounds where this user won (was the 1st place)
+  const rodadasGanhas = React.useMemo(() => {
+    if (!usuarioLogado || !vencedoresRodadas) return [];
+    return vencedoresRodadas
+      .filter((r: any) => {
+        const winner = r.vencedores?.find((w: any) => w.posicao === 1);
+        return winner && Number(winner.id) === Number(usuarioLogado.id);
+      })
+      .map((r: any) => r.rodada);
+  }, [vencedoresRodadas, usuarioLogado]);
 
   React.useEffect(() => {
     const calculateTimeLeft = () => {
@@ -219,6 +238,27 @@ export default function HomePublic({ onParticipateCta, metrics, jogos }: HomePub
 
   return (
     <div className="space-y-12">
+      {/* Craque da Rodada Celebratory Banner */}
+      {rodadasGanhas.length > 0 && (
+        <div className="bg-gradient-to-r from-yellow-500/15 via-blue-500/10 to-yellow-500/15 border border-yellow-500/40 rounded-2xl p-6 text-center space-y-3 relative overflow-hidden shadow-xl animate-fadeIn">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(234,179,8,0.12),transparent_70%)] animate-pulse" />
+          <div className="relative z-10 flex flex-col items-center space-y-2">
+            <span className="text-4xl animate-bounce">🏆</span>
+            <h2 className="text-xl md:text-2xl font-black text-yellow-400 uppercase tracking-tight">
+              Parabéns! Você foi o craque da rodada!
+            </h2>
+            <p className="text-xs md:text-sm text-slate-200 max-w-xl leading-relaxed">
+              Você conquistou ou liderou o <strong className="text-yellow-400">1º Lugar</strong> na <strong className="text-brand-blue-vibrant">{rodadasGanhas.map(r => `Rodada ${r}`).join(", ")}</strong> da Copa do Mundo com uma pontuação espetacular!
+            </p>
+            <div className="pt-2">
+              <span className="inline-block px-4 py-1.5 bg-yellow-500 text-slate-950 font-black text-[10px] uppercase tracking-wider rounded-full shadow-md">
+                Prêmio: 1 Mês de Internet Grátis + Brinde
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Dynamic Hero Banner Segment */}
       <section className="relative overflow-hidden rounded-3xl bg-slate-950 border border-brand-blue-light/50 shadow-2xl">
         {/* Visual green grass ambient mesh effect */}
@@ -494,6 +534,76 @@ export default function HomePublic({ onParticipateCta, metrics, jogos }: HomePub
               ))}
             </div>
           </div>
+
+          {/* Winners of Each Round Section */}
+          {vencedoresRodadas && vencedoresRodadas.length > 0 && (
+            <div className="space-y-3 pt-2">
+              <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+                <Award className="h-5 w-5 text-brand-blue-accent" />
+                Ganhadores das Rodadas
+              </h2>
+              <div className="space-y-3">
+                {vencedoresRodadas.map((r: any) => (
+                  <div 
+                    key={r.rodada} 
+                    className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 text-left space-y-2 relative overflow-hidden"
+                  >
+                    <div className="flex items-center justify-between border-b border-slate-800/60 pb-2">
+                      <span className="text-xs font-black uppercase text-brand-blue-vibrant tracking-wider">
+                        {getFriendlyRoundName(r.rodada, 'COPA_MUNDO')}
+                      </span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded font-black uppercase tracking-wider ${
+                        r.status === 'ENCERRADO' 
+                          ? 'bg-slate-950/80 border border-slate-800 text-slate-400' 
+                          : 'bg-blue-950/50 border border-brand-blue-accent/30 text-brand-blue-vibrant animate-pulse'
+                      }`}>
+                        {r.status === 'ENCERRADO' ? 'Finalizado' : 'Em Andamento'}
+                      </span>
+                    </div>
+
+                    <div className="grid gap-2 sm:grid-cols-3 pt-1">
+                      {r.vencedores && r.vencedores.length > 0 ? (
+                        r.vencedores.map((v: any) => {
+                          const isUserWinner = usuarioLogado && Number(usuarioLogado.id) === Number(v.id);
+                          return (
+                            <div 
+                              key={v.posicao} 
+                              className={`p-2.5 rounded-lg border flex flex-col justify-between ${
+                                isUserWinner
+                                  ? 'bg-brand-blue-dark/60 border-brand-blue-accent/60 shadow shadow-brand-blue-accent/15'
+                                  : 'bg-slate-950/40 border-slate-800/80'
+                              }`}
+                            >
+                              <div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[10px] font-bold text-slate-400">
+                                    {v.posicao === 1 ? "🥇 1º Lugar" : v.posicao === 2 ? "🥈 2º Lugar" : "🥉 3º Lugar"}
+                                  </span>
+                                  {isUserWinner && (
+                                    <span className="text-[9px] bg-yellow-500 text-slate-950 px-1 rounded font-extrabold uppercase animate-bounce">VOCÊ!</span>
+                                  )}
+                                </div>
+                                <p className="text-xs font-black text-slate-200 mt-1 truncate">
+                                  {v.nome}
+                                </p>
+                                <p className="text-[10px] text-slate-500 mt-0.5 truncate">{v.cidade}</p>
+                              </div>
+                              <div className="mt-2 pt-1.5 border-t border-slate-850/60 flex items-center justify-between text-[10px] font-mono">
+                                <span className="text-slate-400 font-sans">Pontos:</span>
+                                <span className="font-bold text-brand-blue-vibrant">{v.pontos} p</span>
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <p className="text-xs text-slate-500 col-span-3 py-2 text-center">Aguardando palpites calculados.</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
         </section>
 

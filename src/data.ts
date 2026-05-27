@@ -88,23 +88,23 @@ export const REGRAS_PROG = [
 
 export const PREMIACOES = [
   {
-    posicao: "1º Lugar Geral",
-    premio: "1 Ano de Internet Grátis (Modo Ultra 1Gbps) + Smart TV 4K 65\"",
-    detalhes: "Entregue no encerramento da Copa, após apuração final."
+    posicao: "1º Lugar Geral (Final da Copa)",
+    premio: "1 Ano de Internet Grátis",
+    detalhes: "Grande campeão do Bolão Geral ao final do torneio."
   },
   {
-    posicao: "2º Lugar Geral",
-    premio: "6 Meses de Internet Grátis + Console Playstation 5 ou Xbox Series X",
-    detalhes: "Para o segundo maior pontuador consolidado."
+    posicao: "1º Lugar de Cada Rodada",
+    premio: "1 Mês de Internet Grátis + Brinde Exclusivo",
+    detalhes: "Para o maior pontuador individual de cada rodada da Copa."
   },
   {
-    posicao: "3º Lugar Geral",
-    premio: "3 Meses de Internet Grátis + Camisa Oficial da Seleção Autografada",
-    detalhes: "Camisa oficial de cor amarela autografada por lendas do futebol brasileiro."
+    posicao: "2º Lugar de Cada Rodada",
+    premio: "1 Mês de Internet Grátis",
+    detalhes: "Para o segundo colocado de cada rodada individual."
   },
   {
-    posicao: "Campeão Mensal (Junho)",
-    premio: "Roteador Gamer Wi-Fi 6 de alta performance",
-    detalhes: "Maior pontuação acumulada durante os jogos de Junho."
+    posicao: "3º Lugar de Cada Rodada",
+    premio: "Um Brinde Exclusivo da ITLFIBRA",
+    detalhes: "Para o terceiro colocado de cada rodada individual."
   }
 ];

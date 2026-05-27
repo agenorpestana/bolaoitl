@@ -1826,6 +1826,130 @@ async function startServer() {
     res.json({ success: true, palpite: existingBet });
   });
 
+  // Get Copa World Cup round-by-round winners
+  app.get("/api/vencedores-rodadas", (req, res) => {
+    const db = loadDatabase();
+    const points_cfg = db.configs_points;
+
+    // Optional Bearer token parse for LGPD compliant name unmask of logged in user
+    const authHeader = req.headers.authorization;
+    let loggedInUserId: number | null = null;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      try {
+        const token = authHeader.split(" ")[1];
+        const decoded = jwt.verify(token, JWT_SECRET) as { id: number };
+        loggedInUserId = decoded.id;
+      } catch (e) {}
+    }
+
+    // Filter only COPA_MUNDO matches (where api_id does not contain libertadores or brasileirao)
+    const copaGames = db.jogos.filter(jogo => {
+      if (jogo.api_id) {
+        const idLower = jogo.api_id.toLowerCase();
+        if (idLower.includes("libertadores") || idLower.includes("brasileirao")) {
+          return false;
+        }
+      }
+      return true;
+    });
+
+    // Group Copa matches by round (rodada)
+    const roundsMap: { [key: number]: Jogo[] } = {};
+    copaGames.forEach(g => {
+      if (!roundsMap[g.rodada]) {
+        roundsMap[g.rodada] = [];
+      }
+      roundsMap[g.rodada].push(g);
+    });
+
+    const rounds = Object.keys(roundsMap).map(Number).sort((a, b) => a - b);
+    const result: any[] = [];
+
+    // For each round, calculate scores of all users
+    rounds.forEach(rodadaNum => {
+      // Don't show round 8 (Final) as round prize based on prompt: "somente na final que não vai ter premiar por rodada"
+      if (rodadaNum === 8) return;
+
+      const gamesInRound = roundsMap[rodadaNum];
+      const gamesInRoundIds = gamesInRound.map(g => g.id);
+
+      // Check if there is at least one game that has started/finished in this round
+      const roundHasProgress = gamesInRound.some(g => g.status === 'ENCERRADO' || g.status === 'AO_VIVO');
+      if (!roundHasProgress) return;
+
+      const userScoresInRound = db.usuarios
+        .filter(u => !u.bloqueado && u.id !== 999999)
+        .map(u => {
+          const userBetsInRound = db.palpites.filter(p => p.usuario_id === u.id && gamesInRoundIds.includes(p.jogo_id));
+          
+          let roundPoints = 0;
+          let roundExacts = 0;
+          let roundErrors = 0;
+
+          userBetsInRound.forEach(bet => {
+            const jogo = gamesInRound.find(g => g.id === bet.jogo_id);
+            if (jogo && (jogo.status === 'ENCERRADO' || jogo.status === 'AO_VIVO')) {
+              const pts = calculatePointsForBet(bet, jogo, points_cfg);
+              roundPoints += pts;
+
+              const maxPossivelExact = points_cfg.pontos_acertar_vencedor + points_cfg.pontos_acertar_placar_exato;
+              if (pts === maxPossivelExact) {
+                roundExacts += 1;
+              } else if (pts > 0) {
+                // simple winner
+              } else {
+                roundErrors += 1;
+              }
+            }
+          });
+
+          return {
+            id: u.id,
+            nome: u.nome,
+            cidade: u.cidade,
+            pontos: roundPoints,
+            acertos_exato: roundExacts,
+            erros: roundErrors,
+            fator: roundPoints * 100 + roundExacts * 10 - roundErrors
+          };
+        })
+        .filter(u => {
+          const userBetsInRound = db.palpites.some(p => p.usuario_id === u.id && gamesInRoundIds.includes(p.jogo_id));
+          return userBetsInRound;
+        });
+
+      // Sort by points desc, exacts desc, errors asc, name asc
+      userScoresInRound.sort((a, b) => {
+        if (b.pontos !== a.pontos) return b.pontos - a.pontos;
+        if (b.acertos_exato !== a.acertos_exato) return b.acertos_exato - a.acertos_exato;
+        if (a.erros !== b.erros) return a.erros - b.erros;
+        return a.nome.localeCompare(b.nome);
+      });
+
+      // Are all games in this round ENCERRADO?
+      const allClosed = gamesInRound.every(g => g.status === 'ENCERRADO');
+
+      result.push({
+        rodada: rodadaNum,
+        status: allClosed ? "ENCERRADO" : "EM_ANDAMENTO",
+        vencedores: userScoresInRound.slice(0, 3).map((u, idx) => {
+          const isSelf = loggedInUserId !== null && loggedInUserId === u.id;
+          const displayName = isSelf ? u.nome : maskName(u.nome);
+          return {
+            posicao: idx + 1,
+            id: u.id,
+            nome: displayName,
+            cidade: u.cidade,
+            pontos: u.pontos,
+            acertos_exato: u.acertos_exato
+          };
+        })
+      });
+    });
+
+    res.json(result);
+  });
+
   // Get active statistics rankings
   app.get("/api/ranking", (req, res) => {
     const db = loadDatabase();

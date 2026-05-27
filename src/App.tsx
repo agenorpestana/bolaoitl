@@ -31,6 +31,7 @@ export default function App() {
   const [jogos, setJogos] = React.useState<Jogo[]>([]);
   const [palpites, setPalpites] = React.useState<Palpite[]>([]);
   const [ranking, setRanking] = React.useState<any[]>([]);
+  const [vencedoresRodadas, setVencedoresRodadas] = React.useState<any[]>([]);
   const [publicMetrics, setPublicMetrics] = React.useState<any | null>(null);
   const [dataServidor, setDataServidor] = React.useState<string>(new Date().toISOString());
   const [ixcOfflineMode, setIxcOfflineMode] = React.useState<boolean>(true);
@@ -68,6 +69,13 @@ export default function App() {
       if (rRes.ok) {
         const rData = await rRes.json();
         setRanking(rData);
+      }
+
+      // 2.5 Copa Round Winners List
+      const vRes = await fetch("/api/vencedores-rodadas", { headers: headersArr });
+      if (vRes.ok) {
+        const vData = await vRes.json();
+        setVencedoresRodadas(vData);
       }
 
       // 3. Fixtures combined with User Guesses (if token available)
@@ -230,6 +238,8 @@ export default function App() {
                 onParticipateCta={() => setActiveTab(token ? 'jogos' : 'login')} 
                 metrics={publicMetrics}
                 jogos={jogos}
+                vencedoresRodadas={vencedoresRodadas}
+                usuarioLogado={usuario}
               />
             )}
 
