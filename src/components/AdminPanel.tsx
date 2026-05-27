@@ -14,7 +14,9 @@ interface AdminPanelProps {
 }
 
 export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelProps) {
-  const [activeSubTab, setActiveSubTab] = React.useState<'METRICAS' | 'IXC' | 'REGRAS' | 'SOCCER_API' | 'JOGADORES' | 'JOGOS' | 'RELATORIOS' | 'LOGS' | 'LIBERTADORES'>('METRICAS');
+  const [activeSubTab, setActiveSubTab] = React.useState<'METRICAS' | 'IXC' | 'REGRAS' | 'SOCCER_API' | 'JOGADORES' | 'JOGOS' | 'RELATORIOS' | 'LOGS'>('METRICAS');
+  const [calendarioMode, setCalendarioMode] = React.useState<'COPA_2026' | 'LIBERTADORES' | 'FUTURAS'>('COPA_2026');
+  const [apiFutebolMode, setApiFutebolMode] = React.useState<'COPA_2026' | 'LIBERTADORES' | 'FUTURAS'>('COPA_2026');
 
   // Server state caches
   const [metrics, setMetrics] = React.useState<any | null>(null);
@@ -178,11 +180,11 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
       loadPlayers();
       loadMatches();
       loadServerConfigs();
-      if (activeSubTab === 'LIBERTADORES') {
+      if (activeSubTab === 'JOGOS' && calendarioMode === 'LIBERTADORES') {
         loadAdminPalpites();
       }
     }
-  }, [token, activeSubTab]);
+  }, [token, activeSubTab, calendarioMode]);
 
   // Flash UI Alert
   const showFeedback = (msg: string, isErr = false) => {
@@ -740,8 +742,7 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
           { id: 'REGRAS', label: 'Regras de Pontos', icon: Sliders },
           { id: 'SOCCER_API', label: 'API Futebol', icon: Play },
           { id: 'JOGADORES', label: 'Participantes', icon: Users },
-          { id: 'JOGOS', label: 'Calendário Copa', icon: PlusCircle },
-          { id: 'LIBERTADORES', label: 'Libertadores (Admin)', icon: Trophy },
+          { id: 'JOGOS', label: 'Calendário', icon: PlusCircle },
           { id: 'RELATORIOS', label: 'Relatórios & Export', icon: FileSpreadsheet },
           { id: 'LOGS', label: 'Auditoria Logs', icon: Shield }
         ].map(tab => {
@@ -1091,93 +1092,238 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
       {/* 4. SOCCER API FOOTBALL SYNCHRONIZATION */}
       {activeSubTab === 'SOCCER_API' && (
         <div className="bg-slate-900/40 border border-slate-850/85 p-6 rounded-2xl space-y-6">
-          <div className="space-y-1">
-            <h3 className="text-base font-bold text-slate-200">Sincronizador Automático API-Football</h3>
-            <p className="text-xs text-slate-400">
-              Configure chaves de transmissão do portal API-SPORTS para puxar resultados automaticamente em tempo real nas horas dos jogos.
-            </p>
+          
+          {/* Subtabs nested row for API Futebol */}
+          <div className="flex flex-wrap gap-2 pb-3 border-b border-slate-800/60 select-none">
+            {[
+              { id: 'COPA_2026', label: 'Copa do Mundo 2026', icon: Play },
+              { id: 'LIBERTADORES', label: 'Copa Libertadores', icon: Trophy },
+              { id: 'FUTURAS', label: '+ Próximas Competições', icon: Sliders }
+            ].map((sub) => {
+              const Icon = sub.icon;
+              const isSubActive = apiFutebolMode === sub.id;
+              return (
+                <button
+                  key={sub.id}
+                  type="button"
+                  onClick={() => setApiFutebolMode(sub.id as any)}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all border ${
+                    isSubActive
+                      ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400 font-extrabold shadow'
+                      : 'bg-transparent border-slate-800 text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Icon className="h-3 w-3" />
+                  {sub.label}
+                </button>
+              );
+            })}
           </div>
 
-          {/* Quick sync metrics alert box */}
-          <div className="bg-slate-950/70 border border-slate-850 p-4 rounded-xl grid gap-4 sm:grid-cols-3">
-            <div>
-              <span className="text-slate-500 text-[10px] uppercase font-bold tracking-wider">Status Conexão API</span>
-              <span className="text-xs font-extrabold text-emerald-400 block mt-1">● EM REDE ONLINE</span>
-            </div>
-            <div>
-              <span className="text-slate-500 text-[10px] uppercase font-bold tracking-wider">Tarefa Agendada (CRON)</span>
-              <span className="text-xs font-bold text-slate-300 block mt-1">A cada 15 Minutos</span>
-            </div>
-            <div>
-              <span className="text-slate-500 text-[10px] uppercase font-bold tracking-wider">Sobrecarga de Edição Manual</span>
-              <span className="text-xs font-bold text-yellow-500 block mt-1">Ativada (Mantenha ligada para ajustes)</span>
-            </div>
-          </div>
+          {/* Subtab Content: COPA 2026 */}
+          {apiFutebolMode === 'COPA_2026' && (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-slate-200">Sincronizador Copa do Mundo 2026</h3>
+                <p className="text-xs text-slate-400">
+                  Configure credenciais de API para carregar partidas e resultados em tempo real para a Copa do Mundo 22/26.
+                </p>
+              </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-450 text-left">URL de Endpoint</label>
-              <input
-                type="text"
-                value={soccerUrl}
-                onChange={(e) => setSoccerUrl(e.target.value)}
-                className="w-full px-4 py-2.5 bg-slate-950 border border-slate-850 focus:border-yellow-500 hover:border-slate-800 rounded-xl text-xs font-mono text-slate-300"
-              />
+              {/* Quick sync metrics alert box */}
+              <div className="bg-slate-950/70 border border-slate-850 p-4 rounded-xl grid gap-4 sm:grid-cols-3">
+                <div>
+                  <span className="text-slate-500 text-[10px] uppercase font-bold tracking-wider">Status Conexão API</span>
+                  <span className="text-xs font-extrabold text-emerald-400 block mt-1">● EM REDE ONLINE</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 text-[10px] uppercase font-bold tracking-wider">Tarefa Agendada (CRON)</span>
+                  <span className="text-xs font-bold text-slate-300 block mt-1">A cada 15 Minutos</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 text-[10px] uppercase font-bold tracking-wider">Sobrecarga de Edição Manual</span>
+                  <span className="text-xs font-bold text-yellow-500 block mt-1 font-mono">Ativada (Ajustes Livres)</span>
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-450 text-left">URL de Endpoint</label>
+                  <input
+                    type="text"
+                    value={soccerUrl}
+                    onChange={(e) => setSoccerUrl(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-850 focus:border-yellow-500 hover:border-slate-800 rounded-xl text-xs font-mono text-slate-300"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-450 text-left">Chave Secundária (API-Sports Key)</label>
+                  <input
+                    type="password"
+                    placeholder="Ex b7a6cb56ecbd..."
+                    value={soccerKey}
+                    onChange={(e) => setSoccerKey(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-850 focus:border-yellow-500 hover:border-slate-800 rounded-xl text-xs font-mono text-slate-300"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2 pt-2 text-xs text-slate-400 text-left">
+                <label className="flex items-center gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={soccerManualOverride}
+                    onChange={(e) => setSoccerManualOverride(e.target.checked)}
+                    className="rounded border-slate-800 text-emerald-500 focus:ring-emerald-500 bg-slate-950 h-4 w-4"
+                  />
+                  <span>Permitir alteração de resultados manual pelo administrador (Recomendado caso a API falhe)</span>
+                </label>
+
+                <label className="flex items-center gap-2.5 cursor-pointer mt-1">
+                  <input
+                    type="checkbox"
+                    checked={soccerCronActive}
+                    onChange={(e) => setSoccerCronActive(e.target.checked)}
+                    className="rounded border-slate-800 text-emerald-500 focus:ring-emerald-500 bg-slate-950 h-4 w-4"
+                  />
+                  <span>Executar Varredura Cron Job automático no plano de fundo (Copa)</span>
+                </label>
+              </div>
+
+              <div className="pt-3 border-t border-slate-950 flex flex-wrap gap-3">
+                <button
+                  onClick={handleSaveSoccerParams}
+                  id="btn-save-soccer-config"
+                  className="flex items-center gap-1.5 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-black rounded-lg cursor-pointer transition shadow"
+                >
+                  <Save className="h-4 w-4" />
+                  Salvar Parâmetros Futebol
+                </button>
+                <button
+                  onClick={handleSyncFootballManual}
+                  id="btn-sync-football-trigger"
+                  disabled={syncingFootball}
+                  className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-950 border border-slate-800 hover:text-emerald-400 text-slate-300 text-xs font-extrabold rounded-lg cursor-pointer transition"
+                >
+                  <RefreshCw className={`h-4 w-4 ${syncingFootball ? 'animate-spin' : ''}`} />
+                  {syncingFootball ? "Executando carga..." : "Forçar Sincronização Copa do Mundo"}
+                </button>
+              </div>
             </div>
+          )}
 
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-450 text-left">Chave Secundária (API-Sports Key)</label>
-              <input
-                type="password"
-                placeholder="Ex b7a6cb56ecbd..."
-                value={soccerKey}
-                onChange={(e) => setSoccerKey(e.target.value)}
-                className="w-full px-4 py-2.5 bg-slate-950 border border-slate-850 focus:border-yellow-500 hover:border-slate-800 rounded-xl text-xs font-mono text-slate-300"
-              />
+          {/* Subtab Content: LIBERTADORES */}
+          {apiFutebolMode === 'LIBERTADORES' && (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-slate-200">Sincronizador Copa Libertadores</h3>
+                <p className="text-xs text-slate-400">
+                  Configure e ative a carga dinâmica dos jogos oficiais da Copa Libertadores da América.
+                </p>
+              </div>
+
+              {/* Status & Visibilidade segment */}
+              <div className="bg-slate-950/75 p-4 rounded-xl border border-slate-900 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Trophy className="h-4 w-4 text-emerald-400" />
+                    <span className="text-xs font-black uppercase text-emerald-400">Visibilidade da Libertadores para Clientes</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    Ative ou oculte a exibição das partidas e palpites da Libertadores para os participantes no painel público.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-bold text-slate-400 shrink-0">Status Libertadores:</span>
+                  <button
+                    type="button"
+                    onClick={handleToggleLibertadores}
+                    className={`px-4 py-2 rounded-xl text-xs font-black select-none transition flex items-center gap-2 cursor-pointer ${
+                      libertadoresAtivo
+                        ? 'bg-emerald-950 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-900/60'
+                        : 'bg-red-950 border border-red-500/40 text-red-400 hover:bg-red-900/60'
+                    }`}
+                  >
+                    <Power className="h-4 w-4" />
+                    {libertadoresAtivo ? 'LIBERADA (ATIVADO PARA CLIENTES)' : 'BLOQUEADA (OCULTO PARA CLIENTES)'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Synchronize Match Segment */}
+              <div className="bg-slate-950/40 p-5 rounded-2xl border border-slate-900 space-y-4">
+                <h3 className="text-xs font-black uppercase text-slate-300">Puxar Partidas da Rodada</h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Puxar os confrontos e scores atualizados da Copa Libertadores em tempo real. Caso as suas credenciais estejam usando o plano gratuito ou estejam vazias, o sistema utilizará a base fallback oficial para testar a aplicação com dados perfeitos!
+                </p>
+                <div className="pt-2">
+                  <button
+                    onClick={handleSyncLibertadores}
+                    disabled={syncingLibertadores}
+                    className="px-5 py-2.5 bg-yellow-500 hover:bg-yellow-400 disabled:bg-slate-800 disabled:text-slate-500 font-black text-xs text-slate-950 rounded-lg transition flex items-center gap-2 cursor-pointer shadow"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${syncingLibertadores ? 'animate-spin' : ''}`} />
+                    {syncingLibertadores ? 'Sincronizando Libertadores...' : 'Forçar Sincronização Libertadores'}
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
 
-          <div className="flex flex-col gap-2 pt-2 text-xs text-slate-400 text-left">
-            <label className="flex items-center gap-2.5 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={soccerManualOverride}
-                onChange={(e) => setSoccerManualOverride(e.target.checked)}
-                className="rounded border-slate-800 text-emerald-500 focus:ring-emerald-500 bg-slate-950 h-4 w-4"
-              />
-              <span>Permitir alteração de resultados manual pelo administrador (Recomendado caso a API falhe)</span>
-            </label>
+          {/* Subtab Content: FUTURAS */}
+          {apiFutebolMode === 'FUTURAS' && (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="space-y-2">
+                <h3 className="text-base font-bold text-slate-200">Próximos Campeonatos & Modelos de API</h3>
+                <p className="text-xs text-slate-400">
+                  Estrutura limpa e preparada para você estender o engajamento do seu bolão para qualquer outro campeonato de futebol.
+                </p>
+              </div>
 
-            <label className="flex items-center gap-2.5 cursor-pointer mt-1">
-              <input
-                type="checkbox"
-                checked={soccerCronActive}
-                onChange={(e) => setSoccerCronActive(e.target.checked)}
-                className="rounded border-slate-800 text-emerald-500 focus:ring-emerald-500 bg-slate-950 h-4 w-4"
-              />
-              <span>Executar Varredura Cron Job automático no plano de fundo</span>
-            </label>
-          </div>
+              <div className="grid gap-4 sm:grid-cols-3 pt-2">
+                <div className="bg-slate-950/60 p-5 rounded-2xl border border-slate-900 space-y-3 opacity-75">
+                  <div className="h-9 w-9 bg-blue-950 border border-blue-500/30 text-blue-400 rounded-lg flex items-center justify-center font-bold text-sm">
+                    A
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black uppercase text-slate-200">Brasileirão Série A</h4>
+                    <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">
+                      Mapeie as partidas do Campeonato Brasileiro. IDs recomendados da API-Football: League 71.
+                    </p>
+                  </div>
+                  <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-900 text-slate-400">PRONTO PARA IMPLANTAR</span>
+                </div>
 
-          <div className="pt-3 border-t border-slate-950 flex flex-wrap gap-3">
-            <button
-              onClick={handleSaveSoccerParams}
-              id="btn-save-soccer-config"
-              className="flex items-center gap-1.5 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-black rounded-lg cursor-pointer transition shadow"
-            >
-              <Save className="h-4 w-4" />
-              Salvar Parâmetros Futebol
-            </button>
-            <button
-              onClick={handleSyncFootballManual}
-              id="btn-sync-football-trigger"
-              disabled={syncingFootball}
-              className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-950 border border-slate-800 hover:text-emerald-400 text-slate-300 text-xs font-extrabold rounded-lg cursor-pointer transition"
-            >
-              <RefreshCw className={`h-4 w-4 ${syncingFootball ? 'animate-spin' : ''}`} />
-              {syncingFootball ? "Executando carga..." : "Forçar Sincronização Agora"}
-            </button>
-          </div>
+                <div className="bg-slate-950/60 p-5 rounded-2xl border border-slate-900 space-y-3 opacity-75">
+                  <div className="h-9 w-9 bg-purple-950 border border-purple-500/30 text-purple-400 rounded-lg flex items-center justify-center font-bold text-sm">
+                    U
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black uppercase text-slate-200">UEFA Champions League</h4>
+                    <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">
+                      Ligue a principal competição europeia ao seu bolão. ID recomendado da API-Football: League 2.
+                    </p>
+                  </div>
+                  <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-900 text-slate-400">PRONTO PARA IMPLANTAR</span>
+                </div>
+
+                <div className="bg-slate-950/60 p-5 rounded-2xl border border-slate-900 space-y-3 opacity-75">
+                  <div className="h-9 w-9 bg-amber-950 border border-amber-500/30 text-amber-400 rounded-lg flex items-center justify-center font-bold text-sm">
+                    +
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black uppercase text-slate-200">Adicionar Customizado</h4>
+                    <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">
+                      Insira ligas estaduais, copas regionais ou torneios amadores de forma 100% manual.
+                    </p>
+                  </div>
+                  <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-900 text-slate-400">ARQUITETURA PRONTA</span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1351,275 +1497,570 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
         </div>
       )}
 
-      {/* 6. CALENDÁRIO PLANILHA JOGOS DA COPA */}
+      {/* 6. CALENDÁRIO PLANILHA JOGOS DA COPA E OUTRAS COMPETIÇÕES */}
       {activeSubTab === 'JOGOS' && (
         <div className="space-y-4 text-left">
           
-          {/* Title block */}
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-950/60 p-3 rounded-xl border border-slate-900">
-            <div>
-              <span className="text-xs font-black uppercase text-emerald-400">Varreduras do Calendário</span>
-              <p className="text-[11px] text-slate-500 mt-0.5">Adicione partidas manualmente ou gerencie o fechamento e fechamento de placares.</p>
-            </div>
-
-            <button
-              onClick={() => setCreatingMatch(!creatingMatch)}
-              id="btn-show-add-match-form"
-              className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-black rounded-lg transition flex items-center gap-1.5 cursor-pointer"
-            >
-              <PlusCircle className="h-4 w-4" />
-              Adicionar Partida Manual
-            </button>
-          </div>
-
-          {/* Copa do Mundo Status and Activation Settings */}
-          <div className="bg-slate-950/65 p-4 rounded-xl border border-slate-900 select-none flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <Play className="h-4 w-4 text-emerald-400" />
-                <span className="text-xs font-black uppercase text-emerald-400">Status Campanha: Copa do Mundo 2026</span>
-              </div>
-              <p className="text-[11px] text-slate-400 max-w-2xl">
-                Altere a visibilidade do Bolão da Copa do Mundo 2026 para os participantes. Se desativado, os jogos da Copa do Mundo serão ocultados na interface do cliente.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-slate-400 shrink-0">Aba Copa para Clientes:</span>
-              <button
-                type="button"
-                onClick={handleToggleCopaMundo}
-                className={`px-4 py-2 rounded-xl text-xs font-black select-none transition flex items-center gap-2 cursor-pointer ${
-                  copaMundoAtivo
-                    ? 'bg-emerald-950 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-900/60'
-                    : 'bg-red-950 border border-red-500/40 text-red-400 hover:bg-red-900/60'
-                }`}
-              >
-                <Power className="h-4 w-4" />
-                {copaMundoAtivo ? 'LIBERADA (ATIVADO PARA CLIENTES)' : 'BLOQUEADA (OCULTO PARA CLIENTES)'}
-              </button>
-            </div>
-          </div>
-
-          {/* Add Match Form (Conditional rendering) */}
-          {creatingMatch && (
-            <form onSubmit={handleCreateMatchSubmit} className="bg-slate-950 border border-emerald-950/40 p-5 rounded-2xl space-y-4 animate-fadeIn">
-              <h3 className="text-xs font-black uppercase text-emerald-400">Criar Partida Copa do Mundo 2026</h3>
-              
-              <div className="grid gap-4 sm:grid-cols-4">
-                
-                <div className="space-y-1 grid gap-1">
-                  <label className="text-[10px] font-bold text-slate-450 uppercase">Time Casa (E.g. Brasil)</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Brasil"
-                    value={newHomeTeam}
-                    onChange={(e) => setNewHomeTeam(e.target.value)}
-                    className="p-2 bg-slate-900 border border-slate-800 rounded text-xs text-slate-205 font-semibold"
-                  />
-                  <input
-                    type="text"
-                    required
-                    maxLength={2}
-                    placeholder="E.g 🇧🇷"
-                    value={newHomeFlag}
-                    onChange={(e) => setNewHomeFlag(e.target.value)}
-                    className="p-2 bg-slate-900 border border-slate-800 rounded font-bold text-center text-xs mt-1 w-16"
-                  />
-                </div>
-
-                <div className="space-y-1 grid gap-1">
-                  <label className="text-[10px] font-bold text-slate-450 uppercase">Time Fora (E.g. Argentina)</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Argentina"
-                    value={newAwayTeam}
-                    onChange={(e) => setNewAwayTeam(e.target.value)}
-                    className="p-2 bg-slate-900 border border-slate-800 rounded text-xs text-slate-210 font-semibold"
-                  />
-                  <input
-                    type="text"
-                    required
-                    maxLength={2}
-                    placeholder="E.g 🇦🇷"
-                    value={newAwayFlag}
-                    onChange={(e) => setNewAwayFlag(e.target.value)}
-                    className="p-2 bg-slate-900 border border-slate-800 rounded font-bold text-center text-xs mt-1 w-16"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-450 uppercase">Data e Horário Partida (Servidor)</label>
-                  <input
-                    type="datetime-local"
-                    required
-                    value={newMatchDate}
-                    onChange={(e) => setNewMatchDate(e.target.value)}
-                    className="w-full p-2 bg-slate-900 border border-slate-800 rounded font-mono text-xs text-slate-300"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-450 uppercase">Rodada do Grupo</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="10"
-                    required
-                    value={newMatchRound}
-                    onChange={(e) => setNewMatchRound(Number(e.target.value))}
-                    className="w-full p-2 bg-slate-900 border border-slate-800 rounded text-xs font-semibold text-center text-slate-300"
-                  />
-                </div>
-
-              </div>
-
-              <div className="flex gap-2 justify-end border-t border-slate-900 pt-3 text-xs select-none">
+          {/* Subtabs nested row for Calendário */}
+          <div className="flex flex-wrap gap-2 pb-3 border-b border-slate-800/60 select-none">
+            {[
+              { id: 'COPA_2026', label: 'Copa do Mundo 2026', icon: Play },
+              { id: 'LIBERTADORES', label: 'Copa Libertadores', icon: Trophy },
+              { id: 'FUTURAS', label: '+ Próximas Competições', icon: Sliders }
+            ].map((sub) => {
+              const Icon = sub.icon;
+              const isSubActive = calendarioMode === sub.id;
+              return (
                 <button
+                  key={sub.id}
                   type="button"
-                  onClick={() => setCreatingMatch(false)}
-                  className="px-3 py-1.5 bg-slate-900 text-slate-400 hover:text-slate-250 font-bold rounded"
+                  onClick={() => setCalendarioMode(sub.id as any)}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all border ${
+                    isSubActive
+                      ? 'bg-yellow-500/10 border-yellow-500 text-yellow-500 font-extrabold shadow'
+                      : 'bg-transparent border-slate-800 text-slate-400 hover:text-slate-200'
+                  }`}
                 >
-                  Cancelar
+                  <Icon className="h-3 w-3" />
+                  {sub.label}
                 </button>
+              );
+            })}
+          </div>
+
+          {/* Subtab Content: COPA 2026 */}
+          {calendarioMode === 'COPA_2026' && (
+            <div className="space-y-4 animate-fadeIn">
+              {/* Title block */}
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-950/60 p-3 rounded-xl border border-slate-900">
+                <div>
+                  <span className="text-xs font-black uppercase text-emerald-400">Varreduras do Calendário - Copa do Mundo</span>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Adicione partidas manualmente ou gerencie o fechamento e fechamento de placares.</p>
+                </div>
+
                 <button
-                  type="submit"
-                  className="px-4 py-1.5 bg-emerald-500 text-slate-950 font-black rounded transition"
+                  onClick={() => setCreatingMatch(!creatingMatch)}
+                  id="btn-show-add-match-form-copa"
+                  className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-black rounded-lg transition flex items-center gap-1.5 cursor-pointer"
                 >
-                  Confirmar Jogo
+                  <PlusCircle className="h-4 w-4" />
+                  Adicionar Partida Manual
                 </button>
               </div>
-            </form>
+
+              {/* Copa do Mundo Status and Activation Settings */}
+              <div className="bg-slate-950/65 p-4 rounded-xl border border-slate-900 select-none flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Play className="h-4 w-4 text-emerald-400" />
+                    <span className="text-xs font-black uppercase text-emerald-400">Status Campanha: Copa do Mundo 2026</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 max-w-2xl">
+                    Altere a visibilidade do Bolão da Copa do Mundo 2026 para os participantes. Se desativado, os jogos da Copa do Mundo serão ocultados na interface do cliente.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-bold text-slate-400 shrink-0">Aba Copa para Clientes:</span>
+                  <button
+                    type="button"
+                    onClick={handleToggleCopaMundo}
+                    className={`px-4 py-2 rounded-xl text-xs font-black select-none transition flex items-center gap-2 cursor-pointer ${
+                      copaMundoAtivo
+                        ? 'bg-emerald-950 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-900/60'
+                        : 'bg-red-950 border border-red-500/40 text-red-400 hover:bg-red-900/60'
+                    }`}
+                  >
+                    <Power className="h-4 w-4" />
+                    {copaMundoAtivo ? 'LIBERADA (ATIVADO PARA CLIENTES)' : 'BLOQUEADA (OCULTO PARA CLIENTES)'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Add Match Form (Conditional rendering) */}
+              {creatingMatch && (
+                <form onSubmit={handleCreateMatchSubmit} className="bg-slate-950 border border-emerald-950/40 p-5 rounded-2xl space-y-4 animate-fadeIn">
+                  <h3 className="text-xs font-black uppercase text-emerald-400">Criar Partida Copa do Mundo 2026</h3>
+                  
+                  <div className="grid gap-4 sm:grid-cols-4">
+                    <div className="space-y-1 grid gap-1">
+                      <label className="text-[10px] font-bold text-slate-450 uppercase">Time Casa (E.g. Brasil)</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Brasil"
+                        value={newHomeTeam}
+                        onChange={(e) => setNewHomeTeam(e.target.value)}
+                        className="p-2 bg-slate-900 border border-slate-800 rounded text-xs text-slate-205 font-semibold"
+                      />
+                      <input
+                        type="text"
+                        required
+                        maxLength={2}
+                        placeholder="E.g 🇧🇷"
+                        value={newHomeFlag}
+                        onChange={(e) => setNewHomeFlag(e.target.value)}
+                        className="p-2 bg-slate-900 border border-slate-800 rounded font-bold text-center text-xs mt-1 w-16"
+                      />
+                    </div>
+
+                    <div className="space-y-1 grid gap-1">
+                      <label className="text-[10px] font-bold text-slate-450 uppercase">Time Fora (E.g. Argentina)</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Argentina"
+                        value={newAwayTeam}
+                        onChange={(e) => setNewAwayTeam(e.target.value)}
+                        className="p-2 bg-slate-900 border border-slate-800 rounded text-xs text-slate-210 font-semibold"
+                      />
+                      <input
+                        type="text"
+                        required
+                        maxLength={2}
+                        placeholder="E.g 🇦🇷"
+                        value={newAwayFlag}
+                        onChange={(e) => setNewAwayFlag(e.target.value)}
+                        className="p-2 bg-slate-900 border border-slate-800 rounded font-bold text-center text-xs mt-1 w-16"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-450 uppercase">Data e Horário Partida (Servidor)</label>
+                      <input
+                        type="datetime-local"
+                        required
+                        value={newMatchDate}
+                        onChange={(e) => setNewMatchDate(e.target.value)}
+                        className="w-full p-2 bg-slate-900 border border-slate-800 rounded font-mono text-xs text-slate-300"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-450 uppercase">Rodada do Grupo</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="10"
+                        required
+                        value={newMatchRound}
+                        onChange={(e) => setNewMatchRound(Number(e.target.value))}
+                        className="w-full p-2 bg-slate-900 border border-slate-800 rounded text-xs font-semibold text-center text-slate-300"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 justify-end border-t border-slate-900 pt-3 text-xs select-none">
+                    <button
+                      type="button"
+                      onClick={() => setCreatingMatch(false)}
+                      className="px-3 py-1.5 bg-slate-900 text-slate-400 hover:text-slate-250 font-bold rounded"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-1.5 bg-emerald-500 text-slate-950 font-black rounded transition"
+                    >
+                      Confirmar Jogo
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* Matches grid listing with inline score update */}
+              <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl overflow-hidden shadow">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-slate-950/80 text-[10px] font-bold uppercase text-slate-450 border-b border-slate-900">
+                    <tr>
+                      <th className="px-4 py-3 text-center w-12">Rod</th>
+                      <th className="px-4 py-3">Partida / Times Concorrentes</th>
+                      <th className="px-4 py-3">Data Prevista</th>
+                      <th className="px-4 py-3 text-center">Placares Atuais</th>
+                      <th className="px-4 py-3 text-center w-24">Status</th>
+                      <th className="px-4 py-3 text-center w-32">Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-900">
+                    {jogos
+                      .filter(j => !j.api_id || !j.api_id.startsWith("libertadores_"))
+                      .map((jogo) => {
+                        const isEditingThis = editingMatchId === jogo.id;
+                        return (
+                          <tr key={jogo.id}>
+                            <td className="px-4 py-3 text-center font-mono font-bold text-slate-400">{jogo.rodada}</td>
+                            <td className="px-4 py-3 font-semibold text-slate-250">
+                              <span className="inline-flex items-center gap-1.5 align-middle">
+                                {renderBandeira(jogo.time_casa_bandeira, "w-6 h-6", "text-sm")}
+                                <span>{jogo.time_casa}</span>
+                                <span className="text-slate-500 font-bold mx-1">x</span>
+                                {renderBandeira(jogo.time_fora_bandeira, "w-6 h-6", "text-sm")}
+                                <span>{jogo.time_fora}</span>
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 font-mono text-slate-400">
+                              {new Date(jogo.data_jogo).toLocaleDateString('pt-BR')} às {new Date(jogo.data_jogo).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                            </td>
+                            
+                            <td className="px-4 py-3 text-center">
+                              {isEditingThis ? (
+                                <div className="flex items-center gap-1.5 justify-center">
+                                  <input
+                                    type="number"
+                                    placeholder="-"
+                                    value={editMatchCasaPlacar}
+                                    onChange={(e) => setEditMatchCasaPlacar(e.target.value)}
+                                    className="w-10 p-1 bg-slate-950 border border-slate-800 rounded font-mono font-bold text-center text-xs text-yellow-500"
+                                  />
+                                  <span className="text-slate-650">x</span>
+                                  <input
+                                    type="number"
+                                    placeholder="-"
+                                    value={editMatchForaPlacar}
+                                    onChange={(e) => setEditMatchForaPlacar(e.target.value)}
+                                    className="w-10 p-1 bg-slate-950 border border-slate-800 rounded font-mono font-bold text-center text-xs text-yellow-500"
+                                  />
+                                </div>
+                              ) : (
+                                <span className="font-mono font-extrabold text-sm text-yellow-500 bg-slate-950 px-2 py-0.5 rounded">
+                                  {jogo.placar_casa !== null ? jogo.placar_casa : '-'} x {jogo.placar_fora !== null ? jogo.placar_fora : '-'}
+                                </span>
+                              )}
+                            </td>
+
+                            <td className="px-4 py-3 text-center">
+                              {isEditingThis ? (
+                                <select
+                                  value={editMatchStatus}
+                                  onChange={(e) => setEditMatchStatus(e.target.value as any)}
+                                  className="bg-slate-950 border border-slate-800 rounded text-[10px] py-1 font-bold text-yellow-500"
+                                >
+                                  <option value="PENDENTE">Aberto</option>
+                                  <option value="AO_VIVO">Ao Vivo</option>
+                                  <option value="ENCERRADO">Encerrado</option>
+                                </select>
+                              ) : (
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                  jogo.status === 'AO_VIVO' 
+                                    ? 'bg-red-950/80 border border-red-800/40 text-red-400 animate-pulse' 
+                                    : jogo.status === 'ENCERRADO'
+                                      ? 'bg-slate-950 border border-slate-800 text-slate-400'
+                                      : 'bg-emerald-950 text-emerald-400 border border-emerald-900/40'
+                                }`}>
+                                  {jogo.status === 'AO_VIVO' ? 'Ao vivo' : jogo.status === 'ENCERRADO' ? 'Encerrado' : 'Aberto'}
+                                </span>
+                              )}
+                            </td>
+                            
+                            <td className="px-4 py-3 text-center">
+                              {isEditingThis ? (
+                                <div className="flex items-center justify-center gap-1 text-[10px]">
+                                  <button
+                                    onClick={() => handleSaveMatchScore(jogo.id)}
+                                    className="p-1 px-2.5 bg-emerald-500 text-slate-950 font-black rounded cursor-pointer transition hover:scale-105"
+                                    title="Salvar e recalcular pontos"
+                                  >
+                                    SALVAR 🎯
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingMatchId(null)}
+                                    className="p-1 px-1.5 bg-slate-95 w-12 text-slate-350 cursor-pointer text-center font-bold"
+                                  >
+                                    Voltar
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <button
+                                    onClick={() => handleOpenMatchScoreEditor(jogo)}
+                                    title="Editar partida ou fechar placar"
+                                    className="p-1 bg-slate-950 hover:text-yellow-500/90 border border-slate-850 p-1.5 rounded text-slate-300"
+                                  >
+                                    <Edit2 className="h-3 w-3" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteMatch(jogo.id)}
+                                    title="Deletar partida do calendário"
+                                    className="p-1 bg-slate-950 text-red-500/80 hover:bg-slate-900 rounded"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           )}
 
-          {/* Matches grid listing with inline score update */}
-          <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl overflow-hidden shadow">
-            
-            <table className="w-full text-xs text-left">
-              <thead className="bg-slate-950/80 text-[10px] font-bold uppercase text-slate-450 border-b border-slate-900">
-                <tr>
-                  <th className="px-4 py-3 text-center w-12">Rod</th>
-                  <th className="px-4 py-3">Partida / Times Concorrentes</th>
-                  <th className="px-4 py-3">Data Prevista</th>
-                  <th className="px-4 py-3 text-center">Placares Atuais</th>
-                  <th className="px-4 py-3 text-center w-24">Status</th>
-                  <th className="px-4 py-3 text-center w-32">Ação</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-900">
-                {jogos.map((jogo) => {
-                  const isEditingThis = editingMatchId === jogo.id;
-                  return (
-                    <tr key={jogo.id}>
-                      <td className="px-4 py-3 text-center font-mono font-bold text-slate-400">{jogo.rodada}</td>
-                      <td className="px-4 py-3 font-semibold text-slate-250">
-                        <span className="inline-flex items-center gap-1.5 align-middle">
-                          {renderBandeira(jogo.time_casa_bandeira, "w-6 h-6", "text-sm")}
-                          <span>{jogo.time_casa}</span>
-                          <span className="text-slate-500 font-bold mx-1">x</span>
-                          {renderBandeira(jogo.time_fora_bandeira, "w-6 h-6", "text-sm")}
-                          <span>{jogo.time_fora}</span>
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 font-mono text-slate-400">
-                        {new Date(jogo.data_jogo).toLocaleDateString('pt-BR')} às {new Date(jogo.data_jogo).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                      </td>
-                      
-                      <td className="px-4 py-3 text-center">
-                        {isEditingThis ? (
-                          <div className="flex items-center gap-1.5 justify-center">
-                            <input
-                              type="number"
-                              placeholder="-"
-                              value={editMatchCasaPlacar}
-                              onChange={(e) => setEditMatchCasaPlacar(e.target.value)}
-                              className="w-10 p-1 bg-slate-950 border border-slate-800 rounded font-mono font-bold text-center text-xs text-yellow-500"
-                            />
-                            <span className="text-slate-650">x</span>
-                            <input
-                              type="number"
-                              placeholder="-"
-                              value={editMatchForaPlacar}
-                              onChange={(e) => setEditMatchForaPlacar(e.target.value)}
-                              className="w-10 p-1 bg-slate-950 border border-slate-800 rounded font-mono font-bold text-center text-xs text-yellow-500"
-                            />
-                          </div>
-                        ) : (
-                          <span className="font-mono font-extrabold text-sm text-yellow-500 bg-slate-950 px-2 py-0.5 rounded">
-                            {jogo.placar_casa !== null ? jogo.placar_casa : '-'} x {jogo.placar_fora !== null ? jogo.placar_fora : '-'}
-                          </span>
-                        )}
-                      </td>
+          {/* Subtab Content: LIBERTADORES */}
+          {calendarioMode === 'LIBERTADORES' && (
+            <div className="space-y-6 animate-fadeIn">
+              {/* Header Control Segment */}
+              <div className="bg-slate-950/65 p-4 rounded-xl border border-slate-900 select-none flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Trophy className="h-5 w-5 text-yellow-500" />
+                    <span className="text-sm font-black uppercase text-yellow-500">Varreduras do Calendário - Libertadores</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    Visualize o calendário da Copa Libertadores da América, configure palpites de teste e oficialize os placares reais da rodada.
+                  </p>
+                </div>
 
-                      <td className="px-4 py-3 text-center">
-                        {isEditingThis ? (
-                          <select
-                            value={editMatchStatus}
-                            onChange={(e) => setEditMatchStatus(e.target.value as any)}
-                            className="bg-slate-950 border border-slate-800 rounded text-[10px] py-1 font-bold text-yellow-500"
-                          >
-                            <option value="PENDENTE">Aberto</option>
-                            <option value="AO_VIVO">Ao Vivo</option>
-                            <option value="ENCERRADO">Encerrado</option>
-                          </select>
-                        ) : (
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            jogo.status === 'AO_VIVO' 
-                              ? 'bg-red-950/80 border border-red-800/40 text-red-400 animate-pulse' 
-                              : jogo.status === 'ENCERRADO'
-                                ? 'bg-slate-950 border border-slate-800 text-slate-400'
-                                : 'bg-emerald-950 text-emerald-400 border border-emerald-900/40'
-                          }`}>
-                            {jogo.status === 'AO_VIVO' ? 'Ao vivo' : jogo.status === 'ENCERRADO' ? 'Encerrado' : 'Aberto'}
-                          </span>
-                        )}
-                      </td>
-                      
-                      <td className="px-4 py-3 text-center">
-                        {isEditingThis ? (
-                          <div className="flex items-center justify-center gap-1 text-[10px]">
-                            <button
-                              onClick={() => handleSaveMatchScore(jogo.id)}
-                              className="p-1 px-2.5 bg-emerald-500 text-slate-950 font-black rounded cursor-pointer transition hover:scale-105"
-                              title="Salvar e recalcular pontos"
-                            >
-                              SALVAR 🎯
-                            </button>
-                            <button
-                              onClick={() => setEditingMatchId(null)}
-                              className="p-1 px-1.5 bg-slate-95 w-12 text-slate-350 cursor-pointer text-center font-bold"
-                            >
-                              Voltar
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-center gap-1.5">
-                            <button
-                              onClick={() => handleOpenMatchScoreEditor(jogo)}
-                              title="Editar partida ou fechar placar"
-                              className="p-1 bg-slate-950 hover:text-yellow-500/90 border border-slate-850 p-1.5 rounded text-slate-300"
-                            >
-                              <Edit2 className="h-3 w-3" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteMatch(jogo.id)}
-                              title="Deletar partida do calendário"
-                              className="p-1 bg-slate-950 text-red-500/80 hover:bg-slate-900 rounded"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-bold text-slate-400 shrink-0">Libertadores ativa para Clientes:</span>
+                  <button
+                    type="button"
+                    onClick={handleToggleLibertadores}
+                    className={`px-4 py-2 rounded-xl text-xs font-black select-none transition flex items-center gap-2 cursor-pointer ${
+                      libertadoresAtivo
+                        ? 'bg-emerald-950 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-900/60'
+                        : 'bg-red-950 border border-red-500/40 text-red-400 hover:bg-red-900/60'
+                    }`}
+                  >
+                    <Power className="h-4 w-4" />
+                    {libertadoresAtivo ? 'ATIVADO' : 'BLOQUEADO'}
+                  </button>
+                </div>
+              </div>
 
-          </div>
+              {/* Instructions and tips box */}
+              <div className="bg-slate-900/30 border border-slate-800/80 p-5 rounded-2xl space-y-3">
+                <h3 className="text-xs font-black uppercase text-slate-300">Testagem do Fluxo de Pontos da Libertadores</h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Como administrador, use o formulário de <b>Palpites de Teste</b> abaixo para simular apostas sob o seu perfil técnico de administrador. Em seguida, altere e grave o placar real de qualquer jogo para simular o recálculo imediato do ranking!
+                </p>
+                <div className="p-3 bg-slate-950/80 border border-slate-900 rounded-xl flex items-center gap-3">
+                  <ShieldCheck className="h-5 w-5 text-emerald-400 shrink-0" />
+                  <div className="text-[11px] text-slate-450">
+                    O sincronizador automático de jogos da Libertadores e chaves de API estão localizados na aba <b>API Futebol</b> &gt; <b>Copa Libertadores</b>.
+                  </div>
+                </div>
+              </div>
+
+              {/* Matches list for Libertadores */}
+              <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden overflow-x-auto shadow">
+                <div className="min-w-[950px]">
+                  <div className="bg-slate-950 text-xs font-black uppercase text-slate-400 px-4 py-3.5 border-b border-slate-900 grid grid-cols-12 gap-2 select-none">
+                    <span className="col-span-2">Data / Hora</span>
+                    <span className="col-span-4 text-center">Partida / Clubes</span>
+                    <span className="col-span-1 text-center font-bold">Placar</span>
+                    <span className="col-span-2 text-center">Status</span>
+                    <span className="col-span-3 text-right">Ações Administrador / Palpite de Teste</span>
+                  </div>
+
+                  <div className="divide-y divide-slate-900/70">
+                    {jogos.filter(j => j.api_id && j.api_id.startsWith("libertadores_")).length > 0 ? (
+                      jogos
+                        .filter(j => j.api_id && j.api_id.startsWith("libertadores_"))
+                        .map(jogo => {
+                          const hasTestBet = adminPalpites.find(p => p.jogo_id === jogo.id);
+                          const isEditing = editingMatchId === jogo.id;
+
+                          return (
+                            <div key={jogo.id} className="px-4 py-4 hover:bg-slate-905/35 transition grid grid-cols-12 gap-2 items-center text-xs">
+                              <div className="col-span-2 font-mono text-slate-450">
+                                {new Date(jogo.data_jogo).toLocaleString('pt-BR')}
+                              </div>
+
+                              <div className="col-span-4 flex items-center justify-between px-3">
+                                <div className="flex items-center gap-2 w-[45%] justify-end">
+                                  <span className="font-semibold text-slate-200 truncate">{jogo.time_casa}</span>
+                                  <span className="text-base select-none">{renderBandeira(jogo.time_casa_bandeira)}</span>
+                                </div>
+                                <span className="text-[10px] font-black text-slate-500 uppercase shrink-0">vs</span>
+                                <div className="flex items-center gap-2 w-[45%]">
+                                  <span className="text-base select-none">{renderBandeira(jogo.time_fora_bandeira)}</span>
+                                  <span className="font-semibold text-slate-200 truncate">{jogo.time_fora}</span>
+                                </div>
+                              </div>
+
+                              <div className="col-span-1 text-center font-mono font-bold text-yellow-500">
+                                {jogo.status === 'PENDENTE' ? (
+                                  <span className="text-slate-550">- x -</span>
+                                ) : (
+                                  <span>{jogo.placar_casa} x {jogo.placar_fora}</span>
+                                )}
+                              </div>
+
+                              <div className="col-span-2 text-center select-none">
+                                <span className={`inline-block px-2 py-0.5 text-[9px] font-black rounded ${
+                                  jogo.status === 'PENDENTE'
+                                    ? 'bg-slate-800/80 text-slate-400'
+                                    : jogo.status === 'AO_VIVO'
+                                    ? 'bg-red-950 border border-red-500/20 text-red-400 animate-pulse'
+                                    : 'bg-emerald-950 border border-emerald-500/20 text-emerald-400'
+                                }`}>
+                                  {jogo.status}
+                                </span>
+                              </div>
+
+                              <div className="col-span-3">
+                                {isEditing ? (
+                                  <div className="bg-slate-950 p-2 border border-slate-800 rounded-xl space-y-2 text-left">
+                                    <div className="flex items-center justify-center gap-2 font-mono">
+                                      <input
+                                        type="number"
+                                        maxLength={2}
+                                        value={editMatchCasaPlacar}
+                                        onChange={(e) => setEditMatchCasaPlacar(e.target.value)}
+                                        className="w-10 text-center bg-slate-900 border border-slate-700 text-yellow-500 text-xs py-1 rounded-md"
+                                      />
+                                      <span className="text-slate-500">x</span>
+                                      <input
+                                        type="number"
+                                        maxLength={2}
+                                        value={editMatchForaPlacar}
+                                        onChange={(e) => setEditMatchForaPlacar(e.target.value)}
+                                        className="w-10 text-center bg-slate-900 border border-slate-700 text-yellow-500 text-xs py-1 rounded-md"
+                                      />
+                                    </div>
+                                    <select
+                                      value={editMatchStatus}
+                                      onChange={(e: any) => setEditMatchStatus(e.target.value)}
+                                      className="w-full bg-slate-900 border border-slate-700 text-[10px] text-slate-300 rounded px-1.5 py-1"
+                                    >
+                                      <option value="PENDENTE">PENDENTE</option>
+                                      <option value="AO_VIVO">AO_VIVO</option>
+                                      <option value="ENCERRADO">ENCERRADO</option>
+                                    </select>
+                                    <div className="flex gap-1.5 justify-end">
+                                      <button
+                                        onClick={() => setEditingMatchId(null)}
+                                        className="px-2 py-1 bg-slate-800 rounded text-[9px] text-slate-400 hover:text-slate-200"
+                                      >
+                                        Cancelar
+                                      </button>
+                                      <button
+                                        onClick={() => handleSaveMatchScore(jogo.id)}
+                                        className="px-2.5 py-1 bg-yellow-500 rounded text-[9px] font-black text-slate-950 hover:bg-yellow-400"
+                                      >
+                                        Salvar
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-2 text-right">
+                                    <div className="flex gap-1.5 justify-end">
+                                      <button
+                                        onClick={() => {
+                                          setEditingMatchId(jogo.id);
+                                          setEditMatchCasaPlacar(jogo.placar_casa !== null ? String(jogo.placar_casa) : "");
+                                          setEditMatchForaPlacar(jogo.placar_fora !== null ? String(jogo.placar_fora) : "");
+                                          setEditMatchStatus(jogo.status);
+                                        }}
+                                        className="px-2 py-1 bg-slate-900 border border-slate-850 hover:border-slate-700 hover:text-yellow-500 rounded text-[10px] font-semibold text-slate-400 transition cursor-pointer"
+                                      >
+                                        Oficializar Placar
+                                      </button>
+                                    </div>
+
+                                    {/* Bet test flow for admin */}
+                                    {jogo.status === 'PENDENTE' && (
+                                      <div className="flex items-center justify-end gap-1.5 font-mono">
+                                        <span className="text-[10px] text-slate-450 font-sans mr-1">Palpite Teste:</span>
+                                        <input
+                                          type="number"
+                                          placeholder="C"
+                                          value={testPlacares[jogo.id]?.casa || ""}
+                                          onChange={(e) => setTestPlacares(prev => ({
+                                            ...prev,
+                                            [jogo.id]: { casa: e.target.value, fora: prev[jogo.id]?.fora || "" }
+                                          }))}
+                                          className="w-7 text-center bg-slate-950 border border-slate-850 focus:border-slate-700 text-yellow-500 font-bold text-xs h-6 rounded"
+                                        />
+                                        <span className="text-slate-650 text-[10px]">x</span>
+                                        <input
+                                          type="number"
+                                          placeholder="F"
+                                          value={testPlacares[jogo.id]?.fora || ""}
+                                          onChange={(e) => setTestPlacares(prev => ({
+                                            ...prev,
+                                            [jogo.id]: { casa: prev[jogo.id]?.casa || "", fora: e.target.value }
+                                          }))}
+                                          className="w-7 text-center bg-slate-950 border border-slate-850 focus:border-slate-700 text-yellow-500 font-bold text-xs h-6 rounded"
+                                        />
+                                        <button
+                                          onClick={() => submitTestPrediction(jogo.id)}
+                                          className="px-2 py-1 bg-emerald-950 hover:bg-emerald-900 border border-emerald-500/20 rounded text-[10px] text-emerald-400 font-bold tracking-tight transition ml-1 cursor-pointer"
+                                        >
+                                          {hasTestBet ? 'Reenviar' : 'Palpitar'}
+                                        </button>
+                                      </div>
+                                    )}
+
+                                    {hasTestBet && (
+                                      <div className="text-[10px] text-slate-450 flex items-center gap-1.5 justify-end uppercase tracking-tight select-none mt-1">
+                                        <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                        Palpitado de Teste ({hasTestBet.placar_casa} x {hasTestBet.placar_fora})
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })
+                    ) : (
+                      <div className="py-20 text-center text-slate-500 space-y-2">
+                        <Trophy className="h-10 w-10 text-slate-700 mx-auto" />
+                        <p className="text-xs">
+                          Nenhuma partida da Libertadores foi encontrada na base de dados. Sincronize usando o painel na aba <b>API Futebol</b>!
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Subtab Content: FUTURAS */}
+          {calendarioMode === 'FUTURAS' && (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="space-y-2">
+                <h3 className="text-base font-bold text-slate-200">Gerenciar Próximas Competições</h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Adicione e controle novos campeonatos e ligas esportivas no seu painel. A arquitetura elástica de dados (NoSQL/Relacional híbrido) suporta novas competições sem alteração estrutural no servidor.
+                </p>
+              </div>
+
+              {/* Form placeholder */}
+              <div className="bg-slate-950 border border-slate-900 p-6 rounded-2xl grid gap-4 sm:grid-cols-2 opacity-80 select-none text-left">
+                <div className="space-y-4">
+                  <h4 className="text-xs font-black uppercase text-yellow-500 tracking-wider">Mapeamento Técnico de Nova Competição</h4>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">Nome da Competição</label>
+                    <input disabled type="text" placeholder="UEFA Champions League (Mapeando)" className="w-full p-2 bg-slate-900 border border-slate-800 rounded text-xs text-slate-400 cursor-not-allowed" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">ID na API-Sports Football</label>
+                    <input disabled type="number" placeholder="2" className="w-full p-2 bg-slate-900 border border-slate-800 rounded font-mono text-xs text-slate-400 cursor-not-allowed" />
+                  </div>
+                  <button type="button" disabled className="px-4 py-2 bg-slate-900 text-slate-600 font-bold text-[10px] uppercase rounded-lg border border-slate-800/80 cursor-not-allowed">
+                    Ativar Coleta Ativa
+                  </button>
+                </div>
+
+                <div className="bg-slate-900/40 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
+                  <div className="space-y-2">
+                    <h5 className="text-[11px] font-extrabold uppercase text-slate-300">Arquitetura Elástica Pronta:</h5>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      Todas as consultas baseiam-se em identificadores flexíveis no banco de dados. No momento que o programador cadastrar uma nova liga na base, ela passará a ser listada automaticamente para clientes apostarem e disputarem as pontuações do ranking unificado do provedor!
+                    </p>
+                  </div>
+                  <div className="bg-yellow-950/20 border border-yellow-500/20 p-2.5 rounded-lg text-[10px] text-yellow-500 leading-normal">
+                    💡 <b>Suporte técnico pronto para adicionar</b>: Brasileirão Série A, Champions League, Copa América, Eurocopa ou torneios estaduais.
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
         </div>
       )}
@@ -1750,266 +2191,6 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
                 )}
               </div>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* 9. COPA LIBERTADORES (TESTE & GERENCIAMENTO ADMIN) */}
-      {activeSubTab === 'LIBERTADORES' && (
-        <div className="space-y-6">
-          {/* Header Control Segment */}
-          <div className="bg-slate-950/65 p-4 rounded-2xl border border-slate-900 select-none flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <Trophy className="h-5 w-5 text-yellow-500" />
-                <span className="text-sm font-black uppercase text-yellow-500">Módulo Libertadores (Teste & Configuração)</span>
-              </div>
-              <p className="text-[11px] text-slate-400 max-w-2xl">
-                Gerencie e teste a integração dos jogos da Libertadores. Por enquanto, esta funcionalidade está visível apenas para administradores e restrita na página inicial dos participantes até que seja explicitamente liberada para os clientes.
-              </p>
-            </div>
-
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-              <div className="flex items-center gap-3 bg-slate-900/50 p-2 rounded-xl border border-slate-900">
-                <span className="text-xs font-bold text-slate-400 shrink-0">Copa:</span>
-                <button
-                  type="button"
-                  onClick={handleToggleCopaMundo}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-black select-none transition flex items-center gap-1.5 cursor-pointer ${
-                    copaMundoAtivo
-                      ? 'bg-emerald-950 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-900/60'
-                      : 'bg-red-950 border border-red-500/40 text-red-400 hover:bg-red-900/60'
-                  }`}
-                >
-                  <Power className="h-3.5 w-3.5" />
-                  {copaMundoAtivo ? 'ATIVO' : 'BLOQUEADO'}
-                </button>
-              </div>
-
-              <div className="flex items-center gap-3 bg-slate-900/50 p-2 rounded-xl border border-slate-900">
-                <span className="text-xs font-bold text-slate-400 shrink-0">Libertadores:</span>
-                <button
-                  type="button"
-                  onClick={handleToggleLibertadores}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-black select-none transition flex items-center gap-1.5 cursor-pointer ${
-                    libertadoresAtivo
-                      ? 'bg-emerald-950 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-900/60'
-                      : 'bg-red-950 border border-red-500/40 text-red-400 hover:bg-red-900/60'
-                  }`}
-                >
-                  <Power className="h-3.5 w-3.5" />
-                  {libertadoresAtivo ? 'ATIVO' : 'BLOQUEADO'}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Synchronize Match Segment */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="md:col-span-1 bg-slate-900/40 border border-slate-800/80 p-5 rounded-2xl space-y-4">
-              <h3 className="text-xs font-black uppercase text-slate-300">Sincronizador da API Football</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Puxar jogos da Copa Libertadores de hoje de forma 100% automatizada. Caso você não possua uma API Key válida configurada no painel, o sistema utilizará o conjunto de dados fallback oficial desta rodada da Libertadores imediatamente para simulação perfeita (incluindo Junior vs Botafogo, Flamengo vs Millonarios, etc.).
-              </p>
-              <button
-                onClick={handleSyncLibertadores}
-                disabled={syncingLibertadores}
-                className="w-full py-2.5 bg-yellow-500 hover:bg-yellow-400 disabled:bg-slate-800 disabled:text-slate-500 font-bold text-xs text-slate-950 rounded-xl transition flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <RefreshCw className={`h-4 w-4 ${syncingLibertadores ? 'animate-spin' : ''}`} />
-                {syncingLibertadores ? 'Sincronizando...' : 'Sincronizar Libertadores'}
-              </button>
-            </div>
-
-            <div className="md:col-span-2 bg-slate-900/40 border border-slate-800/80 p-5 rounded-2xl space-y-4">
-              <h3 className="text-xs font-black uppercase text-slate-300">Instruções para Testagem de Administrador</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Como administrador, você possui um participante fictício de testes associado ao seu token com ID <b>999999</b> (Suporte Unity Admin).
-                Você pode palpitar nas partidas da Libertadores utilizando o formulário de palpites de teste abaixo de forma a testar o fluxo de registro.
-                Uma vez que os jogos forem iniciados ou encerrados, você poderá atualizar os placares oficiais ao lado para rodar o recálculo do regulamento de pontos e rankings!
-              </p>
-              <div className="p-3 bg-slate-950/85 border border-slate-900 rounded-xl flex items-center gap-3">
-                <ShieldCheck className="h-5 w-5 text-emerald-400 shrink-0" />
-                <div className="text-[11px] text-slate-400">
-                  <b>Dica:</b> Ative os palpites para os clientes apenas quando estiver 100% satisfeito com o fluxo de cálculo.
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Matches and bet results display */}
-          <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden overflow-x-auto">
-            <div className="min-w-[950px]">
-              <div className="bg-slate-950 text-xs font-black uppercase text-slate-400 px-4 py-3.5 border-b border-slate-900 grid grid-cols-12 gap-2 select-none">
-                <span className="col-span-2">Data / Hora</span>
-                <span className="col-span-4 text-center">Partida / Clubes</span>
-                <span className="col-span-1 text-center font-bold">Placar</span>
-                <span className="col-span-2 text-center">Status</span>
-                <span className="col-span-3 text-right">Ações Administrador / Palpite de Teste</span>
-              </div>
-
-              <div className="divide-y divide-slate-900/70 max-h-[600px] overflow-y-auto">
-              {jogos.filter(j => j.api_id && j.api_id.startsWith("libertadores_")).length > 0 ? (
-                jogos
-                  .filter(j => j.api_id && j.api_id.startsWith("libertadores_"))
-                  .map(jogo => {
-                    const hasTestBet = adminPalpites.find(p => p.jogo_id === jogo.id);
-                    const isEditing = editingMatchId === jogo.id;
-
-                    return (
-                      <div key={jogo.id} className="px-4 py-4 hover:bg-slate-905/30 transition grid grid-cols-12 gap-2 items-center">
-                        <div className="col-span-2 text-[11px] font-mono text-slate-400">
-                          {new Date(jogo.data_jogo).toLocaleString('pt-BR')}
-                        </div>
-
-                        <div className="col-span-4 flex items-center justify-between px-3">
-                          <div className="flex items-center gap-2 w-[45%] justify-end">
-                            <span className="text-xs font-semibold text-slate-200 truncate">{jogo.time_casa}</span>
-                            <span className="text-base select-none">{renderBandeira(jogo.time_casa_bandeira)}</span>
-                          </div>
-                          <span className="text-[11px] font-black text-slate-500 uppercase shrink-0">vs</span>
-                          <div className="flex items-center gap-2 w-[45%]">
-                            <span className="text-base select-none">{renderBandeira(jogo.time_fora_bandeira)}</span>
-                            <span className="text-xs font-semibold text-slate-200 truncate">{jogo.time_fora}</span>
-                          </div>
-                        </div>
-
-                        <div className="col-span-1 text-center font-mono text-sm font-bold text-yellow-500 col-span-1">
-                          {jogo.status === 'PENDENTE' ? (
-                            <span className="text-xs text-slate-500">- x -</span>
-                          ) : (
-                            <span>{jogo.placar_casa} x {jogo.placar_fora}</span>
-                          )}
-                        </div>
-
-                        <div className="col-span-2 text-center select-none">
-                          <span className={`inline-block px-2 py-0.5 text-[9px] font-black rounded ${
-                            jogo.status === 'PENDENTE'
-                              ? 'bg-slate-800 text-slate-400'
-                              : jogo.status === 'AO_VIVO'
-                              ? 'bg-red-950 border border-red-500/20 text-red-400 animate-pulse'
-                              : 'bg-emerald-950 border border-emerald-500/20 text-emerald-400'
-                          }`}>
-                            {jogo.status}
-                          </span>
-                        </div>
-
-                        <div className="col-span-3">
-                          {isEditing ? (
-                            <div className="bg-slate-950 p-2 border border-slate-800 rounded-xl space-y-2">
-                              <div className="flex items-center justify-center gap-2 font-mono">
-                                <input
-                                  type="number"
-                                  maxLength={2}
-                                  value={editMatchCasaPlacar}
-                                  onChange={(e) => setEditMatchCasaPlacar(e.target.value)}
-                                  className="w-10 text-center bg-slate-900 border border-slate-700 text-yellow-500 text-xs py-1 rounded-md"
-                                />
-                                <span className="text-slate-500">x</span>
-                                <input
-                                  type="number"
-                                  maxLength={2}
-                                  value={editMatchForaPlacar}
-                                  onChange={(e) => setEditMatchForaPlacar(e.target.value)}
-                                  className="w-10 text-center bg-slate-900 border border-slate-700 text-yellow-500 text-xs py-1 rounded-md"
-                                />
-                              </div>
-                              <select
-                                value={editMatchStatus}
-                                onChange={(e: any) => setEditMatchStatus(e.target.value)}
-                                className="w-full bg-slate-900 border border-slate-700 text-[10px] text-slate-300 rounded px-1.5 py-1"
-                              >
-                                <option value="PENDENTE">PENDENTE</option>
-                                <option value="AO_VIVO">AO_VIVO</option>
-                                <option value="ENCERRADO">ENCERRADO</option>
-                              </select>
-                              <div className="flex gap-1.5 justify-end">
-                                <button
-                                  onClick={() => setEditingMatchId(null)}
-                                  className="px-2 py-1 bg-slate-800 rounded text-[9px] text-slate-400 hover:text-slate-200"
-                                >
-                                  Cancelar
-                                </button>
-                                <button
-                                  onClick={() => handleSaveMatchScore(jogo.id)}
-                                  className="px-2.5 py-1 bg-yellow-500 rounded text-[9px] font-black text-slate-950 hover:bg-yellow-400"
-                                >
-                                  Salvar
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="space-y-2 text-right">
-                              <div className="flex gap-1.5 justify-end">
-                                <button
-                                  onClick={() => {
-                                    setEditingMatchId(jogo.id);
-                                    setEditMatchCasaPlacar(jogo.placar_casa !== null ? String(jogo.placar_casa) : "");
-                                    setEditMatchForaPlacar(jogo.placar_fora !== null ? String(jogo.placar_fora) : "");
-                                    setEditMatchStatus(jogo.status);
-                                  }}
-                                  className="px-2 py-1 bg-slate-900 border border-slate-850 hover:border-slate-700 hover:text-yellow-500 rounded text-[10px] font-semibold text-slate-400 transition cursor-pointer"
-                                >
-                                  Oficializar Placar
-                                </button>
-                              </div>
-
-                              {/* Bet test flow for admin */}
-                              {jogo.status === 'PENDENTE' && (
-                                <div className="flex items-center justify-end gap-1.5">
-                                  <span className="text-[10px] text-slate-400 font-medium mr-1">Palpite Teste:</span>
-                                  <input
-                                    type="number"
-                                    placeholder="C"
-                                    value={testPlacares[jogo.id]?.casa || ""}
-                                    onChange={(e) => setTestPlacares(prev => ({
-                                      ...prev,
-                                      [jogo.id]: { casa: e.target.value, fora: prev[jogo.id]?.fora || "" }
-                                    }))}
-                                    className="w-7 text-center bg-slate-950 border border-slate-850 focus:border-slate-700 text-yellow-500 font-black text-xs h-6 rounded"
-                                  />
-                                  <span className="text-slate-600 text-[10px]">x</span>
-                                  <input
-                                    type="number"
-                                    placeholder="F"
-                                    value={testPlacares[jogo.id]?.fora || ""}
-                                    onChange={(e) => setTestPlacares(prev => ({
-                                      ...prev,
-                                      [jogo.id]: { casa: prev[jogo.id]?.casa || "", fora: e.target.value }
-                                    }))}
-                                    className="w-7 text-center bg-slate-950 border border-slate-850 focus:border-slate-700 text-yellow-500 font-black text-xs h-6 rounded"
-                                  />
-                                  <button
-                                    onClick={() => submitTestPrediction(jogo.id)}
-                                    className="px-2 py-1 bg-emerald-900/60 hover:bg-emerald-800 border border-emerald-500/20 rounded text-[10px] text-emerald-400 font-bold transition ml-1 cursor-pointer"
-                                  >
-                                    {hasTestBet ? 'Reenviar' : 'Palpitar'}
-                                  </button>
-                                </div>
-                              )}
-
-                              {hasTestBet && (
-                                <div className="text-[10px] text-slate-400 flex items-center gap-1.5 justify-end uppercase tracking-tight select-none mt-1">
-                                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                                  Palpitado de Teste ({hasTestBet.placar_casa} x {hasTestBet.placar_fora})
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })
-              ) : (
-                <div className="py-20 text-center text-slate-500 space-y-2">
-                  <Trophy className="h-10 w-10 text-slate-700 mx-auto" />
-                  <p className="text-xs">
-                    Nenhuma partida da Libertadores foi encontrada na base de dados. Sincronize usando o painel acima!
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
           </div>
         </div>
       )}
