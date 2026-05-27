@@ -1413,17 +1413,18 @@ async function startServer() {
           const s = String(contrato.status).toUpperCase().trim();
           const sInt = String(contrato.status_internet).toUpperCase().trim();
 
-          if (s === "A" || s === "FA") {
-            if (sInt === "A" || sInt === "FA") {
-              isAllowed = true;
-              break;
-            } else if (sInt === "CA") {
-              blockedReason = "Bloqueado por falta de pagamento (CA).";
+          const isStatusOk = s === "A" || s === "FA";
+          const isInternetOk = sInt === "A" || sInt === "FA";
+
+          if (isStatusOk && isInternetOk) {
+            isAllowed = true;
+            break;
+          } else {
+            if (s === "CA" || s === "I" || sInt === "CA" || sInt === "I") {
+              blockedReason = `Bloqueado por pendência financeira ou contrato inativo (Status: ${s}, Internet: ${sInt}).`;
             } else {
-              blockedReason = `Contrato com status de internet suspenso (${sInt}).`;
+              blockedReason = `Contrato suspenso ou inativo (Status: ${s}, Internet: ${sInt}).`;
             }
-          } else if (s === "I") {
-            blockedReason = "Contrato desativado ou inativo (Status I).";
           }
         }
 
