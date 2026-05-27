@@ -176,8 +176,8 @@ export default function MatchesSection({
   // Determine current active/open round dynamically for this championship
   const isRdFinished = React.useCallback((rdNum: number) => {
     const matchesInRd = championshipJogos.filter(j => j.rodada === rdNum);
-    return matchesInRd.length > 0 && matchesInRd.every(j => j.status === 'ENCERRADO' || isPastGame(j));
-  }, [championshipJogos, isPastGame]);
+    return matchesInRd.length > 0 && matchesInRd.every(j => j.status === 'ENCERRADO');
+  }, [championshipJogos]);
 
   const currentRound = React.useMemo(() => {
     return rounds.find(rd => !isRdFinished(rd)) || (rounds.length > 0 ? rounds[rounds.length - 1] : null);

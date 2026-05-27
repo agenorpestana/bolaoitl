@@ -44,7 +44,8 @@ export const STATUS_LABELS: { [key: string]: string } = {
   PEN: "Decidido nos Pênaltis",
   PST: "Adiado",
   CANC: "Cancelado",
-  SUSP: "Suspenso"
+  SUSP: "Suspenso",
+  INT: "Interrompido"
 };
 
 // Seed-based random generator to keep details deterministic for each game ID

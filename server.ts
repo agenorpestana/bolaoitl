@@ -373,9 +373,9 @@ async function syncLeagueFromApi(db: LocalDatabase, leagueId: number): Promise<{
 
       const shortStatus = item.fixture.status.short;
       let mappedStatus = "PENDENTE";
-      if (["FT", "AET", "PEN"].includes(shortStatus)) {
+      if (["FT", "AET", "PEN", "CANC", "ABD", "AWD", "WO"].includes(shortStatus)) {
         mappedStatus = "ENCERRADO";
-      } else if (["1H", "HT", "2H", "ET", "P", "BT", "LIVE"].includes(shortStatus)) {
+      } else if (["1H", "HT", "2H", "ET", "P", "BT", "LIVE", "SUSP", "INT"].includes(shortStatus)) {
         mappedStatus = "AO_VIVO";
       }
 
@@ -441,9 +441,9 @@ async function syncLeagueFromApi(db: LocalDatabase, leagueId: number): Promise<{
 
       const shortStatus = item.fixture.status.short;
       let mappedStatus = "PENDENTE";
-      if (["FT", "AET", "PEN"].includes(shortStatus)) {
+      if (["FT", "AET", "PEN", "CANC", "ABD", "AWD", "WO"].includes(shortStatus)) {
         mappedStatus = "ENCERRADO";
-      } else if (["1H", "HT", "2H", "ET", "P", "BT", "LIVE"].includes(shortStatus)) {
+      } else if (["1H", "HT", "2H", "ET", "P", "BT", "LIVE", "SUSP", "INT"].includes(shortStatus)) {
         mappedStatus = "AO_VIVO";
       }
 
@@ -636,9 +636,9 @@ async function syncFootballApiReal(db: LocalDatabase, req?: express.Request): Pr
 
     let shortStatus = item.fixture.status.short;
     let mappedStatus = "PENDENTE";
-    if (["FT", "AET", "PEN"].includes(shortStatus)) {
+    if (["FT", "AET", "PEN", "CANC", "ABD", "AWD", "WO"].includes(shortStatus)) {
       mappedStatus = "ENCERRADO";
-    } else if (["1H", "HT", "2H", "ET", "P", "BT", "LIVE"].includes(shortStatus)) {
+    } else if (["1H", "HT", "2H", "ET", "P", "BT", "LIVE", "SUSP", "INT"].includes(shortStatus)) {
       mappedStatus = "AO_VIVO";
     }
 
@@ -3181,9 +3181,9 @@ async function startServer() {
 
         const shortStatus = item.fixture.status.short;
         let mappedStatus = "PENDENTE";
-        if (["FT", "AET", "PEN"].includes(shortStatus)) {
+        if (["FT", "AET", "PEN", "CANC", "ABD", "AWD", "WO"].includes(shortStatus)) {
           mappedStatus = "ENCERRADO";
-        } else if (["1H", "HT", "2H", "ET", "P", "BT", "LIVE"].includes(shortStatus)) {
+        } else if (["1H", "HT", "2H", "ET", "P", "BT", "LIVE", "SUSP", "INT"].includes(shortStatus)) {
           mappedStatus = "AO_VIVO";
         }
 
@@ -3388,9 +3388,9 @@ async function startServer() {
 
         const shortStatus = item.fixture.status.short;
         let mappedStatus = "PENDENTE";
-        if (["FT", "AET", "PEN"].includes(shortStatus)) {
+        if (["FT", "AET", "PEN", "CANC", "ABD", "AWD", "WO"].includes(shortStatus)) {
           mappedStatus = "ENCERRADO";
-        } else if (["1H", "HT", "2H", "ET", "P", "BT", "LIVE"].includes(shortStatus)) {
+        } else if (["1H", "HT", "2H", "ET", "P", "BT", "LIVE", "SUSP", "INT"].includes(shortStatus)) {
           mappedStatus = "AO_VIVO";
         }
 
