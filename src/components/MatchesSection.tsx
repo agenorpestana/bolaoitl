@@ -173,11 +173,33 @@ export default function MatchesSection({
     return gameMs <= nowMs;
   }, [dataServidor]);
 
+  const isAvailableOrLive = React.useCallback((jogo: Jogo): boolean => {
+    if (jogo.status === 'AO_VIVO') return true;
+    if (jogo.status === 'PENDENTE' && isPastGame(jogo)) {
+      const kickoff = new Date(jogo.data_jogo).getTime();
+      const now = new Date(dataServidor || new Date().toISOString()).getTime();
+      const elapsedMins = (now - kickoff) / (1000 * 60);
+      return elapsedMins < 105;
+    }
+    return jogo.status === 'PENDENTE' && !isPastGame(jogo);
+  }, [isPastGame, dataServidor]);
+
+  const isConcludedOrExpired = React.useCallback((jogo: Jogo): boolean => {
+    if (jogo.status === 'ENCERRADO') return true;
+    if (jogo.status === 'PENDENTE' && isPastGame(jogo)) {
+      const kickoff = new Date(jogo.data_jogo).getTime();
+      const now = new Date(dataServidor || new Date().toISOString()).getTime();
+      const elapsedMins = (now - kickoff) / (1000 * 60);
+      return elapsedMins >= 105;
+    }
+    return false;
+  }, [isPastGame, dataServidor]);
+
   // Determine current active/open round dynamically for this championship
   const isRdFinished = React.useCallback((rdNum: number) => {
     const matchesInRd = championshipJogos.filter(j => j.rodada === rdNum);
-    return matchesInRd.length > 0 && matchesInRd.every(j => j.status === 'ENCERRADO');
-  }, [championshipJogos]);
+    return matchesInRd.length > 0 && matchesInRd.every(j => isConcludedOrExpired(j));
+  }, [championshipJogos, isConcludedOrExpired]);
 
   const currentRound = React.useMemo(() => {
     return rounds.find(rd => !isRdFinished(rd)) || (rounds.length > 0 ? rounds[rounds.length - 1] : null);
@@ -237,14 +259,6 @@ export default function MatchesSection({
     return `${hours}h ${mins}m restantes`;
   };
 
-  const isAvailableOrLive = React.useCallback((jogo: Jogo): boolean => {
-    return jogo.status === 'AO_VIVO' || (jogo.status === 'PENDENTE' && !isPastGame(jogo));
-  }, [isPastGame]);
-
-  const isConcludedOrExpired = React.useCallback((jogo: Jogo): boolean => {
-    return jogo.status === 'ENCERRADO' || (jogo.status === 'PENDENTE' && isPastGame(jogo));
-  }, [isPastGame]);
-
   // Filtered games list calculation
   const filteredGames = React.useMemo(() => {
     return championshipJogos.filter(jogo => {
@@ -254,7 +268,7 @@ export default function MatchesSection({
       if (filterStatus === 'ABERTO') {
         matchesStatus = jogo.status === 'PENDENTE' && !isMatchLocked(jogo);
       } else if (filterStatus === 'AO_VIVO') {
-        matchesStatus = jogo.status === 'AO_VIVO';
+        matchesStatus = isAvailableOrLive(jogo) && isPastGame(jogo);
       } else if (filterStatus === 'ENCERRADO') {
         matchesStatus = isConcludedOrExpired(jogo);
       } else if (filterStatus === 'TODOS') {
@@ -267,7 +281,7 @@ export default function MatchesSection({
 
       return matchesRound && matchesStatus;
     });
-  }, [championshipJogos, activeRodada, filterStatus, dataServidor, currentRound, isConcludedOrExpired]);
+  }, [championshipJogos, activeRodada, filterStatus, dataServidor, currentRound, isConcludedOrExpired, isAvailableOrLive, isPastGame]);
 
   // Split into active/pending matches versus finished matches as requested
   const pendingOrLiveGames = React.useMemo(() => {
@@ -292,11 +306,13 @@ export default function MatchesSection({
     const isSuspended = jogo.status_detalhado === 'SUSP';
     const isPostponed = jogo.status_detalhado === 'PST';
 
+    const isGameLive = jogo.status === 'AO_VIVO' || (jogo.status === 'PENDENTE' && isPastGame(jogo) && !isConcludedOrExpired(jogo));
+
     return (
       <div 
         key={jogo.id} 
         className={`bg-slate-900/70 border rounded-2xl p-4 sm:p-5 flex flex-col justify-between space-y-4 hover:shadow-lg transition duration-200 ${
-          jogo.status === 'AO_VIVO' 
+          isGameLive 
             ? 'border-red-900/40 shadow-red-950/5' 
             : isReadonly 
               ? 'border-slate-800/80 hover:border-slate-800' 
@@ -316,10 +332,10 @@ export default function MatchesSection({
             </span>
           </div>
 
-          {jogo.status === 'AO_VIVO' ? (
+          {isGameLive ? (
             <span className="self-start sm:self-auto flex items-center gap-1 bg-red-950/80 border border-red-800/40 text-red-500 px-2.5 py-0.5 rounded animate-pulse font-sans">
               <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
-              Ao Vivo • {STATUS_LABELS[jogo.status_detalhado || "1H"] || jogo.status_detalhado || "Em Andamento"} ({jogo.placar_casa}x{jogo.placar_fora})
+              Ao Vivo • {STATUS_LABELS[jogo.status_detalhado || "1H"] || jogo.status_detalhado || "Em Andamento"} ({jogo.placar_casa ?? 0}x{jogo.placar_fora ?? 0})
             </span>
           ) : isCanceled ? (
             <span className="self-start sm:self-auto bg-red-950/40 border border-red-500/40 text-red-400 px-2.5 py-0.5 rounded font-sans">
@@ -446,10 +462,10 @@ export default function MatchesSection({
           )}
 
           {/* Guess badge points feedback if completed or live matches */}
-          {['ENCERRADO', 'AO_VIVO'].includes(jogo.status) && userBet && (
+          {(jogo.status === 'ENCERRADO' || isGameLive) && userBet && (
             <div className="flex items-center gap-1.5 font-sans">
               <span className="text-[11px] text-slate-400">
-                {jogo.status === 'AO_VIVO' ? 'Pontos parciais:' : 'Pontuação:'}
+                {isGameLive ? 'Pontos parciais:' : 'Pontuação:'}
               </span>
               <span className={`px-2.5 py-0.5 rounded font-mono font-extrabold text-[11px] ${
                 pointsWon && pointsWon > 5 
@@ -458,7 +474,7 @@ export default function MatchesSection({
                       ? 'bg-brand-blue-dark/80 border border-brand-blue-accent/30 text-brand-blue-vibrant'
                       : 'bg-slate-950/80 border border-slate-800/60 text-slate-500'
               }`}>
-                +{pointsWon || 0} Pts {jogo.status === 'AO_VIVO' ? '🔴' : ''}
+                +{pointsWon || 0} Pts {isGameLive ? '🔴' : ''}
               </span>
             </div>
           )}
