@@ -160,6 +160,219 @@ function parseRoundNumber(roundStr: string): number {
   return 1;
 }
 
+function getGameCampeonato(jogo: Jogo): 'COPA_MUNDO' | 'LIBERTADORES' | 'BRASILEIRAO' {
+  if (jogo.api_id) {
+    const idLower = jogo.api_id.toLowerCase();
+    if (idLower.includes("libertadores")) {
+      return 'LIBERTADORES';
+    }
+    if (idLower.includes("brasileirao")) {
+      return 'BRASILEIRAO';
+    }
+  }
+  return 'COPA_MUNDO';
+}
+
+function isAnyRoundWindowActive(jogos: Jogo[]): boolean {
+  const nowMs = new Date().getTime();
+
+  // Group games by championship and round
+  const groups: { [key: string]: Jogo[] } = {};
+  for (const jogo of jogos) {
+    const champ = getGameCampeonato(jogo);
+    const round = jogo.rodada;
+    const key = `${champ}_${round}`;
+    if (!groups[key]) {
+      groups[key] = [];
+    }
+    groups[key].push(jogo);
+  }
+
+  for (const key in groups) {
+    const roundGames = groups[key];
+    if (roundGames.length === 0) continue;
+
+    // Find the min kickoff time
+    const kickoffTimes = roundGames.map(g => new Date(g.data_jogo).getTime());
+    const minKickoff = Math.min(...kickoffTimes);
+
+    // Let's assume a football match takes about 115 minutes (90 mins + halftime + added time)
+    const matchDuration = 115 * 60 * 1000;
+    const maxKickoff = Math.max(...kickoffTimes);
+    const maxEndTime = maxKickoff + matchDuration;
+
+    // Check if current time is inside this round window (from first match start to last match end)
+    if (nowMs >= minKickoff && nowMs <= maxEndTime) {
+      // Is there still at least one game in this round that is NOT ENCERRADO?
+      const allConcluded = roundGames.every(g => g.status === 'ENCERRADO');
+      if (!allConcluded) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+async function syncLeagueFromApi(db: LocalDatabase, leagueId: number): Promise<{ addedCount: number; updatedCount: number }> {
+  const apiKey = db.configs_football.key;
+  const apiUrl = db.configs_football.url || "https://v3.football.api-sports.io";
+  const isRealApi = apiKey && apiKey.trim() !== "" && !apiKey.toLowerCase().includes("dummy") && apiKey.length > 10;
+
+  if (!isRealApi) {
+    throw new Error("Chave de API do Football vazia ou de simulação.");
+  }
+
+  let addedCount = 0;
+  let updatedCount = 0;
+
+  if (leagueId === 1) { // COPA DO MUNDO
+    const res = await syncFootballApiReal(db);
+    return { addedCount: res.addedCount, updatedCount: res.updatedCount };
+  } else if (leagueId === 13) { // COPA LIBERTADORES
+    console.log(`[Auto-Sync Engine] Fetching Copa Libertadores (League 13) Season 2026...`);
+    const response = await axios.get(`${apiUrl}/fixtures`, {
+      params: { league: "13", season: "2026" },
+      headers: { "x-apisports-key": apiKey },
+      timeout: 12000
+    });
+    const fixtures = response?.data?.response || [];
+    for (const item of fixtures) {
+      const apiId = `libertadores_soccer_${item.fixture.id}`;
+      const timeCasa = item.teams.home.name;
+      const timeFora = item.teams.away.name;
+      const timeCasaBandeira = item.teams.home.logo || "🏳️";
+      const timeForaBandeira = item.teams.away.logo || "🏳️";
+      const dataJogoStr = item.fixture.date;
+
+      let placarCasa: number | null = null;
+      let placarFora: number | null = null;
+      if (item.goals.home !== null && item.goals.home !== undefined) placarCasa = Number(item.goals.home);
+      if (item.goals.away !== null && item.goals.away !== undefined) placarFora = Number(item.goals.away);
+
+      const shortStatus = item.fixture.status.short;
+      let mappedStatus = "PENDENTE";
+      if (["FT", "AET", "PEN"].includes(shortStatus)) {
+        mappedStatus = "ENCERRADO";
+      } else if (["1H", "HT", "2H", "ET", "P", "BT", "LIVE"].includes(shortStatus)) {
+        mappedStatus = "AO_VIVO";
+      }
+
+      let existing = db.jogos.find(j => j.api_id === apiId);
+      if (!existing) {
+        existing = db.jogos.find(j => 
+          (normalizeTeamName(j.time_casa) === normalizeTeamName(timeCasa) && normalizeTeamName(j.time_fora) === normalizeTeamName(timeFora)) ||
+          (normalizeTeamName(j.time_casa) === normalizeTeamName(timeFora) && normalizeTeamName(j.time_fora) === normalizeTeamName(timeCasa))
+        );
+      }
+
+      if (!existing) {
+        const newId = db.jogos.length > 0 ? Math.max(...db.jogos.map(j => j.id)) + 1 : 1;
+        db.jogos.push({
+          id: newId,
+          api_id: apiId,
+          time_casa: timeCasa,
+          time_fora: timeFora,
+          time_casa_bandeira: timeCasaBandeira,
+          time_fora_bandeira: timeForaBandeira,
+          data_jogo: dataJogoStr,
+          placar_casa: placarCasa,
+          placar_fora: placarFora,
+          status: mappedStatus as any,
+          rodada: 1,
+          status_detalhado: shortStatus
+        });
+        addedCount++;
+      } else {
+        existing.api_id = apiId;
+        existing.time_casa = timeCasa;
+        existing.time_fora = timeFora;
+        existing.time_casa_bandeira = timeCasaBandeira;
+        existing.time_fora_bandeira = timeForaBandeira;
+        existing.data_jogo = dataJogoStr;
+        existing.placar_casa = placarCasa;
+        existing.placar_fora = placarFora;
+        existing.status = mappedStatus as any;
+        existing.status_detalhado = shortStatus;
+        updatedCount++;
+      }
+    }
+  } else if (leagueId === 71) { // BRASILEIRAO
+    console.log(`[Auto-Sync Engine] Fetching Brasileirao (League 71) Season 2026...`);
+    const response = await axios.get(`${apiUrl}/fixtures`, {
+      params: { league: "71", season: "2026" },
+      headers: { "x-apisports-key": apiKey },
+      timeout: 12000
+    });
+    const fixtures = response?.data?.response || [];
+    for (const item of fixtures) {
+      const apiId = `brasileirao_soccer_${item.fixture.id}`;
+      const timeCasa = item.teams.home.name;
+      const timeFora = item.teams.away.name;
+      const timeCasaBandeira = item.teams.home.logo || "🏳️";
+      const timeForaBandeira = item.teams.away.logo || "🏳️";
+      const dataJogoStr = item.fixture.date;
+
+      let placarCasa: number | null = null;
+      let placarFora: number | null = null;
+      if (item.goals.home !== null && item.goals.home !== undefined) placarCasa = Number(item.goals.home);
+      if (item.goals.away !== null && item.goals.away !== undefined) placarFora = Number(item.goals.away);
+
+      const shortStatus = item.fixture.status.short;
+      let mappedStatus = "PENDENTE";
+      if (["FT", "AET", "PEN"].includes(shortStatus)) {
+        mappedStatus = "ENCERRADO";
+      } else if (["1H", "HT", "2H", "ET", "P", "BT", "LIVE"].includes(shortStatus)) {
+        mappedStatus = "AO_VIVO";
+      }
+
+      let existing = db.jogos.find(j => j.api_id === apiId);
+      if (!existing) {
+        existing = db.jogos.find(j => 
+          (normalizeTeamName(j.time_casa) === normalizeTeamName(timeCasa) && normalizeTeamName(j.time_fora) === normalizeTeamName(timeFora)) ||
+          (normalizeTeamName(j.time_casa) === normalizeTeamName(timeFora) && normalizeTeamName(j.time_fora) === normalizeTeamName(timeCasa))
+        );
+      }
+
+      if (!existing) {
+        const newId = db.jogos.length > 0 ? Math.max(...db.jogos.map(j => j.id)) + 1 : 1;
+        db.jogos.push({
+          id: newId,
+          api_id: apiId,
+          time_casa: timeCasa,
+          time_fora: timeFora,
+          time_casa_bandeira: timeCasaBandeira,
+          time_fora_bandeira: timeForaBandeira,
+          data_jogo: dataJogoStr,
+          placar_casa: placarCasa,
+          placar_fora: placarFora,
+          status: mappedStatus as any,
+          rodada: item.league?.round ? (parseInt(item.league.round.replace(/\D/g, "")) || 1) : 1,
+          status_detalhado: shortStatus
+        });
+        addedCount++;
+      } else {
+        existing.api_id = apiId;
+        existing.time_casa = timeCasa;
+        existing.time_fora = timeFora;
+        existing.time_casa_bandeira = timeCasaBandeira;
+        existing.time_fora_bandeira = timeForaBandeira;
+        existing.data_jogo = dataJogoStr;
+        existing.placar_casa = placarCasa;
+        existing.placar_fora = placarFora;
+        existing.status = mappedStatus as any;
+        if (item.league?.round) {
+          existing.rodada = parseInt(item.league.round.replace(/\D/g, "")) || 1;
+        }
+        existing.status_detalhado = shortStatus;
+        updatedCount++;
+      }
+    }
+  }
+
+  return { addedCount, updatedCount };
+}
+
 async function syncFootballApiReal(db: LocalDatabase, req?: express.Request): Promise<{ addedCount: number; updatedCount: number; isUsingFallback: boolean; fixturesCount: number }> {
   const apiKey = db.configs_football.key;
   const apiUrl = db.configs_football.url || "https://v3.football.api-sports.io";
@@ -1184,6 +1397,8 @@ function refreshLeaderboard() {
   saveDatabase(db);
 }
 
+let lastGlobalSyncTime = 0;
+
 // Express app initialization
 async function startServer() {
   const app = express();
@@ -1213,36 +1428,65 @@ async function startServer() {
       
       const apiKey = db.configs_football.key;
       const isRealApi = apiKey && apiKey.trim() !== "" && !apiKey.toLowerCase().includes("dummy") && apiKey.length > 10;
-      
-      // Check if there is currently any match in progress, starting, or recently finished to trigger sync
-      const hasLiveMatchOrImpending = db.jogos.some(g => {
-        const gameMs = new Date(g.data_jogo).getTime();
-        const elapsedMins = (nowMs - gameMs) / (1000 * 60);
-        // Is it currently marked as AO_VIVO?
-        // Or is it PENDENTE but the kickoff time has passed or starts within 5 minutes?
-        // Or did it finish recently (within the last 2 hours)?
-        return (
-          g.status === 'AO_VIVO' || 
-          (g.status === 'PENDENTE' && gameMs <= nowMs + 5 * 60 * 1000) ||
-          (g.status === 'ENCERRADO' && elapsedMins >= 0 && elapsedMins <= 120)
-        );
-      });
 
       if (isRealApi) {
         // Real API configured
-        if (hasLiveMatchOrImpending) {
-          console.log(`[Auto-Sync Cron] Active/Impending matches detected in database! Initiating background Football API fetch and database synchronization...`);
+        const isActive = isAnyRoundWindowActive(db.jogos);
+        const fifteenMinsMs = 15 * 60 * 1000;
+        const timeSinceLastSync = nowMs - lastGlobalSyncTime;
+
+        if (isActive || timeSinceLastSync >= fifteenMinsMs) {
+          console.log(`[Auto-Sync Cron] Real API. Round active: ${isActive}. Interval elapsed: ${Math.round(timeSinceLastSync / 1000)}s. Initiating multi-competition automatic sync...`);
+          
+          let totalAdded = 0;
+          let totalUpdated = 0;
+
+          // 1. Sync Copa do Mundo (league 1)
           try {
-            const result = await syncFootballApiReal(db);
+            const res1 = await syncLeagueFromApi(db, 1);
+            totalAdded += res1.addedCount;
+            totalUpdated += res1.updatedCount;
+          } catch (apiErr: any) {
+            console.error(`[Auto-Sync Cron Exception] Copa do Mundo (League 1) sync failed:`, apiErr.message);
+          }
+
+          // 2. Sync Copa Libertadores (league 13) - if enabled by config
+          const isLibertadoresActive = db.configs_libertadores?.ativo === true;
+          if (isLibertadoresActive) {
+            try {
+              const res13 = await syncLeagueFromApi(db, 13);
+              totalAdded += res13.addedCount;
+              totalUpdated += res13.updatedCount;
+            } catch (apiErr: any) {
+              console.error(`[Auto-Sync Cron Exception] Copa Libertadores (League 13) sync failed:`, apiErr.message);
+            }
+          }
+
+          // 3. Sync Brasileirão Série A (league 71) - if enabled by config
+          const isBrasileiraoActive = db.configs_brasileirao?.ativo === true;
+          if (isBrasileiraoActive) {
+            try {
+              const res71 = await syncLeagueFromApi(db, 71);
+              totalAdded += res71.addedCount;
+              totalUpdated += res71.updatedCount;
+            } catch (apiErr: any) {
+              console.error(`[Auto-Sync Cron Exception] Brasileirão (League 71) sync failed:`, apiErr.message);
+            }
+          }
+
+          lastGlobalSyncTime = nowMs;
+
+          if (totalAdded > 0 || totalUpdated > 0) {
             saveDatabase(db);
             refreshLeaderboard();
-            console.log(`[Auto-Sync Cron] Real-time background sync completed. Fixtures updated: ${result.updatedCount}, added: ${result.addedCount}. Leaderboard recalculated.`);
-          } catch (apiErr: any) {
-            console.error(`[Auto-Sync Cron Exception] Real-time background query to Football API failed:`, apiErr.message);
+            console.log(`[Auto-Sync Cron] Multi-competition real-time sync completed. Added: ${totalAdded}, Updated: ${totalUpdated}.`);
+          } else {
+            console.log(`[Auto-Sync Cron] Multi-competition sync ran, no additions or changes to save.`);
           }
         } else {
-          // If no active matches, we don't query every minute to respect API limits, just log in idle
-          console.log(`[Auto-Sync Cron] No active live or impending matches. Standing by to conserve Football API request quarters.`);
+          // If no active round and inside 15-minute window, we wait to respect API limits
+          const nextSyncInSecs = Math.round((fifteenMinsMs - timeSinceLastSync) / 1000);
+          console.log(`[Auto-Sync Cron] Standing by. Current state: Idle (no active round). Next query for all enabled leagues in ${nextSyncInSecs}s.`);
         }
       } else {
         // Fallback simulation branch for development (no real API key)
@@ -1251,7 +1495,7 @@ async function startServer() {
         db.jogos.forEach(g => {
           const gameMs = new Date(g.data_jogo).getTime();
           const elapsedMins = (nowMs - gameMs) / (1000 * 60);
-          const isRealMatch = g.api_id && (g.api_id.startsWith("football_api_") || g.api_id.startsWith("libertadores_soccer_"));
+          const isRealMatch = g.api_id && (g.api_id.startsWith("football_api_") || g.api_id.startsWith("libertadores_soccer_") || g.api_id.startsWith("brasileirao_soccer_"));
           
           // 1. Transition game from PENDENTE to AO_VIVO once the kickoff time has arrived/passed
           if (g.status === 'PENDENTE' && gameMs <= nowMs) {
