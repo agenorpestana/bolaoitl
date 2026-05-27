@@ -1894,7 +1894,7 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
                   </thead>
                   <tbody className="divide-y divide-slate-900">
                     {jogos
-                      .filter(j => !j.api_id || !j.api_id.startsWith("libertadores_"))
+                      .filter(j => !j.api_id || (!j.api_id.startsWith("libertadores_") && !j.api_id.startsWith("brasileirao_")))
                       .map((jogo) => {
                         const isEditingThis = editingMatchId === jogo.id;
                         return (

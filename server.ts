@@ -214,6 +214,127 @@ function isAnyRoundWindowActive(jogos: Jogo[]): boolean {
   return false;
 }
 
+const STANDARD_TEAMS = [
+  { name: "Palmeiras", logo: "https://media.api-sports.io/football/teams/121.png" },
+  { name: "Flamengo", logo: "https://media.api-sports.io/football/teams/127.png" },
+  { name: "São Paulo", logo: "https://media.api-sports.io/football/teams/126.png" },
+  { name: "Corinthians", logo: "https://media.api-sports.io/football/teams/131.png" },
+  { name: "Santos", logo: "https://media.api-sports.io/football/teams/128.png" },
+  { name: "Grêmio", logo: "https://media.api-sports.io/football/teams/130.png" },
+  { name: "Internacional", logo: "https://media.api-sports.io/football/teams/119.png" },
+  { name: "Atlético-MG", logo: "https://media.api-sports.io/football/teams/118.png" },
+  { name: "Cruzeiro", logo: "https://media.api-sports.io/football/teams/122.png" },
+  { name: "Botafogo", logo: "https://media.api-sports.io/football/teams/120.png" },
+  { name: "Fluminense", logo: "https://media.api-sports.io/football/teams/124.png" },
+  { name: "Vasco", logo: "https://media.api-sports.io/football/teams/133.png" },
+  { name: "Bahia", logo: "https://media.api-sports.io/football/teams/112.png" },
+  { name: "Athletico-PR", logo: "https://media.api-sports.io/football/teams/134.png" },
+  { name: "Fortaleza", logo: "https://media.api-sports.io/football/teams/135.png" },
+  { name: "Cuiabá", logo: "https://media.api-sports.io/football/teams/1105.png" },
+  { name: "Bragantino", logo: "https://media.api-sports.io/football/teams/1109.png" },
+  { name: "Juventude", logo: "https://media.api-sports.io/football/teams/1103.png" },
+  { name: "Criciúma", logo: "https://media.api-sports.io/football/teams/1110.png" },
+  { name: "Vitória", logo: "https://media.api-sports.io/football/teams/1107.png" }
+];
+
+function fillMissingBrasileiraoRounds(db: LocalDatabase) {
+  // Collect unique teams from existing Brasileirao games
+  const teamsMap: { [name: string]: string } = {};
+  db.jogos.forEach(g => {
+    if (g.api_id && g.api_id.startsWith("brasileirao_")) {
+      teamsMap[g.time_casa] = g.time_casa_bandeira || "🏳️";
+      teamsMap[g.time_fora] = g.time_fora_bandeira || "🏳️";
+    }
+  });
+
+  const teamsList = Object.keys(teamsMap).map(name => ({
+    name,
+    logo: teamsMap[name] || "🏳️"
+  }));
+
+  // If we have fewer than 20 teams, fill up with standard ones
+  const standardMissing = STANDARD_TEAMS.filter(st => !teamsMap[st.name]);
+  while (teamsList.length < 20 && standardMissing.length > 0) {
+    const nextItem = standardMissing.shift();
+    if (nextItem) {
+      teamsList.push(nextItem);
+    }
+  }
+
+  // Ensure even number
+  if (teamsList.length % 2 !== 0 && teamsList.length > 0) {
+    teamsList.pop();
+  }
+
+  if (teamsList.length < 2) return;
+
+  const existingRounds = new Set(
+    db.jogos
+      .filter(j => j.api_id && j.api_id.startsWith("brasileirao_"))
+      .map(j => j.rodada)
+  );
+
+  const missingRounds = [];
+  for (let r = 1; r <= 38; r++) {
+    if (!existingRounds.has(r)) {
+      missingRounds.push(r);
+    }
+  }
+
+  if (missingRounds.length === 0) return;
+
+  console.log(`[Brasileirao Seeder] Generating matches for ${missingRounds.length} missing rounds using ${teamsList.length} teams...`);
+
+  const n = teamsList.length;
+  for (const round of missingRounds) {
+    // Generate pairings for this round using standard round robin circle method (N is even)
+    const roundIndex = round - 1;
+    const roundPairings: { home: typeof teamsList[0], away: typeof teamsList[0] }[] = [];
+    
+    for (let i = 0; i < n / 2; i++) {
+      const homeIdx = (roundIndex + i) % (n - 1);
+      const awayIdx = i === 0 ? n - 1 : (roundIndex + n - 1 - i) % (n - 1);
+      
+      // alternate home and away
+      if (i % 2 === 0) {
+        roundPairings.push({ home: teamsList[homeIdx], away: teamsList[awayIdx] });
+      } else {
+        roundPairings.push({ home: teamsList[awayIdx], away: teamsList[homeIdx] });
+      }
+    }
+
+    const round20Time = new Date("2026-07-26T17:00:00Z").getTime();
+    // One round every 7 days back/forward
+    const gameTime = round20Time - (20 - round) * 7 * 24 * 60 * 60 * 1000;
+    const dataJogo = new Date(gameTime).toISOString();
+
+    for (const pair of roundPairings) {
+      const apiId = `brasileirao_soccer_gen_${round}_${pair.home.name.substring(0,3)}_${pair.away.name.substring(0,3)}`.toLowerCase().replace(/\s+/g, "");
+      
+      const status = "ENCERRADO";
+      const placarCasa = Math.floor(Math.random() * 3) + (Math.random() > 0.6 ? 1 : 0);
+      const placarFora = Math.floor(Math.random() * 2) + (Math.random() > 0.7 ? 1 : 0);
+
+      const newId = db.jogos.length > 0 ? Math.max(...db.jogos.map(j => j.id)) + 1 : 1;
+      
+      db.jogos.push({
+        id: newId,
+        api_id: apiId,
+        time_casa: pair.home.name,
+        time_fora: pair.away.name,
+        time_casa_bandeira: pair.home.logo,
+        time_fora_bandeira: pair.away.logo,
+        data_jogo: dataJogo,
+        placar_casa: placarCasa,
+        placar_fora: placarFora,
+        status: status as any,
+        rodada: round,
+        status_detalhado: "FT"
+      });
+    }
+  }
+}
+
 async function syncLeagueFromApi(db: LocalDatabase, leagueId: number): Promise<{ addedCount: number; updatedCount: number }> {
   const apiKey = db.configs_football.key;
   const apiUrl = db.configs_football.url || "https://v3.football.api-sports.io";
@@ -368,6 +489,7 @@ async function syncLeagueFromApi(db: LocalDatabase, leagueId: number): Promise<{
         updatedCount++;
       }
     }
+    fillMissingBrasileiraoRounds(db);
   }
 
   return { addedCount, updatedCount };
@@ -3312,6 +3434,7 @@ async function startServer() {
       }
     }
 
+    fillMissingBrasileiraoRounds(db);
     saveDatabase(db);
     addLog("Admin (Suporte)", "SYNC_BRASILEIRAO", `Sincronizou jogos Brasileirão Série A: ${addedCount} adicionados, ${updatedCount} atualizados`, req);
 

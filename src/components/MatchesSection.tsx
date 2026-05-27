@@ -624,7 +624,15 @@ export default function MatchesSection({
             )}
 
             {/* Real Starting XI Lineups */}
-            {jogo.escalacao && (
+            {jogo.status === 'PENDENTE' ? (
+              <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-900 flex flex-col items-center justify-center py-6 text-center text-xs text-slate-400 font-sans space-y-1.5">
+                <Users className="h-5 w-5 text-slate-600 animate-pulse" />
+                <span className="font-bold text-slate-350">Aguardando informação da escalação</span>
+                <span className="text-[10px] text-slate-500 max-w-xs leading-normal">
+                  As escalações oficiais de {jogo.time_casa} x {jogo.time_fora} são divulgadas aproximadamente 1 hora antes do início da partida.
+                </span>
+              </div>
+            ) : jogo.escalacao ? (
               <div className="bg-slate-950/50 p-3 sm:p-4 rounded-xl border border-slate-900 space-y-3 font-sans">
                 <div className="flex items-center justify-between text-[10px] font-black uppercase text-slate-400 tracking-wider pb-1 border-b border-slate-900">
                   <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5 text-brand-blue-accent" /> Titulares Escalados</span>
@@ -682,7 +690,7 @@ export default function MatchesSection({
                   </div>
                 </div>
               </div>
-            )}
+            ) : null}
 
           </div>
         )}
