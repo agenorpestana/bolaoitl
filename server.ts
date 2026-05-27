@@ -51,18 +51,25 @@ interface LocalDatabase {
 // ==========================================
 let prisma: PrismaClient | null = null;
 
-if (process.env.DB_USER && process.env.DB_NAME && !process.env.DATABASE_URL) {
+if (process.env.DB_USER && process.env.DB_NAME) {
   const host = process.env.DB_HOST || "localhost";
   const user = process.env.DB_USER;
   const pass = process.env.DB_PASSWORD || "";
   const name = process.env.DB_NAME;
+  // Always override process.env.DATABASE_URL on startup using encoded password to prevent connection crashes
   process.env.DATABASE_URL = `mysql://${user}:${encodeURIComponent(pass)}@${host}:3306/${name}`;
-  console.log(`[MySql DB Setup] Dynamically constructed DATABASE_URL for user ${user} on host ${host}`);
+  console.log(`[MySql DB Setup] Dynamically constructed and secured DATABASE_URL for user '${user}' on host '${host}'`);
 }
 
 if (process.env.DATABASE_URL) {
-  prisma = new PrismaClient();
-  console.log("[MySql DB Setup] Initialized PrismaClient using active URL configuration.");
+  prisma = new PrismaClient({
+    datasources: {
+      db: {
+        url: process.env.DATABASE_URL
+      }
+    }
+  });
+  console.log("[MySql DB Setup] Initialized PrismaClient using active and secured URL configuration.");
 }
 
 let cachedDb: LocalDatabase | null = null;
@@ -507,98 +514,116 @@ async function saveDatabaseToMySqlIncremental(db: LocalDatabase | null) {
   try {
     // 1. Sync clients (Usuario)
     for (const u of db.usuarios) {
-      await prisma.usuario.upsert({
-        where: { id: u.id },
-        update: {
-          ixc_id: u.ixc_id,
-          nome: u.nome,
-          cpf_cnpj: u.cpf_cnpj,
-          telefone: u.telefone,
-          email: u.email,
-          cidade: u.cidade,
-          avatar: u.avatar || "⚽",
-          pontos_total: u.pontos_total,
-          acertos_exato: u.acertos_exato,
-          acertos_vencedor: u.acertos_vencedor,
-          erros: u.erros,
-          bloqueado: u.bloqueado
-        },
-        create: {
-          id: u.id,
-          ixc_id: u.ixc_id,
-          nome: u.nome,
-          cpf_cnpj: u.cpf_cnpj,
-          telefone: u.telefone,
-          email: u.email,
-          cidade: u.cidade,
-          avatar: u.avatar || "⚽",
-          pontos_total: u.pontos_total,
-          acertos_exato: u.acertos_exato,
-          acertos_vencedor: u.acertos_vencedor,
-          erros: u.erros,
-          bloqueado: u.bloqueado,
-          created_at: new Date(u.created_at)
-        }
-      });
+      try {
+        await prisma.usuario.upsert({
+          where: { id: u.id },
+          update: {
+            ixc_id: u.ixc_id,
+            nome: u.nome,
+            cpf_cnpj: u.cpf_cnpj,
+            telefone: u.telefone,
+            email: u.email,
+            cidade: u.cidade,
+            avatar: u.avatar || "⚽",
+            pontos_total: u.pontos_total,
+            acertos_exato: u.acertos_exato,
+            acertos_vencedor: u.acertos_vencedor,
+            erros: u.erros,
+            bloqueado: u.bloqueado
+          },
+          create: {
+            id: u.id,
+            ixc_id: u.ixc_id,
+            nome: u.nome,
+            cpf_cnpj: u.cpf_cnpj,
+            telefone: u.telefone,
+            email: u.email,
+            cidade: u.cidade,
+            avatar: u.avatar || "⚽",
+            pontos_total: u.pontos_total,
+            acertos_exato: u.acertos_exato,
+            acertos_vencedor: u.acertos_vencedor,
+            erros: u.erros,
+            bloqueado: u.bloqueado,
+            created_at: new Date(u.created_at)
+          }
+        });
+      } catch (err: any) {
+        console.error(`[MySql Sync] Failed to upsert user ID ${u.id} (${u.nome}):`, err.message);
+      }
     }
 
     // 2. Sync games (Jogo)
     for (const g of db.jogos) {
-      await prisma.jogo.upsert({
-        where: { id: g.id },
-        update: {
-          api_id: g.api_id,
-          time_casa: g.time_casa,
-          time_fora: g.time_fora,
-          time_casa_bandeira: g.time_casa_bandeira || "🏳️",
-          time_fora_bandeira: g.time_fora_bandeira || "🏳️",
-          data_jogo: new Date(g.data_jogo),
-          placar_casa: g.placar_casa,
-          placar_fora: g.placar_fora,
-          status: g.status,
-          rodada: g.rodada
-        },
-        create: {
-          id: g.id,
-          api_id: g.api_id,
-          time_casa: g.time_casa,
-          time_fora: g.time_fora,
-          time_casa_bandeira: g.time_casa_bandeira || "🏳️",
-          time_fora_bandeira: g.time_fora_bandeira || "🏳️",
-          data_jogo: new Date(g.data_jogo),
-          placar_casa: g.placar_casa,
-          placar_fora: g.placar_fora,
-          status: g.status,
-          rodada: g.rodada
-        }
-      });
+      try {
+        await prisma.jogo.upsert({
+          where: { id: g.id },
+          update: {
+            api_id: g.api_id,
+            time_casa: g.time_casa,
+            time_fora: g.time_fora,
+            time_casa_bandeira: g.time_casa_bandeira || "🏳️",
+            time_fora_bandeira: g.time_fora_bandeira || "🏳️",
+            data_jogo: new Date(g.data_jogo),
+            placar_casa: g.placar_casa,
+            placar_fora: g.placar_fora,
+            status: g.status,
+            rodada: g.rodada
+          },
+          create: {
+            id: g.id,
+            api_id: g.api_id,
+            time_casa: g.time_casa,
+            time_fora: g.time_fora,
+            time_casa_bandeira: g.time_casa_bandeira || "🏳️",
+            time_fora_bandeira: g.time_fora_bandeira || "🏳️",
+            data_jogo: new Date(g.data_jogo),
+            placar_casa: g.placar_casa,
+            placar_fora: g.placar_fora,
+            status: g.status,
+            rodada: g.rodada
+          }
+        });
+      } catch (err: any) {
+        console.error(`[MySql Sync] Failed to upsert game ID ${g.id} (${g.time_casa} x ${g.time_fora}):`, err.message);
+      }
     }
 
     // 3. Sync bets (Palpite)
     for (const p of db.palpites) {
-      const userExist = db.usuarios.some(u => u.id === p.usuario_id);
-      const gameExist = db.jogos.some(g => g.id === p.jogo_id);
-      if (!userExist || !gameExist) continue;
-
-      await prisma.palpite.upsert({
-        where: { id: p.id },
-        update: {
-          usuario_id: p.usuario_id,
-          jogo_id: p.jogo_id,
-          placar_casa: p.placar_casa,
-          placar_fora: p.placar_fora,
-          pontos: p.pontos
-        },
-        create: {
-          id: p.id,
-          usuario_id: p.usuario_id,
-          jogo_id: p.jogo_id,
-          placar_casa: p.placar_casa,
-          placar_fora: p.placar_fora,
-          pontos: p.pontos,
-          created_at: new Date(p.created_at)
+      try {
+        const userExist = db.usuarios.some(u => u.id === p.usuario_id);
+        const gameExist = db.jogos.some(g => g.id === p.jogo_id);
+        if (!userExist || !gameExist) {
+          console.warn(`[MySql Sync] Skipping bet ID ${p.id}: userExist=${userExist}, gameExist=${gameExist}`);
+          continue;
         }
-      });
+
+        // Upsert by compound unique constraint usuario_id_jogo_id to prevent duplicate key constraint crashes
+        await prisma.palpite.upsert({
+          where: {
+            usuario_id_jogo_id: {
+              usuario_id: p.usuario_id,
+              jogo_id: p.jogo_id
+            }
+          },
+          update: {
+            placar_casa: p.placar_casa,
+            placar_fora: p.placar_fora,
+            pontos: p.pontos
+          },
+          create: {
+            usuario_id: p.usuario_id,
+            jogo_id: p.jogo_id,
+            placar_casa: p.placar_casa,
+            placar_fora: p.placar_fora,
+            pontos: p.pontos,
+            created_at: new Date(p.created_at)
+          }
+        });
+      } catch (err: any) {
+        console.error(`[MySql Sync] Failed to upsert bet ID ${p.id} (user ID ${p.usuario_id}, game ID ${p.jogo_id}):`, err.message);
+      }
     }
 
     // 4. Sync Configs (Configuracoes)
@@ -948,10 +973,23 @@ async function initializeDatabase() {
 
     try {
       console.log("[MySql Sync] Retrieving state from MySQL server (with retries if needed)...");
-      cachedDb = await loadDatabaseFromMySqlWithRetry(5, 3000);
-      console.log(`[MySql Sync] Cache successfully filled from MySQL: ${cachedDb.usuarios.length} users parsed, ${cachedDb.palpites.length} bets.`);
-      // Immediately save back to database.json so the local file cache is 100% synchronized with the database of truth
-      saveDatabaseToFile(cachedDb);
+      const mysqlDb = await loadDatabaseFromMySqlWithRetry(5, 3000);
+      const fileDb = loadDatabaseFromFile();
+
+      const hasLocalData = fileDb.usuarios.length > 0 || fileDb.palpites.length > 0;
+      const hasMySqlData = mysqlDb.usuarios.length > 0 || mysqlDb.palpites.length > 0;
+
+      if (hasLocalData && !hasMySqlData) {
+        console.log("[MySql Sync] MySQL database is empty, but local JSON file has active data. Seeding MySQL from local database.json...");
+        cachedDb = fileDb;
+        // Asynchronously sync the file cache into MySQL
+        saveDatabase(cachedDb);
+      } else {
+        console.log(`[MySql Sync] Cache successfully filled from MySQL: ${mysqlDb.usuarios.length} users, ${mysqlDb.palpites.length} bets.`);
+        cachedDb = mysqlDb;
+        // Keep the local file synchronized
+        saveDatabaseToFile(cachedDb);
+      }
     } catch (err: any) {
       console.error("[MySql Sync] MySQL connection failed completely, falling back to local database.json. Error:", err.message);
       cachedDb = loadDatabaseFromFile();

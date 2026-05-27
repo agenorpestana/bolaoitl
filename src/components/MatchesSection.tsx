@@ -442,30 +442,28 @@ export default function MatchesSection({
       )}
 
       {/* Championship Selector Tabs */}
-      {hasCopaGames && hasLibertadoresGames && (
-        <div className="flex bg-slate-900/40 p-1.5 rounded-xl border border-slate-900 w-full md:w-fit gap-1 font-sans">
-          <button
-            onClick={() => setSelectedCampeonato('COPA_MUNDO')}
-            className={`flex-1 md:flex-initial px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-wider transition duration-200 ${
-              selectedCampeonato === 'COPA_MUNDO'
-                ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-slate-950 font-black shadow-md shadow-emerald-500/10'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/30'
-            }`}
-          >
-            🏆 Copa do Mundo 2026
-          </button>
-          <button
-            onClick={() => setSelectedCampeonato('LIBERTADORES')}
-            className={`flex-1 md:flex-initial px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-wider transition duration-200 ${
-              selectedCampeonato === 'LIBERTADORES'
-                ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-slate-950 font-black shadow-md shadow-emerald-500/10'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/30'
-            }`}
-          >
-            🛰️ Copa Libertadores
-          </button>
-        </div>
-      )}
+      <div className="flex bg-slate-900/40 p-1.5 rounded-xl border border-slate-900 w-full md:w-fit gap-1 font-sans">
+        <button
+          onClick={() => setSelectedCampeonato('COPA_MUNDO')}
+          className={`flex-1 md:flex-initial px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-wider transition duration-200 ${
+            selectedCampeonato === 'COPA_MUNDO'
+              ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-slate-950 font-black shadow-md shadow-emerald-500/10'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/30'
+          }`}
+        >
+          🏆 Copa do Mundo 2026
+        </button>
+        <button
+          onClick={() => setSelectedCampeonato('LIBERTADORES')}
+          className={`flex-1 md:flex-initial px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-wider transition duration-200 ${
+            selectedCampeonato === 'LIBERTADORES'
+              ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-slate-950 font-black shadow-md shadow-emerald-500/10'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/30'
+          }`}
+        >
+          🛰️ Copa Libertadores
+        </button>
+      </div>
 
       {/* Filter Options */}
       <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-slate-950/60 p-2.5 rounded-xl border border-slate-900">
