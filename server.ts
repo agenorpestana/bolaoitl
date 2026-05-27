@@ -925,8 +925,8 @@ async function initializeDatabase() {
     if (!schemaIsPushed && !databaseIsOffline) {
       try {
         const { execSync } = await import("child_process");
-        console.log("[MySql Sync] Dynamic push starting: npx prisma db push --accept-data-loss (first-time database setup only!)");
-        execSync("npx prisma db push --accept-data-loss", { stdio: "inherit" });
+        console.log("[MySql Sync] Dynamic push starting: npx prisma db push (first-time database setup only!)");
+        execSync("npx prisma db push", { stdio: "inherit" });
         console.log("[MySql Sync] Schema successfully pushed to VPS!");
       } catch (err: any) {
         console.error("[MySql Sync] Schema initial push failed:", err.message);

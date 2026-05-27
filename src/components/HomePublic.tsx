@@ -212,9 +212,9 @@ export default function HomePublic({ onParticipateCta, metrics, jogos }: HomePub
     return () => clearInterval(interval);
   }, []);
 
-  // Filter 3 closest matches from the permitted games array
+  // Filter 3 closest upcoming matches from the permitted games array
   const matchHighlights = jogos
-    .filter(g => g.status === 'PENDENTE')
+    .filter(g => g.status === 'PENDENTE' && new Date(g.data_jogo).getTime() > new Date(metrics?.data_servidor || new Date().toISOString()).getTime())
     .slice(0, 3);
 
   return (

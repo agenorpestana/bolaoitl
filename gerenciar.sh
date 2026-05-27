@@ -232,18 +232,45 @@ PM2_NAME="${PM2_PREFIX}-${SAFE_DOMAIN_SUFFIX}"
 IS_UPDATE=0
 if [ -d "$APP_DIR/.git" ]; then IS_UPDATE=1; fi
 
+# Coleta de dados do Banco com preenchimento automático a partir de .env existente se disponível
+EXISTING_DB_HOST="localhost"
+EXISTING_DB_USER="${DEFAULT_DB_USER}"
+EXISTING_DB_NAME="${DEFAULT_DB_NAME}"
+EXISTING_DB_PASSWORD=""
+EXISTING_APP_PORT="${APP_PORT}"
+
+if [ -f "$APP_DIR/.env" ]; then
+  VAL_HOST=$(grep -E "^DB_HOST=" "$APP_DIR/.env" | cut -d'=' -f2- | tr -d '"' | tr -d "'")
+  VAL_USER=$(grep -E "^DB_USER=" "$APP_DIR/.env" | cut -d'=' -f2- | tr -d '"' | tr -d "'")
+  VAL_NAME=$(grep -E "^DB_NAME=" "$APP_DIR/.env" | cut -d'=' -f2- | tr -d '"' | tr -d "'")
+  VAL_PASS=$(grep -E "^DB_PASSWORD=" "$APP_DIR/.env" | cut -d'=' -f2- | tr -d '"' | tr -d "'")
+  VAL_PORT=$(grep -E "^PORT=" "$APP_DIR/.env" | cut -d'=' -f2- | tr -d '"' | tr -d "'")
+
+  if [ ! -z "$VAL_HOST" ]; then EXISTING_DB_HOST="$VAL_HOST"; fi
+  if [ ! -z "$VAL_USER" ]; then EXISTING_DB_USER="$VAL_USER"; fi
+  if [ ! -z "$VAL_NAME" ]; then EXISTING_DB_NAME="$VAL_NAME"; fi
+  if [ ! -z "$VAL_PASS" ]; then EXISTING_DB_PASSWORD="$VAL_PASS"; fi
+  if [ ! -z "$VAL_PORT" ]; then EXISTING_APP_PORT="$VAL_PORT"; fi
+fi
+
 # Coleta de dados do Banco
 echo -e "${YELLOW}Configuração do Banco de Dados MySQL:${NC}"
-echo -e "Nome do Banco [${DEFAULT_DB_NAME}]:"
+echo -e "Nome do Banco [${EXISTING_DB_NAME}]:"
 read DB_NAME
-DB_NAME=${DB_NAME:-$DEFAULT_DB_NAME}
+DB_NAME=${DB_NAME:-$EXISTING_DB_NAME}
 
-echo -e "Usuário do Banco [${DEFAULT_DB_USER}]:"
+echo -e "Usuário do Banco [${EXISTING_DB_USER}]:"
 read DB_USER
-DB_USER=${DB_USER:-$DEFAULT_DB_USER}
+DB_USER=${DB_USER:-$EXISTING_DB_USER}
 
-echo -e "Senha do Banco:"
-read -s DB_PASSWORD
+if [ ! -z "$EXISTING_DB_PASSWORD" ]; then
+  echo -e "Senha do Banco [Pressione Enter para manter a senha atual secreta]:"
+  read -s DB_PASSWORD
+  DB_PASSWORD=${DB_PASSWORD:-$EXISTING_DB_PASSWORD}
+else
+  echo -e "Senha do Banco:"
+  read -s DB_PASSWORD
+fi
 echo
 
 if [ $IS_UPDATE -eq 0 ]; then
@@ -304,7 +331,7 @@ else
     # Gerar um JWT_SECRET aleatório se não existir
     SECRET_KEY=$(openssl rand -base64 32)
     if [ -f .env ]; then
-      EXISTING_SECRET=$(grep JWT_SECRET .env | cut -d '=' -f2 | tr -d '"')
+      EXISTING_SECRET=$(grep -E "^JWT_SECRET=" .env | cut -d'=' -f2- | tr -d '"' | tr -d "'")
       if [ ! -z "$EXISTING_SECRET" ]; then
         SECRET_KEY="$EXISTING_SECRET"
       fi

@@ -185,6 +185,14 @@ export default function MatchesSection({
     return `${hours}h ${mins}m restantes`;
   };
 
+  const isAvailableOrLive = React.useCallback((jogo: Jogo): boolean => {
+    return jogo.status === 'AO_VIVO' || (jogo.status === 'PENDENTE' && !isPastGame(jogo));
+  }, [isPastGame]);
+
+  const isConcludedOrExpired = React.useCallback((jogo: Jogo): boolean => {
+    return jogo.status === 'ENCERRADO' || (jogo.status === 'PENDENTE' && isPastGame(jogo));
+  }, [isPastGame]);
+
   // Filtered games list calculation
   const filteredGames = React.useMemo(() => {
     return championshipJogos.filter(jogo => {
@@ -196,25 +204,27 @@ export default function MatchesSection({
       } else if (filterStatus === 'AO_VIVO') {
         matchesStatus = jogo.status === 'AO_VIVO';
       } else if (filterStatus === 'ENCERRADO') {
-        matchesStatus = jogo.status === 'ENCERRADO' || (jogo.status === 'PENDENTE' && isPastGame(jogo));
+        matchesStatus = isConcludedOrExpired(jogo);
+      } else if (filterStatus === 'TODOS') {
+        // If we are looking at the current/active round, hide older/expired games by default
+        // so they do not clutter the betting deck and move entirely to the "Encerrados" filter status.
+        if (activeRodada === currentRound) {
+          matchesStatus = !isConcludedOrExpired(jogo);
+        }
       }
 
       return matchesRound && matchesStatus;
     });
-  }, [championshipJogos, activeRodada, filterStatus, dataServidor]);
+  }, [championshipJogos, activeRodada, filterStatus, dataServidor, currentRound, isConcludedOrExpired]);
 
   // Split into active/pending matches versus finished matches as requested
   const pendingOrLiveGames = React.useMemo(() => {
-    return filteredGames.filter(jogo => 
-      jogo.status === 'AO_VIVO' || (jogo.status === 'PENDENTE' && !isPastGame(jogo))
-    );
-  }, [filteredGames, isPastGame]);
+    return filteredGames.filter(jogo => isAvailableOrLive(jogo));
+  }, [filteredGames, isAvailableOrLive]);
 
   const concludedGames = React.useMemo(() => {
-    return filteredGames.filter(jogo => 
-      jogo.status === 'ENCERRADO' || (jogo.status === 'PENDENTE' && isPastGame(jogo))
-    );
-  }, [filteredGames, isPastGame]);
+    return filteredGames.filter(jogo => isConcludedOrExpired(jogo));
+  }, [filteredGames, isConcludedOrExpired]);
 
   const renderMatchCard = (jogo: Jogo) => {
     const isReadonly = isMatchLocked(jogo);
