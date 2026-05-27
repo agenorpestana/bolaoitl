@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
   Sliders, Users, Shield, Database, Activity, FileSpreadsheet, PlusCircle, Trash2, 
-  Save, RefreshCw, Check, Search, Download, Trash, Edit2, Play, Power, AlertTriangle, ShieldCheck, Trophy
+  Save, RefreshCw, Check, Search, Download, Trash, Edit2, Play, Power, AlertTriangle, ShieldCheck, Trophy, Key
 } from 'lucide-react';
 import { Usuario, Jogo, ConfigPoints, ConfigIXC, ConfigFootballApi, AuditLog } from '../types';
 import { CIDADES_ATENDIDAS } from '../data';
@@ -14,7 +14,7 @@ interface AdminPanelProps {
 }
 
 export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelProps) {
-  const [activeSubTab, setActiveSubTab] = React.useState<'METRICAS' | 'IXC' | 'REGRAS' | 'SOCCER_API' | 'JOGADORES' | 'JOGOS' | 'RELATORIOS' | 'LOGS'>('METRICAS');
+  const [activeSubTab, setActiveSubTab] = React.useState<'METRICAS' | 'IXC' | 'REGRAS' | 'SOCCER_API' | 'JOGADORES' | 'JOGOS' | 'RELATORIOS' | 'LOGS' | 'ADMINS'>('METRICAS');
   const [calendarioMode, setCalendarioMode] = React.useState<'COPA_2026' | 'LIBERTADORES' | 'BRASILEIRAO' | 'FUTURAS'>('COPA_2026');
   const [apiFutebolMode, setApiFutebolMode] = React.useState<'COPA_2026' | 'LIBERTADORES' | 'BRASILEIRAO' | 'FUTURAS'>('COPA_2026');
 
@@ -81,6 +81,96 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
   const [editMatchCasaPlacar, setEditMatchCasaPlacar] = React.useState("");
   const [editMatchForaPlacar, setEditMatchForaPlacar] = React.useState("");
   const [editMatchStatus, setEditMatchStatus] = React.useState<'PENDENTE' | 'AO_VIVO' | 'ENCERRADO'>('PENDENTE');
+
+  // Sub-admins management states
+  const [subAdmins, setSubAdmins] = React.useState<any[]>([]);
+  const [editingSubAdmin, setEditingSubAdmin] = React.useState<any | null>(null);
+  const [subAdminNome, setSubAdminNome] = React.useState("");
+  const [subAdminEmail, setSubAdminEmail] = React.useState("");
+  const [subAdminSenha, setSubAdminSenha] = React.useState("");
+  const [subAdminPodeExcluir, setSubAdminPodeExcluir] = React.useState(true);
+  const [subAdminPodeEditar, setSubAdminPodeEditar] = React.useState(true);
+  const [subAdminPodeAtivarCampeonato, setSubAdminPodeAtivarCampeonato] = React.useState(true);
+
+  const loadSubAdmins = async () => {
+    try {
+      const response = await fetch("/api/admin/sub-admins", {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSubAdmins(data);
+      }
+    } catch (err) {
+      console.error("Error loading sub-admins:", err);
+    }
+  };
+
+  const handleSaveSubAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!subAdminNome || !subAdminEmail) {
+      showFeedback("Preencha Nome e E-mail obrigatoriamente.", true);
+      return;
+    }
+    try {
+      const payload = {
+        id: editingSubAdmin ? editingSubAdmin.id : undefined,
+        nome: subAdminNome,
+        email: subAdminEmail,
+        senha: subAdminSenha,
+        podeExcluir: subAdminPodeExcluir,
+        podeEditar: subAdminPodeEditar,
+        podeAtivarCampeonato: subAdminPodeAtivarCampeonato
+      };
+      
+      const response = await fetch("/api/admin/sub-admins", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+      
+      const result = await response.json();
+      if (response.ok && result.success) {
+        showFeedback(editingSubAdmin ? "Usuário administrador atualizado com sucesso!" : "Usuário administrador cadastrado com sucesso!");
+        // Reset state variables
+        setEditingSubAdmin(null);
+        setSubAdminNome("");
+        setSubAdminEmail("");
+        setSubAdminSenha("");
+        setSubAdminPodeExcluir(true);
+        setSubAdminPodeEditar(true);
+        setSubAdminPodeAtivarCampeonato(true);
+        // Reload directory list
+        loadSubAdmins();
+      } else {
+        showFeedback(result.error || "Erro ao salvar usuário administrador.", true);
+      }
+    } catch (err) {
+      showFeedback("Erro de conectividade com o servidor.", true);
+    }
+  };
+
+  const handleDeleteSubAdmin = async (admId: number) => {
+    if (!confirm("Deseja realmente remover este usuário administrador?")) return;
+    try {
+      const response = await fetch(`/api/admin/sub-admins/${admId}`, {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const result = await response.json();
+      if (response.ok && result.success) {
+        showFeedback("Usuário administrador removido com sucesso!");
+        loadSubAdmins();
+      } else {
+        showFeedback(result.error || "Erro ao remover usuário administrador.", true);
+      }
+    } catch (err) {
+      showFeedback("Erro de conectividade com o servidor.", true);
+    }
+  };
 
   const [feedbackSuccess, setFeedbackSuccess] = React.useState<string | null>(null);
   const [feedbackError, setFeedbackError] = React.useState<string | null>(null);
@@ -188,6 +278,9 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
       loadServerConfigs();
       if (activeSubTab === 'JOGOS' && calendarioMode === 'LIBERTADORES') {
         loadAdminPalpites();
+      }
+      if (activeSubTab === 'ADMINS') {
+        loadSubAdmins();
       }
     }
   }, [token, activeSubTab, calendarioMode]);
@@ -791,7 +884,8 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
           { id: 'JOGADORES', label: 'Participantes', icon: Users },
           { id: 'JOGOS', label: 'Calendário', icon: PlusCircle },
           { id: 'RELATORIOS', label: 'Relatórios & Export', icon: FileSpreadsheet },
-          { id: 'LOGS', label: 'Auditoria Logs', icon: Shield }
+          { id: 'LOGS', label: 'Auditoria Logs', icon: Shield },
+          { id: 'ADMINS', label: 'Equipe Admin', icon: Key }
         ].map(tab => {
           const Icon = tab.icon;
           const isActive = activeSubTab === tab.id;
@@ -2538,6 +2632,244 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 9. CADASTRO E GERENCIAMENTO DE ADMINISTRADORES (SUB-ADMINS) */}
+      {activeSubTab === 'ADMINS' && (
+        <div className="space-y-6">
+          <div className="bg-slate-950 border border-slate-900 rounded-2xl p-6">
+            <h3 className="text-sm font-black uppercase text-yellow-500 mb-2">
+              {editingSubAdmin ? "Editar Usuário Administrador" : "Cadastrar Novo Administrador"}
+            </h3>
+            <p className="text-xs text-slate-400 mb-6">
+              Cadastre usuários adicionais da equipe para acessar o painel administrativo e defina restrições para garantir a segurança dos dados.
+            </p>
+
+            <form onSubmit={handleSaveSubAdmin} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 uppercase mb-1.5">Nome do Administrador</label>
+                  <input
+                    type="text"
+                    value={subAdminNome}
+                    onChange={(e) => setSubAdminNome(e.target.value)}
+                    placeholder="Ex: Agenor Tec"
+                    className="w-full bg-slate-900 border border-slate-800 text-slate-200 px-3.5 py-2 rounded-xl text-xs focus:outline-none focus:border-yellow-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 uppercase mb-1.5">Email de Acesso</label>
+                  <input
+                    type="email"
+                    value={subAdminEmail}
+                    onChange={(e) => setSubAdminEmail(e.target.value)}
+                    placeholder="Ex: agenor@provedor.com"
+                    className="w-full bg-slate-900 border border-slate-800 text-slate-200 px-3.5 py-2 rounded-xl text-xs focus:outline-none focus:border-yellow-500"
+                    required
+                    disabled={!!editingSubAdmin}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 uppercase mb-1.5">Senha de Acesso</label>
+                  <input
+                    type="text"
+                    value={subAdminSenha}
+                    onChange={(e) => setSubAdminSenha(e.target.value)}
+                    placeholder={editingSubAdmin ? "Deixe em branco para manter a atual" : "Padrão se vazio: 200616"}
+                    className="w-full bg-slate-900 border border-slate-800 text-slate-200 px-3.5 py-2 rounded-xl text-xs focus:outline-none focus:border-yellow-500"
+                  />
+                </div>
+              </div>
+
+              {/* Permissions settings */}
+              <div className="bg-slate-900/40 border border-slate-800/60 rounded-xl p-4 space-y-3">
+                <span className="block text-xs font-black uppercase text-slate-300 mb-2">Restrições e Permissões Administrativas</span>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <label className="flex items-start gap-2.5 p-3 bg-slate-950/40 rounded-lg border border-slate-900 select-none cursor-pointer hover:border-slate-800 transition">
+                    <input
+                      type="checkbox"
+                      checked={subAdminPodeEditar}
+                      onChange={(e) => setSubAdminPodeEditar(e.target.checked)}
+                      className="rounded border-slate-800 bg-slate-900 text-yellow-500 focus:ring-0 focus:ring-offset-0 h-4 w-4 mt-0.5"
+                    />
+                    <div>
+                      <span className="block text-xs font-bold text-slate-200">Permissão para Editar Dados</span>
+                      <span className="block text-[10px] text-slate-400 mt-0.5">Permite alterar palpites, partidas, pontuações, configs de conexão e sincronizar APIs.</span>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-2.5 p-3 bg-slate-950/40 rounded-lg border border-slate-950 select-none cursor-pointer hover:border-slate-800 transition">
+                    <input
+                      type="checkbox"
+                      checked={subAdminPodeExcluir}
+                      onChange={(e) => setSubAdminPodeExcluir(e.target.checked)}
+                      className="rounded border-slate-800 bg-slate-900 text-yellow-500 focus:ring-0 focus:ring-offset-0 h-4 w-4 mt-0.5"
+                    />
+                    <div>
+                      <span className="block text-xs font-bold text-slate-200">Permissão para Excluir Registros</span>
+                      <span className="block text-[10px] text-slate-400 mt-0.5 font-medium">Possibilita excluir participantes e remover partidas inteiras do calendário.</span>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-2.5 p-3 bg-slate-950/40 rounded-lg border border-slate-900 select-none cursor-pointer hover:border-slate-800 transition">
+                    <input
+                      type="checkbox"
+                      checked={subAdminPodeAtivarCampeonato}
+                      onChange={(e) => setSubAdminPodeAtivarCampeonato(e.target.checked)}
+                      className="rounded border-slate-800 bg-slate-900 text-yellow-500 focus:ring-0 focus:ring-offset-0 h-4 w-4 mt-0.5"
+                    />
+                    <div>
+                      <span className="block text-xs font-bold text-slate-200">Permissão para Liberar Campeonatos</span>
+                      <span className="block text-[10px] text-slate-400 mt-0.5">Controla se o usuário pode ativar ou desativar ligas de campeonato para clientes.</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                {editingSubAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingSubAdmin(null);
+                      setSubAdminNome("");
+                      setSubAdminEmail("");
+                      setSubAdminSenha("");
+                      setSubAdminPodeExcluir(true);
+                      setSubAdminPodeEditar(true);
+                      setSubAdminPodeAtivarCampeonato(true);
+                    }}
+                    className="px-4 py-2 bg-slate-900 border border-slate-800 hover:text-slate-100 text-xs font-bold text-slate-450 rounded-xl transition"
+                  >
+                    Cancelar
+                  </button>
+                )}
+                
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 bg-yellow-550 hover:bg-yellow-600 text-slate-950 text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all shadow-md shadow-yellow-950/10 flex items-center gap-1.5"
+                >
+                  <Save className="h-4 w-4" />
+                  {editingSubAdmin ? "Atualizar Administrador" : "Salvar Novo Administrador"}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {/* Administrators directory list */}
+          <div className="bg-slate-950 border border-slate-900 rounded-2xl p-6">
+            <h3 className="text-sm font-black uppercase text-yellow-500 mb-4 font-extrabold tracking-wider">Membros da Equipe Administrativa</h3>
+            
+            <div className="grid gap-4 md:grid-cols-2">
+              {/* Core Unrestricted Super Admin (Reference block) */}
+              <div className="bg-slate-900/60 border border-yellow-500/20 rounded-2xl p-5 relative overflow-hidden">
+                <div className="absolute top-0 right-0 h-auto text-[9px] uppercase tracking-wider bg-yellow-400 text-slate-950 px-2.5 py-1 font-black rounded-bl-xl shadow-sm">
+                  Super Usuário Padrão
+                </div>
+
+                <div className="flex items-start gap-4">
+                  <div className="h-10 w-10 rounded-full bg-yellow-950/45 border border-yellow-800/40 text-yellow-500 flex items-center justify-center font-black text-sm uppercase">
+                    SU
+                  </div>
+                  <div className="space-y-1.5 flex-1">
+                    <span className="block text-sm font-extrabold text-slate-100">Suporte Unity</span>
+                    <span className="block text-xs text-slate-400">suporte@unityautomacoes.com.br</span>
+                    
+                    <div className="flex flex-wrap gap-1.5 pt-2">
+                      <span className="text-[9px] uppercase font-black tracking-tight px-2 py-0.5 rounded-full bg-emerald-950/50 text-emerald-400 border border-emerald-900/40">
+                        Pode Editar ✔
+                      </span>
+                      <span className="text-[9px] uppercase font-black tracking-tight px-2 py-0.5 rounded-full bg-emerald-950/50 text-emerald-400 border border-emerald-900/40">
+                        Pode Excluir ✔
+                      </span>
+                      <span className="text-[9px] uppercase font-black tracking-tight px-2 py-0.5 rounded-full bg-emerald-950/50 text-emerald-400 border border-emerald-900/40">
+                        Pode Liberar Campeonato ✔
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Dynamic DB sub-admins list */}
+              {subAdmins
+                .filter(a => a.email.toLowerCase() !== "suporte@unityautomacoes.com.br")
+                .map((adm) => (
+                  <div key={adm.id} className="bg-slate-900/30 border border-slate-800/80 hover:border-slate-800 rounded-2xl p-5 flex flex-col justify-between transition gap-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start gap-4">
+                        <div className="h-10 w-10 rounded-full bg-emerald-950/45 border border-emerald-800/40 text-emerald-400 flex items-center justify-center font-black text-sm uppercase">
+                          {adm.nome.slice(0, 2)}
+                        </div>
+                        <div className="space-y-1">
+                          <span className="block text-sm font-extrabold text-slate-100">{adm.nome}</span>
+                          <span className="block text-xs text-slate-450">{adm.email}</span>
+                          
+                          <div className="flex flex-wrap gap-1.5 pt-2">
+                            <span className={`text-[9px] uppercase font-black tracking-tight px-2 py-0.5 rounded-full ${
+                              adm.podeEditar !== false 
+                                ? 'bg-emerald-950/50 text-emerald-400 border border-emerald-900/40' 
+                                : 'bg-red-950/50 text-red-400 border border-red-900/40'
+                            }`}>
+                              Editar: {adm.podeEditar !== false ? 'SIM ✔' : 'NÃO ✖'}
+                            </span>
+                            <span className={`text-[9px] uppercase font-black tracking-tight px-2 py-0.5 rounded-full ${
+                              adm.podeExcluir !== false 
+                                ? 'bg-emerald-950/50 text-emerald-400 border border-emerald-900/40' 
+                                : 'bg-red-950/50 text-red-400 border border-red-900/40'
+                            }`}>
+                              Excluir: {adm.podeExcluir !== false ? 'SIM ✔' : 'NÃO ✖'}
+                            </span>
+                            <span className={`text-[9px] uppercase font-black tracking-tight px-2 py-0.5 rounded-full ${
+                              adm.podeAtivarCampeonato !== false 
+                                ? 'bg-emerald-950/50 text-emerald-400 border border-emerald-900/40' 
+                                : 'bg-red-950/50 text-red-400 border border-red-900/40'
+                            }`}>
+                              Liberar Ligas: {adm.podeAtivarCampeonato !== false ? 'SIM ✔' : 'NÃO ✖'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 border-t border-slate-900 pt-3 select-none">
+                      <button
+                        onClick={() => {
+                          setEditingSubAdmin(adm);
+                          setSubAdminNome(adm.nome);
+                          setSubAdminEmail(adm.email);
+                          setSubAdminSenha("");
+                          setSubAdminPodeExcluir(adm.podeExcluir !== false);
+                          setSubAdminPodeEditar(adm.podeEditar !== false);
+                          setSubAdminPodeAtivarCampeonato(adm.podeAtivarCampeonato !== false);
+                          window.scrollTo({ top: 300, behavior: 'smooth' });
+                        }}
+                        className="px-2.5 py-1.5 bg-slate-905 border border-slate-800 text-[10px] uppercase font-bold text-slate-350 hover:text-yellow-500 rounded-lg transition"
+                      >
+                        Editar
+                      </button>
+
+                      <button
+                        onClick={() => handleDeleteSubAdmin(adm.id)}
+                        className="px-2.5 py-1.5 bg-slate-905 border border-slate-800 text-[10px] uppercase font-bold text-slate-350 hover:text-red-500 hover:border-red-950 rounded-lg transition flex items-center gap-1"
+                      >
+                        <Trash className="h-3 w-3" /> Excluir
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+              {subAdmins.filter(a => a.email.toLowerCase() !== "suporte@unityautomacoes.com.br").length === 0 && (
+                <div className="col-span-2 py-10 border border-dashed border-slate-850 rounded-2xl text-center text-xs text-slate-500">
+                  Nenhum sub-administrador secundário cadastrado de momento.
+                </div>
+              )}
             </div>
           </div>
         </div>

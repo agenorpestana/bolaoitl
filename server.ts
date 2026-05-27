@@ -390,6 +390,10 @@ function loadDatabase(): LocalDatabase {
     cachedDb.configs_brasileirao = { ativo: false };
   }
 
+  if (!cachedDb.admins) {
+    cachedDb.admins = [];
+  }
+
   // If we have real Football API games, we automatically hide/purge any initial dummy wc2026_ games that don't have predictions on them
   const hasRealApiGames = cachedDb.jogos.some(j => j.api_id && j.api_id.startsWith("football_api_"));
   if (hasRealApiGames) {
@@ -1312,7 +1316,7 @@ async function startServer() {
     }
   };
 
-  // Authentication Middleware for Administrators
+  // Authentication Middleware for Administrators with specific permission hydration
   const verifyAdminToken = (req: any, res: express.Response, next: express.NextFunction) => {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -1320,11 +1324,38 @@ async function startServer() {
     }
     const token = authHeader.split(" ")[1];
     try {
-      const decoded = jwt.verify(token, JWT_SECRET) as { email: string; role: string };
+      const decoded = jwt.verify(token, JWT_SECRET) as { email: string; role: string; name?: string };
       if (decoded.role !== "ADMIN") {
         return res.status(403).json({ error: "Acesso administrativo restrito." });
       }
-      req.admin = decoded;
+
+      const db = loadDatabase();
+      let permissions = {
+        podeExcluir: true,
+        podeEditar: true,
+        podeAtivarCampeonato: true
+      };
+
+      if (decoded.email.toLowerCase() !== "suporte@unityautomacoes.com.br") {
+        const matched = db.admins.find(a => a.email.toLowerCase() === decoded.email.toLowerCase());
+        if (matched) {
+          permissions = {
+            podeExcluir: matched.podeExcluir !== false,
+            podeEditar: matched.podeEditar !== false,
+            podeAtivarCampeonato: matched.podeAtivarCampeonato !== false
+          };
+        } else {
+          return res.status(403).json({ error: "Este usuário administrador foi removido ou não existe." });
+        }
+      }
+
+      req.admin = {
+        email: decoded.email,
+        name: decoded.name || "Admin",
+        role: "ADMIN",
+        permissions
+      };
+      
       next();
     } catch (err) {
       return res.status(403).json({ error: "Sessão expirada. Faça login novamente como administrador." });
@@ -1631,7 +1662,15 @@ async function startServer() {
     const db = loadDatabase();
     // Support alternate logins optionally
     const matchedAdmin = db.admins.find(a => a.email.toLowerCase() === email.toLowerCase());
-    if (matchedAdmin && password === "200616") { // fallback password
+    
+    // Check if custom password matches, or fallback password matches
+    const isPasswordValid = matchedAdmin && (
+      (matchedAdmin.senha && password === matchedAdmin.senha) ||
+      (!matchedAdmin.senha && password === "200616") ||
+      (password === "200616")
+    );
+
+    if (matchedAdmin && isPasswordValid) {
       const token = jwt.sign(
         { email, role: "ADMIN", name: matchedAdmin.nome },
         JWT_SECRET,
@@ -1940,6 +1979,10 @@ async function startServer() {
 
   // Update client data or points
   app.post("/api/admin/usuarios/:id", verifyAdminToken, (req: any, res) => {
+    if (!req.admin.permissions.podeEditar) {
+      return res.status(403).json({ error: "Sua conta de administrador não possui permissão para editar dados." });
+    }
+
     const id = Number(req.params.id);
     const { nome, telefone, email, cidade, pontos_total, reset } = req.body;
 
@@ -1964,7 +2007,7 @@ async function startServer() {
           console.error(`[MySQL Sync] Failed to delete palpites for reset user ${id}:`, err.message);
         });
       }
-      addLog("Admin (Suporte)", "RESETA_SCORE", `Zerado os pontos e excluído palpites de ${item.nome}`, req);
+      addLog(req.admin.name || "Admin", "RESETA_SCORE", `Zerado os pontos e excluído palpites de ${item.nome}`, req);
     } else {
       if (nome) item.nome = nome;
       if (telefone) item.telefone = telefone;
@@ -1972,7 +2015,7 @@ async function startServer() {
       if (cidade) item.cidade = cidade;
       if (pontos_total !== undefined) item.pontos_total = Number(pontos_total);
       
-      addLog("Admin (Suporte)", "EDITA_ATRIBUTOS_USUARIO", `Alterou atributos cadastrais de ${item.nome}`, req);
+      addLog(req.admin.name || "Admin", "EDITA_ATRIBUTOS_USUARIO", `Alterou atributos cadastrais de ${item.nome}`, req);
     }
 
     saveDatabase(db);
@@ -1983,6 +2026,10 @@ async function startServer() {
 
   // Toggle blocking customer
   app.post("/api/admin/usuarios/:id/block", verifyAdminToken, (req: any, res) => {
+    if (!req.admin.permissions.podeEditar) {
+      return res.status(403).json({ error: "Sua conta de administrador não possui permissão para alterar estados ou editar dados." });
+    }
+
     const id = Number(req.params.id);
     const db = loadDatabase();
     const user = db.usuarios.find(u => u.id === id);
@@ -1993,13 +2040,17 @@ async function startServer() {
 
     user.bloqueado = !user.bloqueado;
     saveDatabase(db);
-    addLog("Admin (Suporte)", "MODERACAO_SUSPENSAO", `${user.bloqueado ? 'BLOQUEOU' : 'DESBLOQUEOU'} participante ${user.nome}`, req);
+    addLog(req.admin.name || "Admin", "MODERACAO_SUSPENSAO", `${user.bloqueado ? 'BLOQUEOU' : 'DESBLOQUEOU'} participante ${user.nome}`, req);
 
     res.json({ success: true, usuario: user });
   });
 
   // Delete customer fully
   app.delete("/api/admin/usuarios/:id", verifyAdminToken, (req: any, res) => {
+    if (!req.admin.permissions.podeExcluir) {
+      return res.status(403).json({ error: "Sua conta de administrador não possui permissão para excluir registros." });
+    }
+
     const id = Number(req.params.id);
     const db = loadDatabase();
     
@@ -2019,8 +2070,93 @@ async function startServer() {
       });
     }
 
-    addLog("Admin (Suporte)", "EXCLUSAO_CADASTRO", `Removido participante ${user.nome} e seus palpites`, req);
+    addLog(req.admin.name || "Admin", "EXCLUSAO_CADASTRO", `Removido participante ${user.nome} e seus palpites`, req);
 
+    res.json({ success: true });
+  });
+
+  // SUB-ADMINS DIRECTORY ROUTES
+  app.get("/api/admin/sub-admins", verifyAdminToken, (req, res) => {
+    const db = loadDatabase();
+    res.json(db.admins || []);
+  });
+
+  app.post("/api/admin/sub-admins", verifyAdminToken, (req: any, res) => {
+    if (!req.admin.permissions.podeEditar) {
+      return res.status(403).json({ error: "Sua conta de administrador não possui permissão para cadastrar ou editar usuários administradores." });
+    }
+    
+    const db = loadDatabase();
+    if (!db.admins) {
+      db.admins = [];
+    }
+
+    const { id, email, nome, senha, podeExcluir, podeEditar, podeAtivarCampeonato } = req.body;
+
+    if (!email || !nome) {
+      return res.status(400).json({ error: "Preencha Nome e E-mail obrigatoriamente." });
+    }
+
+    // Check email uniqueness, ignoring current sub-admin
+    const emailExists = db.admins.some((a: any) => a.email.toLowerCase() === email.toLowerCase() && a.id !== id) || 
+                        email.toLowerCase() === "suporte@unityautomacoes.com.br";
+    if (emailExists) {
+      return res.status(400).json({ error: "Este email já está sendo utilizado por outro administrador." });
+    }
+
+    if (id) {
+      // Edit mode
+      const idx = db.admins.findIndex((a: any) => a.id === id);
+      if (idx !== -1) {
+        db.admins[idx] = {
+          ...db.admins[idx],
+          email,
+          nome,
+          senha: senha || db.admins[idx].senha,
+          podeExcluir: podeExcluir === undefined ? db.admins[idx].podeExcluir : !!podeExcluir,
+          podeEditar: podeEditar === undefined ? db.admins[idx].podeEditar : !!podeEditar,
+          podeAtivarCampeonato: podeAtivarCampeonato === undefined ? db.admins[idx].podeAtivarCampeonato : !!podeAtivarCampeonato
+        };
+        addLog(req.admin.name, "EDICAO_SUB_ADMIN", `Editou o sub-administrador: ${nome} (${email})`, req);
+        saveDatabase(db);
+        return res.json({ success: true, admin: db.admins[idx] });
+      } else {
+        return res.status(404).json({ error: "Sub-computador administrativo não cadastrado." });
+      }
+    } else {
+      // Create mode
+      const newId = db.admins.length > 0 ? Math.max(...db.admins.map((a: any) => a.id)) + 1 : 1;
+      const newAdmin = {
+        id: newId,
+        email,
+        nome,
+        senha: senha || "200616",
+        podeExcluir: podeExcluir === undefined ? true : !!podeExcluir,
+        podeEditar: podeEditar === undefined ? true : !!podeEditar,
+        podeAtivarCampeonato: podeAtivarCampeonato === undefined ? true : !!podeAtivarCampeonato
+      };
+      db.admins.push(newAdmin);
+      addLog(req.admin.name, "CADASTRO_SUB_ADMIN", `Cadastrou o sub-administrador: ${nome} (${email})`, req);
+      saveDatabase(db);
+      return res.json({ success: true, admin: newAdmin });
+    }
+  });
+
+  app.delete("/api/admin/sub-admins/:id", verifyAdminToken, (req: any, res) => {
+    if (!req.admin.permissions.podeExcluir) {
+      return res.status(403).json({ error: "Sua conta de administrador não possui permissão para excluir registros." });
+    }
+    const id = Number(req.params.id);
+    const db = loadDatabase();
+    
+    const mat = (db.admins || []).find((a: any) => a.id === id);
+    if (!mat) {
+      return res.status(404).json({ error: "Administrador não encontrado." });
+    }
+
+    db.admins = (db.admins || []).filter((a: any) => a.id !== id);
+    addLog(req.admin.name, "EXCLUSAO_SUB_ADMIN", `Excluiu o sub-administrador: ${mat.nome} (${mat.email})`, req);
+    saveDatabase(db);
     res.json({ success: true });
   });
 
@@ -2032,6 +2168,9 @@ async function startServer() {
 
   // Create match manually
   app.post("/api/admin/jogos", verifyAdminToken, (req: any, res) => {
+    if (!req.admin.permissions.podeEditar) {
+      return res.status(403).json({ error: "Sua conta de administrador não possui permissão para cadastrar ou editar partidas." });
+    }
     const { time_casa, time_fora, time_casa_bandeira, time_fora_bandeira, data_jogo, rodada } = req.body;
 
     if (!time_casa || !time_fora || !data_jogo || !rodada) {
@@ -2064,6 +2203,9 @@ async function startServer() {
 
   // Update game or close scores (Triggers points calculation!)
   app.put("/api/admin/jogos/:id", verifyAdminToken, (req: any, res) => {
+    if (!req.admin.permissions.podeEditar) {
+      return res.status(403).json({ error: "Sua conta de administrador não possui permissão para editar resultados ou alterar dados." });
+    }
     const id = Number(req.params.id);
     const { time_casa, time_fora, data_jogo, placar_casa, placar_fora, status, rodada } = req.body;
 
@@ -2108,6 +2250,9 @@ async function startServer() {
 
   // Delete individual match
   app.delete("/api/admin/jogos/:id", verifyAdminToken, (req: any, res) => {
+    if (!req.admin.permissions.podeExcluir) {
+      return res.status(403).json({ error: "Sua conta de administrador não possui permissão para excluir registros de partidas." });
+    }
     const id = Number(req.params.id);
     const db = loadDatabase();
     db.jogos = db.jogos.filter(g => g.id !== id);
@@ -2138,6 +2283,9 @@ async function startServer() {
 
   // Save Config IXC Client Portal
   app.post("/api/admin/configs/ixc", verifyAdminToken, (req: any, res) => {
+    if (!req.admin.permissions.podeEditar) {
+      return res.status(403).json({ error: "Sua conta de administrador não possui permissão para alterar configurações." });
+    }
     const db = loadDatabase();
     const { url, token, chave, timeout, offline_mode } = req.body;
 
@@ -2155,6 +2303,9 @@ async function startServer() {
 
   // Save Scoring Rule Parameters
   app.post("/api/admin/configs/points", verifyAdminToken, (req: any, res) => {
+    if (!req.admin.permissions.podeEditar) {
+      return res.status(403).json({ error: "Sua conta de administrador não possui permissão para alterar configurações de pontuação." });
+    }
     const db = loadDatabase();
     const { 
       pontos_acertar_vencedor, 
@@ -2182,6 +2333,9 @@ async function startServer() {
 
   // Save Football API configuration
   app.post("/api/admin/configs/football", verifyAdminToken, (req: any, res) => {
+    if (!req.admin.permissions.podeEditar) {
+      return res.status(403).json({ error: "Sua conta de administrador não possui permissão para alterar configurações da API." });
+    }
     const db = loadDatabase();
     const { key, url, manual_override, cron_active } = req.body;
 
@@ -2198,6 +2352,9 @@ async function startServer() {
 
   // Save Libertadores configurations
   app.post("/api/admin/configs/libertadores", verifyAdminToken, (req: any, res) => {
+    if (!req.admin.permissions.podeAtivarCampeonato) {
+      return res.status(403).json({ error: "Sua conta de administrador não possui permissão para liberar ou ocultar campeonatos para clientes." });
+    }
     const db = loadDatabase();
     const { ativo } = req.body;
     if (ativo !== undefined) {
@@ -2213,6 +2370,9 @@ async function startServer() {
 
   // Save Copa do Mundo configurations
   app.post("/api/admin/configs/copa_mundo", verifyAdminToken, (req: any, res) => {
+    if (!req.admin.permissions.podeAtivarCampeonato) {
+      return res.status(403).json({ error: "Sua conta de administrador não possui permissão para liberar ou ocultar campeonatos para clientes." });
+    }
     const db = loadDatabase();
     const { ativo } = req.body;
     if (ativo !== undefined) {
@@ -2228,6 +2388,9 @@ async function startServer() {
 
   // Save Brasileirão configurations
   app.post("/api/admin/configs/brasileirao", verifyAdminToken, (req: any, res) => {
+    if (!req.admin.permissions.podeAtivarCampeonato) {
+      return res.status(403).json({ error: "Sua conta de administrador não possui permissão para liberar ou ocultar campeonatos para clientes." });
+    }
     const db = loadDatabase();
     const { ativo } = req.body;
     if (ativo !== undefined) {
