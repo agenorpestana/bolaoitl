@@ -107,6 +107,35 @@ function getTeamFlag(teamName: string): string {
   return "🏳️";
 }
 
+function normalizeTeamName(name: string): string {
+  if (!name) return "";
+  let n = name.toLowerCase().trim();
+  n = n.normalize("NFD").replace(/[\u0300-\u036f]/g, ""); // remove diacritics / accents
+  if (n.includes("brazil") || n.includes("brasil")) return "brazil";
+  if (n.includes("canada")) return "canada";
+  if (n.includes("mexico")) return "mexico";
+  if (n.includes("usa") || n.includes("united states") || n.includes("estados unidos")) return "usa";
+  if (n.includes("germany") || n.includes("alemanha")) return "germany";
+  if (n.includes("spain") || n.includes("espanha")) return "spain";
+  if (n.includes("italy") || n.includes("italia")) return "italy";
+  if (n.includes("england") || n.includes("inglaterra")) return "england";
+  if (n.includes("netherlands") || n.includes("holanda")) return "netherlands";
+  if (n.includes("croatia") || n.includes("croacia")) return "croatia";
+  if (n.includes("morocco") || n.includes("marrocos")) return "morocco";
+  if (n.includes("switzerland") || n.includes("suica")) return "switzerland";
+  if (n.includes("ecuador") || n.includes("equador")) return "ecuador";
+  if (n.includes("south korea") || n.includes("coreia do sul") || n.includes("korea")) return "south korea";
+  if (n.includes("sweden") || n.includes("suecia")) return "sweden";
+  if (n.includes("belgium") || n.includes("belgica")) return "belgium";
+  if (n.includes("poland") || n.includes("polonia")) return "poland";
+  if (n.includes("saudi") || n.includes("arabia")) return "saudi arabia";
+  if (n.includes("denmark") || n.includes("dinamarca")) return "denmark";
+  if (n.includes("tunisia") || n.includes("tunisia")) return "tunisia";
+  if (n.includes("colombia")) return "colombia";
+  if (n.includes("france") || n.includes("franca")) return "france";
+  return n;
+}
+
 function parseRoundNumber(roundStr: string): number {
   const norm = roundStr.toLowerCase();
   if (norm.includes("group stage - 1") || norm.includes("rodada 1")) return 1;
@@ -215,11 +244,18 @@ async function syncFootballApiReal(db: LocalDatabase, req?: express.Request): Pr
     throw new Error("Nenhuma partida retornada pela API.");
   }
 
-  const mockGameIds = db.jogos.filter(j => j.api_id && j.api_id.startsWith("wc2026_")).map(j => j.id);
-  if (mockGameIds.length > 0) {
-    console.log(`[Football API Sync Engine] Purging ${mockGameIds.length} simulated WC matches...`);
-    db.jogos = db.jogos.filter(j => !j.api_id || !j.api_id.startsWith("wc2026_"));
-    db.palpites = db.palpites.filter(p => !mockGameIds.includes(p.jogo_id));
+  const mockGameIdsToPurge = db.jogos.filter(j => {
+    if (j.api_id && j.api_id.startsWith("wc2026_")) {
+      const hasGuesses = db.palpites.some(p => p.jogo_id === j.id);
+      return !hasGuesses;
+    }
+    return false;
+  }).map(j => j.id);
+
+  if (mockGameIdsToPurge.length > 0) {
+    console.log(`[Football API Sync Engine] Purging ${mockGameIdsToPurge.length} unused simulated WC matches with 0 predictions...`);
+    db.jogos = db.jogos.filter(j => !mockGameIdsToPurge.includes(j.id));
+    db.palpites = db.palpites.filter(p => !mockGameIdsToPurge.includes(p.jogo_id));
   }
 
   let addedCount = 0;
@@ -282,9 +318,8 @@ async function syncFootballApiReal(db: LocalDatabase, req?: express.Request): Pr
     let existingJogo = db.jogos.find(j => j.api_id === apiId);
     if (!existingJogo) {
       existingJogo = db.jogos.find(j => 
-        j.time_casa.toLowerCase() === timeCasa.toLowerCase() &&
-        j.time_fora.toLowerCase() === timeFora.toLowerCase() &&
-        Math.abs(new Date(j.data_jogo).getTime() - new Date(dataJogoStr).getTime()) < 24 * 60 * 60 * 1000
+        (normalizeTeamName(j.time_casa) === normalizeTeamName(timeCasa) && normalizeTeamName(j.time_fora) === normalizeTeamName(timeFora)) ||
+        (normalizeTeamName(j.time_casa) === normalizeTeamName(timeFora) && normalizeTeamName(j.time_fora) === normalizeTeamName(timeCasa))
       );
     }
 
@@ -341,15 +376,25 @@ function loadDatabase(): LocalDatabase {
     cachedDb.configs_copa_mundo = { ativo: true };
   }
 
-  // If we have real Football API games, we automatically hide/purge any initial dummy wc2026_ games
+  // If we have real Football API games, we automatically hide/purge any initial dummy wc2026_ games that don't have predictions on them
   const hasRealApiGames = cachedDb.jogos.some(j => j.api_id && j.api_id.startsWith("football_api_"));
   if (hasRealApiGames) {
     const originalLength = cachedDb.jogos.length;
-    cachedDb.jogos = cachedDb.jogos.filter(j => !j.api_id || !j.api_id.startsWith("wc2026_"));
+    cachedDb.jogos = cachedDb.jogos.filter(j => {
+      if (j.api_id && j.api_id.startsWith("wc2026_")) {
+        const hasGuesses = cachedDb.palpites.some(p => p.jogo_id === j.id);
+        return hasGuesses; // keep if it has user bets!
+      }
+      return true;
+    });
+
     if (cachedDb.jogos.length !== originalLength) {
-      console.log(`[Database Load] Dynamically purged initial fictional games from live database because real API games exist.`);
-      const mockGameIds = [1, 2, 3, 4, 5, 6, 7, 8];
-      cachedDb.palpites = cachedDb.palpites.filter(p => !mockGameIds.includes(p.jogo_id));
+      console.log(`[Database Load] Dynamically purged initial unused fictional games from live database because real API games exist.`);
+      const mockGameIdsToPurge = [1, 2, 3, 4, 5, 6, 7, 8].filter(id => {
+        const hasGuesses = cachedDb.palpites.some(p => p.jogo_id === id);
+        return !hasGuesses;
+      });
+      cachedDb.palpites = cachedDb.palpites.filter(p => !mockGameIdsToPurge.includes(p.jogo_id));
       saveDatabase(cachedDb);
     }
   }
@@ -1829,6 +1874,11 @@ async function startServer() {
       item.erros = 0;
       // Also delete user bets
       db.palpites = db.palpites.filter(p => p.usuario_id !== id);
+      if (prisma) {
+        prisma.palpite.deleteMany({ where: { usuario_id: id } }).catch((err: any) => {
+          console.error(`[MySQL Sync] Failed to delete palpites for reset user ${id}:`, err.message);
+        });
+      }
       addLog("Admin (Suporte)", "RESETA_SCORE", `Zerado os pontos e excluído palpites de ${item.nome}`, req);
     } else {
       if (nome) item.nome = nome;
@@ -2194,6 +2244,12 @@ async function startServer() {
       for (const item of FALLBACK_LIBERTADORES) {
         let existing = db.jogos.find(j => j.api_id === item.api_id);
         if (!existing) {
+          existing = db.jogos.find(j => 
+            (normalizeTeamName(j.time_casa) === normalizeTeamName(item.time_casa) && normalizeTeamName(j.time_fora) === normalizeTeamName(item.time_fora)) ||
+            (normalizeTeamName(j.time_casa) === normalizeTeamName(item.time_fora) && normalizeTeamName(j.time_fora) === normalizeTeamName(item.time_casa))
+          );
+        }
+        if (!existing) {
           const newId = db.jogos.length > 0 ? Math.max(...db.jogos.map(j => j.id)) + 1 : 1;
           db.jogos.push({
             id: newId,
@@ -2245,6 +2301,12 @@ async function startServer() {
         }
 
         let existing = db.jogos.find(j => j.api_id === apiId);
+          if (!existing) {
+            existing = db.jogos.find(j => 
+              (normalizeTeamName(j.time_casa) === normalizeTeamName(timeCasa) && normalizeTeamName(j.time_fora) === normalizeTeamName(timeFora)) ||
+              (normalizeTeamName(j.time_casa) === normalizeTeamName(timeFora) && normalizeTeamName(j.time_fora) === normalizeTeamName(timeCasa))
+            );
+          }
         if (!existing) {
           const newId = db.jogos.length > 0 ? Math.max(...db.jogos.map(j => j.id)) + 1 : 1;
           db.jogos.push({
