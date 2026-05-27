@@ -67,6 +67,266 @@ if (process.env.DATABASE_URL) {
 
 let cachedDb: LocalDatabase | null = null;
 
+// ==========================================
+// GLOBAL FOOTBALL API HELPERS & ENGINE
+// ==========================================
+function getTeamFlag(teamName: string): string {
+  const name = teamName.toLowerCase().trim();
+  if (name.includes("brazil") || name.includes("brasil")) return "🇧🇷";
+  if (name.includes("argentina")) return "🇦🇷";
+  if (name.includes("canada") || name.includes("canadá")) return "🇨🇦";
+  if (name.includes("united states") || name.includes("usa") || name.includes("estados unidos")) return "🇺🇸";
+  if (name.includes("mexico") || name.includes("méxico")) return "🇲🇽";
+  if (name.includes("france") || name.includes("frança")) return "🇫🇷";
+  if (name.includes("germany") || name.includes("alemanha")) return "🇩🇪";
+  if (name.includes("spain") || name.includes("espanha")) return "🇪🇸";
+  if (name.includes("italy") || name.includes("itália")) return "🇮🇹";
+  if (name.includes("england") || name.includes("inglaterra")) return "🇬🇧";
+  if (name.includes("netherlands") || name.includes("holanda")) return "🇳🇱";
+  if (name.includes("portugal")) return "🇵🇹";
+  if (name.includes("uruguay") || name.includes("urugua")) return "🇺🇾";
+  if (name.includes("japan") || name.includes("japão")) return "🇯🇵";
+  if (name.includes("belgium") || name.includes("bélgica")) return "🇧🇪";
+  if (name.includes("croatia") || name.includes("croácia")) return "🇭🇷";
+  if (name.includes("morocco") || name.includes("marrocos")) return "🇲🇦";
+  if (name.includes("switzerland") || name.includes("suíça")) return "🇨🇭";
+  if (name.includes("ecuador") || name.includes("equador")) return "🇪🇨";
+  if (name.includes("senegal")) return "🇸🇳";
+  if (name.includes("poland") || name.includes("polônia")) return "🇵🇱";
+  if (name.includes("saudi arabia") || name.includes("arábia saudita")) return "🇸🇦";
+  if (name.includes("denmark") || name.includes("dinamarca")) return "🇩🇰";
+  if (name.includes("tunisia") || name.includes("tunísia")) return "🇹🇳";
+  if (name.includes("costa rica")) return "🇨🇷";
+  if (name.includes("colombia") || name.includes("colômbia")) return "🇨🇴";
+  if (name.includes("south korea") || name.includes("coréia do sul") || name.includes("korea")) return "🇰🇷";
+  if (name.includes("sweden") || name.includes("suécia")) return "🇸🇪";
+  if (name.includes("chile")) return "🇨🇱";
+  if (name.includes("peru")) return "🇵🇪";
+  if (name.includes("ukraine") || name.includes("ucrânia")) return "🇺🇦";
+  if (name.includes("czech") || name.includes("república tcheca")) return "🇨🇿";
+  return "🏳️";
+}
+
+function parseRoundNumber(roundStr: string): number {
+  const norm = roundStr.toLowerCase();
+  if (norm.includes("group stage - 1") || norm.includes("rodada 1")) return 1;
+  if (norm.includes("group stage - 2") || norm.includes("rodada 2")) return 2;
+  if (norm.includes("group stage - 3") || norm.includes("rodada 3")) return 3;
+  if (norm.includes("32")) return 4;
+  if (norm.includes("16") || norm.includes("eighth")) return 5;
+  if (norm.includes("quarter") || norm.includes("quartas")) return 6;
+  if (norm.includes("semi")) return 7;
+  if (norm.includes("final")) return 8;
+  return 1;
+}
+
+async function syncFootballApiReal(db: LocalDatabase, req?: express.Request): Promise<{ addedCount: number; updatedCount: number; isUsingFallback: boolean; fixturesCount: number }> {
+  const apiKey = db.configs_football.key;
+  const apiUrl = db.configs_football.url || "https://v3.football.api-sports.io";
+  const isRealApi = apiKey && apiKey.trim() !== "" && !apiKey.toLowerCase().includes("dummy") && apiKey.length > 10;
+
+  if (!isRealApi) {
+    throw new Error("Chave de API do Football vazia ou de simulação.");
+  }
+
+  console.log(`[Football API Sync Engine] Querying endpoints: ${apiUrl}/fixtures for World Cup 2026 (League 1, Season 2026)...`);
+  
+  let response;
+  let hasSeasonError = false;
+  let originalErrorMsg = "";
+
+  try {
+    response = await axios.get(`${apiUrl}/fixtures`, {
+      params: {
+        league: "1",
+        season: "2026"
+      },
+      headers: {
+        "x-apisports-key": apiKey
+      },
+      timeout: 12000
+    });
+
+    if (response.data && response.data.errors) {
+      const errKeys = Object.keys(response.data.errors);
+      if (errKeys.length > 0) {
+        const firstErr = String(response.data.errors[errKeys[0]]);
+        originalErrorMsg = firstErr;
+        if (
+          firstErr.toLowerCase().includes("free plan") || 
+          firstErr.toLowerCase().includes("this season") || 
+          firstErr.toLowerCase().includes("restricted") ||
+          firstErr.toLowerCase().includes("2022 to 2024")
+        ) {
+          hasSeasonError = true;
+        }
+      }
+    }
+  } catch (innerErr: any) {
+    const errMsg = innerErr.message || "";
+    originalErrorMsg = errMsg;
+    if (
+      errMsg.toLowerCase().includes("free plan") || 
+      errMsg.toLowerCase().includes("this season") || 
+      errMsg.toLowerCase().includes("restricted") ||
+      errMsg.toLowerCase().includes("2022 to 2024")
+    ) {
+      hasSeasonError = true;
+    } else {
+      throw innerErr;
+    }
+  }
+
+  let isUsingFallback = false;
+  if (hasSeasonError) {
+    console.log(`[Football API Sync Engine] Free Plan restriction detected ("${originalErrorMsg}"). Executing smart fallback fetching authorized World Cup 2022 dataset and shifting dates automatically to 2026...`);
+    isUsingFallback = true;
+    
+    response = await axios.get(`${apiUrl}/fixtures`, {
+      params: {
+        league: "1",
+        season: "2022"
+      },
+      headers: {
+        "x-apisports-key": apiKey
+      },
+      timeout: 12000
+    });
+
+    if (response.data && response.data.errors && Object.keys(response.data.errors).length > 0) {
+      const errKeys = Object.keys(response.data.errors);
+      const firstErr = response.data.errors[errKeys[0]];
+      if (firstErr) {
+        throw new Error(`Erro no fallback de 2022: ${firstErr}`);
+      }
+    }
+  } else {
+    if (response && response.data && response.data.errors && Object.keys(response.data.errors).length > 0) {
+      const errKeys = Object.keys(response.data.errors);
+      const firstErr = response.data.errors[errKeys[0]];
+      if (firstErr) {
+        throw new Error(`Erro retornado pela API: ${firstErr}`);
+      }
+    }
+  }
+
+  const fixtures = response?.data?.response;
+  if (!fixtures || fixtures.length === 0) {
+    throw new Error("Nenhuma partida retornada pela API.");
+  }
+
+  const mockGameIds = db.jogos.filter(j => j.api_id && j.api_id.startsWith("wc2026_")).map(j => j.id);
+  if (mockGameIds.length > 0) {
+    console.log(`[Football API Sync Engine] Purging ${mockGameIds.length} simulated WC matches...`);
+    db.jogos = db.jogos.filter(j => !j.api_id || !j.api_id.startsWith("wc2026_"));
+    db.palpites = db.palpites.filter(p => !mockGameIds.includes(p.jogo_id));
+  }
+
+  let addedCount = 0;
+  let updatedCount = 0;
+
+  for (const item of fixtures) {
+    const apiId = `football_api_${item.fixture.id}`;
+    const timeCasa = item.teams.home.name;
+    const timeFora = item.teams.away.name;
+    const timeCasaBandeira = item.teams.home.logo || getTeamFlag(timeCasa);
+    const timeForaBandeira = item.teams.away.logo || getTeamFlag(timeFora);
+    
+    let dataJogoStr = item.fixture.date;
+    if (isUsingFallback) {
+      try {
+        const d = new Date(dataJogoStr);
+        d.setDate(d.getDate() + 1299);
+        dataJogoStr = d.toISOString();
+      } catch (pE) {
+        dataJogoStr = dataJogoStr.replace("2022", "2026");
+      }
+    }
+
+    let placarCasa: number | null = null;
+    let placarFora: number | null = null;
+    if (item.goals.home !== null && item.goals.home !== undefined) {
+      placarCasa = Number(item.goals.home);
+    }
+    if (item.goals.away !== null && item.goals.away !== undefined) {
+      placarFora = Number(item.goals.away);
+    }
+
+    const shortStatus = item.fixture.status.short;
+    let mappedStatus = "PENDENTE";
+    if (["FT", "AET", "PEN"].includes(shortStatus)) {
+      mappedStatus = "ENCERRADO";
+    } else if (["1H", "HT", "2H", "ET", "P", "BT", "LIVE"].includes(shortStatus)) {
+      mappedStatus = "AO_VIVO";
+    }
+
+    if (isUsingFallback) {
+      const shiftedLocalTime = new Date(dataJogoStr).getTime();
+      const nowTime = new Date().getTime();
+      if (shiftedLocalTime > nowTime) {
+        mappedStatus = "PENDENTE";
+        placarCasa = null;
+        placarFora = null;
+      } else {
+        const elapsedMins = (nowTime - shiftedLocalTime) / (1000 * 60);
+        if (elapsedMins >= 105) {
+          mappedStatus = "ENCERRADO";
+        } else {
+          mappedStatus = "AO_VIVO";
+        }
+      }
+    }
+
+    const mappedRound = parseRoundNumber(item.league.round || "Group Stage - 1");
+
+    let existingJogo = db.jogos.find(j => j.api_id === apiId);
+    if (!existingJogo) {
+      existingJogo = db.jogos.find(j => 
+        j.time_casa.toLowerCase() === timeCasa.toLowerCase() &&
+        j.time_fora.toLowerCase() === timeFora.toLowerCase() &&
+        Math.abs(new Date(j.data_jogo).getTime() - new Date(dataJogoStr).getTime()) < 24 * 60 * 60 * 1000
+      );
+    }
+
+    if (existingJogo) {
+      existingJogo.api_id = apiId;
+      existingJogo.time_casa = timeCasa;
+      existingJogo.time_fora = timeFora;
+      existingJogo.time_casa_bandeira = timeCasaBandeira;
+      existingJogo.time_fora_bandeira = timeForaBandeira;
+      existingJogo.data_jogo = dataJogoStr;
+      existingJogo.placar_casa = placarCasa;
+      existingJogo.placar_fora = placarFora;
+      existingJogo.status = mappedStatus as any;
+      existingJogo.rodada = mappedRound;
+      updatedCount++;
+    } else {
+      const newId = db.jogos.length > 0 ? Math.max(...db.jogos.map(j => j.id)) + 1 : 1;
+      db.jogos.push({
+        id: newId,
+        api_id: apiId,
+        time_casa: timeCasa,
+        time_fora: timeFora,
+        time_casa_bandeira: timeCasaBandeira,
+        time_fora_bandeira: timeForaBandeira,
+        data_jogo: dataJogoStr,
+        placar_casa: placarCasa,
+        placar_fora: placarFora,
+        status: mappedStatus as any,
+        rodada: mappedRound
+      });
+      addedCount++;
+    }
+  }
+
+  return {
+    addedCount,
+    updatedCount,
+    isUsingFallback,
+    fixturesCount: fixtures.length
+  };
+}
+
 function loadDatabase(): LocalDatabase {
   if (cachedDb) {
     return cachedDb;
@@ -819,54 +1079,91 @@ async function startServer() {
   // Database auto-seed check on run
   await initializeDatabase();
 
-  // Automatic Background Real-Time Match Synchronizer and Live Score Incrementor
+  // Automatic Background Real-Time Match Synchronizer and Live Score Incrementor/Synchronizer
   // Runs every 60 seconds (1 minute), as recommended by the Football API documentation
-  setInterval(() => {
+  setInterval(async () => {
     try {
       const db = loadDatabase();
       const nowMs = new Date().getTime();
-      let updatedCount = 0;
-
-      db.jogos.forEach(g => {
+      
+      const apiKey = db.configs_football.key;
+      const isRealApi = apiKey && apiKey.trim() !== "" && !apiKey.toLowerCase().includes("dummy") && apiKey.length > 10;
+      
+      // Check if there is currently any match in progress, starting, or recently finished to trigger sync
+      const hasLiveMatchOrImpending = db.jogos.some(g => {
         const gameMs = new Date(g.data_jogo).getTime();
-        
-        // 1. Transition game from PENDENTE to AO_VIVO once the kickoff time has arrived/passed
-        if (g.status === 'PENDENTE' && gameMs <= nowMs) {
-          g.status = 'AO_VIVO';
-          g.placar_casa = 0;
-          g.placar_fora = 0;
-          updatedCount++;
-          console.log(`[Auto-Sync Backtimer] Jogo iniciado automaticamente: ${g.time_casa} x ${g.time_fora}`);
-        } 
-        // 2. Simulating real-time game updates while AO_VIVO
-        else if (g.status === 'AO_VIVO') {
-          // Increment goals slowly per minute during playtime
-          const shouldGoalCasa = Math.random() < 0.04; // 4% chance per minute to score
-          const shouldGoalFora = Math.random() < 0.04; 
-          
-          if (shouldGoalCasa) {
-            g.placar_casa = (g.placar_casa || 0) + 1;
-            updatedCount++;
-          }
-          if (shouldGoalFora) {
-            g.placar_fora = (g.placar_fora || 0) + 1;
-            updatedCount++;
-          }
-
-          // 3. Conclude game automatically after 105 minutes (90' plus halftime rest / extra time)
-          const elapsedMins = (nowMs - gameMs) / (1000 * 60);
-          if (elapsedMins >= 105) {
-            g.status = 'ENCERRADO';
-            updatedCount++;
-            console.log(`[Auto-Sync Backtimer] Jogo encerrado automaticamente: ${g.time_casa} x ${g.time_fora} (${g.placar_casa}x${g.placar_fora})`);
-          }
-        }
+        const elapsedMins = (nowMs - gameMs) / (1000 * 60);
+        // Is it currently marked as AO_VIVO?
+        // Or is it PENDENTE but the kickoff time has passed or starts within 5 minutes?
+        // Or did it finish recently (within the last 2 hours)?
+        return (
+          g.status === 'AO_VIVO' || 
+          (g.status === 'PENDENTE' && gameMs <= nowMs + 5 * 60 * 1000) ||
+          (g.status === 'ENCERRADO' && elapsedMins >= 0 && elapsedMins <= 120)
+        );
       });
 
-      if (updatedCount > 0) {
-        saveDatabase(db);
-        refreshLeaderboard();
-        console.log(`[Auto-Sync Backtimer] ${updatedCount} partidas atualizadas. Leaderboard e pontuações de usuários completamente recalculadas.`);
+      if (isRealApi) {
+        // Real API configured
+        if (hasLiveMatchOrImpending) {
+          console.log(`[Auto-Sync Cron] Active/Impending matches detected in database! Initiating background Football API fetch and database synchronization...`);
+          try {
+            const result = await syncFootballApiReal(db);
+            saveDatabase(db);
+            refreshLeaderboard();
+            console.log(`[Auto-Sync Cron] Real-time background sync completed. Fixtures updated: ${result.updatedCount}, added: ${result.addedCount}. Leaderboard recalculated.`);
+          } catch (apiErr: any) {
+            console.error(`[Auto-Sync Cron Exception] Real-time background query to Football API failed:`, apiErr.message);
+          }
+        } else {
+          // If no active matches, we don't query every minute to respect API limits, just log in idle
+          console.log(`[Auto-Sync Cron] No active live or impending matches. Standing by to conserve Football API request quarters.`);
+        }
+      } else {
+        // Fallback simulation branch for development (no real API key)
+        let updatedCount = 0;
+
+        db.jogos.forEach(g => {
+          const gameMs = new Date(g.data_jogo).getTime();
+          
+          // 1. Transition game from PENDENTE to AO_VIVO once the kickoff time has arrived/passed
+          if (g.status === 'PENDENTE' && gameMs <= nowMs) {
+            g.status = 'AO_VIVO';
+            g.placar_casa = 0;
+            g.placar_fora = 0;
+            updatedCount++;
+            console.log(`[Auto-Sync Backtimer Simulation] Jogo iniciado automaticamente: ${g.time_casa} x ${g.time_fora}`);
+          } 
+          // 2. Simulating real-time game updates while AO_VIVO
+          else if (g.status === 'AO_VIVO') {
+            // Increment goals slowly per minute during playtime
+            const shouldGoalCasa = Math.random() < 0.04; // 4% chance per minute to score
+            const shouldGoalFora = Math.random() < 0.04; 
+            
+            if (shouldGoalCasa) {
+              g.placar_casa = (g.placar_casa || 0) + 1;
+              updatedCount++;
+            }
+            if (shouldGoalFora) {
+              g.placar_fora = (g.placar_fora || 0) + 1;
+              updatedCount++;
+            }
+
+            // 3. Conclude game automatically after 105 minutes (90' plus halftime rest / extra time)
+            const elapsedMins = (nowMs - gameMs) / (1000 * 60);
+            if (elapsedMins >= 105) {
+              g.status = 'ENCERRADO';
+              updatedCount++;
+              console.log(`[Auto-Sync Backtimer Simulation] Jogo encerrado automaticamente: ${g.time_casa} x ${g.time_fora} (${g.placar_casa}x${g.placar_fora})`);
+            }
+          }
+        });
+
+        if (updatedCount > 0) {
+          saveDatabase(db);
+          refreshLeaderboard();
+          console.log(`[Auto-Sync Backtimer Simulation] ${updatedCount} partidas atualizadas. Leaderboard e pontuações de usuários completamente recalculadas.`);
+        }
       }
     } catch (err: any) {
       console.error("[Auto-Sync Backtimer Error]:", err.message);
@@ -1989,280 +2286,32 @@ async function startServer() {
     });
   });
 
-  // Local helper: maps country name to flag emoji
-  const getTeamFlag = (teamName: string): string => {
-    const name = teamName.toLowerCase().trim();
-    if (name.includes("brazil") || name.includes("brasil")) return "🇧🇷";
-    if (name.includes("argentina")) return "🇦🇷";
-    if (name.includes("canada") || name.includes("canadá")) return "🇨🇦";
-    if (name.includes("united states") || name.includes("usa") || name.includes("estados unidos")) return "🇺🇸";
-    if (name.includes("mexico") || name.includes("méxico")) return "🇲🇽";
-    if (name.includes("france") || name.includes("frança")) return "🇫🇷";
-    if (name.includes("germany") || name.includes("alemanha")) return "🇩🇪";
-    if (name.includes("spain") || name.includes("espanha")) return "🇪🇸";
-    if (name.includes("italy") || name.includes("itália")) return "🇮🇹";
-    if (name.includes("england") || name.includes("inglaterra")) return "🇬🇧";
-    if (name.includes("netherlands") || name.includes("holanda")) return "🇳🇱";
-    if (name.includes("portugal")) return "🇵🇹";
-    if (name.includes("uruguay") || name.includes("urugua")) return "🇺🇾";
-    if (name.includes("japan") || name.includes("japão")) return "🇯🇵";
-    if (name.includes("belgium") || name.includes("bélgica")) return "🇧🇪";
-    if (name.includes("croatia") || name.includes("croácia")) return "🇭🇷";
-    if (name.includes("morocco") || name.includes("marrocos")) return "🇲🇦";
-    if (name.includes("switzerland") || name.includes("suíça")) return "🇨🇭";
-    if (name.includes("ecuador") || name.includes("equador")) return "🇪🇨";
-    if (name.includes("senegal")) return "🇸🇳";
-    if (name.includes("poland") || name.includes("polônia")) return "🇵🇱";
-    if (name.includes("saudi arabia") || name.includes("arábia saudita")) return "🇸🇦";
-    if (name.includes("denmark") || name.includes("dinamarca")) return "🇩🇰";
-    if (name.includes("tunisia") || name.includes("tunísia")) return "🇹🇳";
-    if (name.includes("costa rica")) return "🇨🇷";
-    if (name.includes("colombia") || name.includes("colômbia")) return "🇨🇴";
-    if (name.includes("south korea") || name.includes("coréia do sul") || name.includes("korea")) return "🇰🇷";
-    if (name.includes("sweden") || name.includes("suécia")) return "🇸🇪";
-    if (name.includes("chile")) return "🇨🇱";
-    if (name.includes("peru")) return "🇵🇪";
-    if (name.includes("ukraine") || name.includes("ucrânia")) return "🇺🇦";
-    if (name.includes("czech") || name.includes("república tcheca")) return "🇨🇿";
-    return "🏳️";
-  };
-
-  // Local helper: parses round name to index
-  const parseRoundNumber = (roundStr: string): number => {
-    const norm = roundStr.toLowerCase();
-    if (norm.includes("group stage - 1") || norm.includes("rodada 1")) return 1;
-    if (norm.includes("group stage - 2") || norm.includes("rodada 2")) return 2;
-    if (norm.includes("group stage - 3") || norm.includes("rodada 3")) return 3;
-    if (norm.includes("32")) return 4;
-    if (norm.includes("16") || norm.includes("eighth")) return 5;
-    if (norm.includes("quarter") || norm.includes("quartas")) return 6;
-    if (norm.includes("semi")) return 7;
-    if (norm.includes("final")) return 8;
-    return 1;
-  };
-
   // Manual Trigger for Live Syncing API Football simulator & Real API integration
   app.post("/api/admin/games-sync-football", verifyAdminToken, async (req: any, res) => {
     const db = loadDatabase();
     
     const apiKey = db.configs_football.key;
-    const apiUrl = db.configs_football.url || "https://v3.football.api-sports.io";
     const isRealApi = apiKey && apiKey.trim() !== "" && !apiKey.toLowerCase().includes("dummy") && apiKey.length > 10;
 
     if (isRealApi) {
       try {
-        console.log(`[Football API] Triggering real fetch to ${apiUrl}/fixtures for World Cup 2026 (League 1, Season 2026)...`);
-        
-        let response;
-        let hasSeasonError = false;
-        let originalErrorMsg = "";
-
-        try {
-          response = await axios.get(`${apiUrl}/fixtures`, {
-            params: {
-              league: "1",
-              season: "2026"
-            },
-            headers: {
-              "x-apisports-key": apiKey
-            },
-            timeout: 12000
-          });
-
-          // Check if the API returned a season permission warning inside response.data.errors
-          if (response.data && response.data.errors) {
-            const errKeys = Object.keys(response.data.errors);
-            if (errKeys.length > 0) {
-              const firstErr = String(response.data.errors[errKeys[0]]);
-              originalErrorMsg = firstErr;
-              if (
-                firstErr.toLowerCase().includes("free plan") || 
-                firstErr.toLowerCase().includes("this season") || 
-                firstErr.toLowerCase().includes("restricted") ||
-                firstErr.toLowerCase().includes("2022 to 2024")
-              ) {
-                hasSeasonError = true;
-              }
-            }
-          }
-        } catch (innerErr: any) {
-          const errMsg = innerErr.message || "";
-          originalErrorMsg = errMsg;
-          if (
-            errMsg.toLowerCase().includes("free plan") || 
-            errMsg.toLowerCase().includes("this season") || 
-            errMsg.toLowerCase().includes("restricted") ||
-            errMsg.toLowerCase().includes("2022 to 2024")
-          ) {
-            hasSeasonError = true;
-          } else {
-            throw innerErr;
-          }
-        }
-
-        let isUsingFallback = false;
-        if (hasSeasonError) {
-          console.log(`[Football API] Free Plan restriction detected ("${originalErrorMsg}"). Executing smart fallback fetching authorized World Cup 2022 dataset and shifting dates automatically to 2026...`);
-          isUsingFallback = true;
-          
-          response = await axios.get(`${apiUrl}/fixtures`, {
-            params: {
-              league: "1",
-              season: "2022"
-            },
-            headers: {
-              "x-apisports-key": apiKey
-            },
-            timeout: 12000
-          });
-
-          if (response.data && response.data.errors && Object.keys(response.data.errors).length > 0) {
-            const errKeys = Object.keys(response.data.errors);
-            const firstErr = response.data.errors[errKeys[0]];
-            if (firstErr) {
-              throw new Error(`Erro no fallback de 2022: ${firstErr}`);
-            }
-          }
-        } else {
-          // Double check any standard errors
-          if (response && response.data && response.data.errors && Object.keys(response.data.errors).length > 0) {
-            const errKeys = Object.keys(response.data.errors);
-            const firstErr = response.data.errors[errKeys[0]];
-            if (firstErr) {
-              throw new Error(`Erro retornado pela API: ${firstErr}`);
-            }
-          }
-        }
-
-        const fixtures = response?.data?.response;
-        if (!fixtures || fixtures.length === 0) {
-          throw new Error("Nenhuma partida retornada pela API.");
-        }
-
-        // Clean up mock/fictional matches (wc2026_1 to wc2026_8) and any orphan guesses so they do not clutter the database
-        const mockGameIds = db.jogos.filter(j => j.api_id && j.api_id.startsWith("wc2026_")).map(j => j.id);
-        if (mockGameIds.length > 0) {
-          console.log(`[Football API Sync] Purging ${mockGameIds.length} simulated starting matches to prevent cluttering real 2026 fixture sync...`);
-          db.jogos = db.jogos.filter(j => !j.api_id || !j.api_id.startsWith("wc2026_"));
-          db.palpites = db.palpites.filter(p => !mockGameIds.includes(p.jogo_id));
-        }
-
-        let addedCount = 0;
-        let updatedCount = 0;
-
-        for (const item of fixtures) {
-          const apiId = `football_api_${item.fixture.id}`;
-          const timeCasa = item.teams.home.name;
-          const timeFora = item.teams.away.name;
-          const timeCasaBandeira = item.teams.home.logo || getTeamFlag(timeCasa);
-          const timeForaBandeira = item.teams.away.logo || getTeamFlag(timeFora);
-          
-          let dataJogoStr = item.fixture.date;
-          if (isUsingFallback) {
-            // Shift World Cup 2022 date (Nov/Dec 2022) to World Cup 2026 (Jun/July 2026) by adding exactly 1294 to 1299 days dynamically
-            try {
-              const d = new Date(dataJogoStr);
-              d.setDate(d.getDate() + 1299);
-              dataJogoStr = d.toISOString();
-            } catch (pE) {
-              dataJogoStr = dataJogoStr.replace("2022", "2026");
-            }
-          }
-
-          let placarCasa: number | null = null;
-          let placarFora: number | null = null;
-          if (item.goals.home !== null && item.goals.home !== undefined) {
-            placarCasa = Number(item.goals.home);
-          }
-          if (item.goals.away !== null && item.goals.away !== undefined) {
-            placarFora = Number(item.goals.away);
-          }
-
-          const shortStatus = item.fixture.status.short;
-          let mappedStatus = "PENDENTE";
-          if (["FT", "AET", "PEN"].includes(shortStatus)) {
-            mappedStatus = "ENCERRADO";
-          } else if (["1H", "HT", "2H", "ET", "P", "BT", "LIVE"].includes(shortStatus)) {
-            mappedStatus = "AO_VIVO";
-          }
-
-          // In fallback mode, because they are historical games, we can map them as PENDENTE so that users can actually make bets!
-          if (isUsingFallback) {
-            // Since the user is playing/testing, let's treat matches that haven't passed the shifted 2026 dates as pending,
-            // or we can allow the user to make mock predictions for testing if the game is still simulated.
-            // If the shifted date is in the future relative to the current local server time (May 2026), keep it as PENDENTE.
-            const shiftedLocalTime = new Date(dataJogoStr).getTime();
-            const nowTime = new Date().getTime();
-            if (shiftedLocalTime > nowTime) {
-              mappedStatus = "PENDENTE";
-              placarCasa = null;
-              placarFora = null;
-            } else {
-              // It already passed in 2026 timeframe, keep as finished
-              mappedStatus = "ENCERRADO";
-            }
-          }
-
-          const mappedRound = parseRoundNumber(item.league.round || "Group Stage - 1");
-
-          // Search existing match
-          let existingJogo = db.jogos.find(j => j.api_id === apiId);
-          if (!existingJogo) {
-            // Closeness match within 24 hours with exact match of teams
-            existingJogo = db.jogos.find(j => 
-              j.time_casa.toLowerCase() === timeCasa.toLowerCase() &&
-              j.time_fora.toLowerCase() === timeFora.toLowerCase() &&
-              Math.abs(new Date(j.data_jogo).getTime() - new Date(dataJogoStr).getTime()) < 24 * 60 * 60 * 1000
-            );
-          }
-
-          if (existingJogo) {
-            existingJogo.api_id = apiId;
-            existingJogo.time_casa = timeCasa;
-            existingJogo.time_fora = timeFora;
-            existingJogo.time_casa_bandeira = timeCasaBandeira;
-            existingJogo.time_fora_bandeira = timeForaBandeira;
-            existingJogo.data_jogo = dataJogoStr;
-            existingJogo.placar_casa = placarCasa;
-            existingJogo.placar_fora = placarFora;
-            existingJogo.status = mappedStatus as any;
-            existingJogo.rodada = mappedRound;
-            updatedCount++;
-          } else {
-            const newId = db.jogos.length > 0 ? Math.max(...db.jogos.map(j => j.id)) + 1 : 1;
-            db.jogos.push({
-              id: newId,
-              api_id: apiId,
-              time_casa: timeCasa,
-              time_fora: timeFora,
-              time_casa_bandeira: timeCasaBandeira,
-              time_fora_bandeira: timeForaBandeira,
-              data_jogo: dataJogoStr,
-              placar_casa: placarCasa,
-              placar_fora: placarFora,
-              status: mappedStatus as any,
-              rodada: mappedRound
-            });
-            addedCount++;
-          }
-        }
-
+        const result = await syncFootballApiReal(db, req);
         saveDatabase(db);
         refreshLeaderboard();
 
-        addLog("API Football Real", "SINCRONIZACAO_SOCCER", `Sincronizador obteve ${fixtures.length} confrontos. Novas: ${addedCount}, Atualizações: ${updatedCount} ${isUsingFallback ? '(Usando Fallback Inteligente Copa 2022)' : ''}`, req);
+        addLog("API Football Real", "SINCRONIZACAO_SOCCER", `Sincronizador obteve ${result.fixturesCount} confrontos. Novas: ${result.addedCount}, Atualizações: ${result.updatedCount} ${result.isUsingFallback ? '(Usando Fallback Inteligente Copa 2022)' : ''}`, req);
 
-        if (isUsingFallback) {
+        if (result.isUsingFallback) {
           return res.json({
             success: true,
-            mensagem: `Conexão efetuada com sucesso! Identificamos que sua chave de API utiliza o Plano Gratuito (o qual restringe a consulta da futura Copa de 2026). Ativamos a Sincronização Inteligente: importamos os ${fixtures.length} confrontos da Copa de 2022 e adaptamos as datas automaticamente para 2026 (+1299 dias). Você já pode ver os confrontos reais atualizados e fazer testes completos de palpites!`,
+            mensagem: `Conexão efetuada com sucesso! Identificamos que sua chave de API utiliza o Plano Gratuito (o qual restringe a consulta da futura Copa de 2026). Ativamos a Sincronização Inteligente: importamos os ${result.fixturesCount} confrontos da Copa de 2022 e adaptamos as datas automaticamente para 2026 (+1299 dias). Você já pode ver os confrontos reais atualizados e fazer testes completos de palpites!`,
             status_api: 'CONECTADO'
           });
         }
 
         return res.json({
           success: true,
-          mensagem: `API-Football integrada executada com sucesso! ${fixtures.length} partidas da Copa do Mundo 2026 sincronizadas. Adicionadas: ${addedCount}, Atualizadas: ${updatedCount}.`,
+          mensagem: `API-Football integrada executada com sucesso! ${result.fixturesCount} partidas da Copa do Mundo 2026 sincronizadas. Adicionadas: ${result.addedCount}, Atualizadas: ${result.updatedCount}.`,
           status_api: 'CONECTADO'
         });
 
