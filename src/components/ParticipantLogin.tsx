@@ -135,7 +135,7 @@ export default function ParticipantLogin({ onLoginSuccess, onAdminLoginSuccess, 
   return (
     <div className="flex justify-center py-6">
       <div className="w-full max-w-md bg-slate-900/90 border border-brand-blue-light/50 rounded-3xl overflow-hidden shadow-2xl relative text-left">
-        <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-brand-red to-brand-blue" />
+        <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-brand-blue-vibrant via-brand-blue-accent to-brand-blue" />
         
         <div className="p-6 sm:p-8 space-y-6">
           
@@ -145,7 +145,7 @@ export default function ParticipantLogin({ onLoginSuccess, onAdminLoginSuccess, 
               {isAdminForm ? (
                 <Shield className="h-6 w-6 text-yellow-500" />
               ) : (
-                <UserCheck className="h-6 w-6 text-brand-red" />
+                <UserCheck className="h-6 w-6 text-brand-blue-accent" />
               )}
             </div>
             
@@ -173,7 +173,7 @@ export default function ParticipantLogin({ onLoginSuccess, onAdminLoginSuccess, 
               <Info className="h-4 w-4 shrink-0 text-yellow-400 mt-0.5 animate-pulse" />
               <div>
                 <span className="font-extrabold uppercase text-[10px] tracking-wider text-yellow-400 block mb-0.5">⚠️ MODO SIMULAÇÃO ATIVO</span>
-                O sistema de cadastro de apostas está em <strong>Modo Simulação local</strong>. Por isso, qualquer CPF digitado é aceito automaticamente sem consultar a API real do IXC Soft. Desative este modo no Painel Admin (aba IXC) para validar clientes reais via API!
+                O sistema de cadastro de apostas está em <strong>Modo Simulação local</strong>. Por isso, qualquer CPF digitado é aceito automaticamente sem consultar a API real do IXC Soft. Desative este modo no Panel Admin (aba IXC) para validar clientes reais via API!
               </div>
             </div>
           )}
@@ -196,7 +196,7 @@ export default function ParticipantLogin({ onLoginSuccess, onAdminLoginSuccess, 
                     placeholder="000.000.000-00"
                     value={cpf}
                     onChange={handleCpfChange}
-                    className="w-full pl-9 pr-4 py-2.5 bg-slate-950/80 border border-slate-850 hover:border-slate-700/80 focus:border-brand-red focus:ring-1 focus:ring-brand-red rounded-xl text-sm font-semibold tracking-wide text-slate-200"
+                    className="w-full pl-9 pr-4 py-2.5 bg-slate-950/80 border border-slate-850 hover:border-slate-700/80 focus:border-brand-blue-accent focus:ring-1 focus:ring-brand-blue-accent rounded-xl text-sm font-semibold tracking-wide text-slate-200"
                   />
                 </div>
                 <span className="text-[9px] text-slate-500 block leading-normal pt-1">
@@ -210,7 +210,7 @@ export default function ParticipantLogin({ onLoginSuccess, onAdminLoginSuccess, 
                   <button
                     type="button"
                     onClick={() => setShowSandboxOptions(!showSandboxOptions)}
-                    className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 hover:text-brand-red transition"
+                    className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 hover:text-brand-blue-vibrant transition"
                   >
                     <CircleHelp className="h-3.5 w-3.5" />
                     {showSandboxOptions ? "Fechar Opções Sandbox" : "Não é cliente? Simular cadastro aqui"}
@@ -218,7 +218,7 @@ export default function ParticipantLogin({ onLoginSuccess, onAdminLoginSuccess, 
 
                   {showSandboxOptions && (
                     <div className="space-y-3 pt-2 border-t border-slate-900 text-xs text-left animate-fadeIn">
-                      <div className="p-2 bg-brand-blue/30 border border-brand-blue-light/50 rounded text-[10px] text-brand-red leading-normal flex gap-1.5">
+                      <div className="p-2 bg-brand-blue/30 border border-brand-blue-light/50 rounded text-[10px] text-brand-blue-vibrant leading-normal flex gap-1.5">
                         <Info className="h-3.5 w-3.5 shrink-0" />
                         <div>
                           <strong>Modo Simulação Ativo:</strong> Se o CPF fornecido ainda não existir, você será cadastrado na hora com os atributos abaixo!
@@ -285,10 +285,10 @@ export default function ParticipantLogin({ onLoginSuccess, onAdminLoginSuccess, 
                 type="submit"
                 id="btn-login-submit"
                 disabled={loading}
-                className="w-full py-3 bg-gradient-to-r from-brand-red to-brand-red-hover hover:scale-[1.01] disabled:from-slate-850 disabled:to-slate-900 text-white font-extrabold text-sm rounded-xl tracking-wide shadow-lg cursor-pointer transform active:scale-[0.98] transition animate-pulse duration-500"
+                className="w-full py-3 bg-gradient-to-r from-brand-blue-accent to-brand-blue hover:scale-[1.01] disabled:from-slate-850 disabled:to-slate-900 text-white font-extrabold text-sm rounded-xl tracking-wide shadow-lg cursor-pointer transform active:scale-[0.98] transition animate-pulse duration-500"
               >
                 {loading ? "Chamando Webservice IXC..." : "Iniciar Meus Palpites"}
-              </button>
+               </button>
 
             </form>
           ) : (
@@ -340,18 +340,18 @@ export default function ParticipantLogin({ onLoginSuccess, onAdminLoginSuccess, 
           {/* Form Switch CTA Footer */}
           <div className="pt-4 border-t border-slate-955 flex items-center justify-between text-xs font-semibold">
             {isAdminForm ? (
-              <button
-                type="button"
-                id="btn-toggle-client-form"
-                onClick={() => {
-                  setIsAdminForm(false);
-                  setErrorMsg(null);
-                }}
-                className="text-brand-red hover:text-rose-400 flex items-center gap-1.5 transition"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Voltar ao Login Cliente
-              </button>
+               <button
+                 type="button"
+                 id="btn-toggle-client-form"
+                 onClick={() => {
+                   setIsAdminForm(false);
+                   setErrorMsg(null);
+                 }}
+                 className="text-brand-blue-vibrant hover:text-blue-300 flex items-center gap-1.5 transition"
+               >
+                 <ArrowLeft className="h-4 w-4" />
+                 Voltar ao Login Cliente
+               </button>
             ) : (
               <button
                 type="button"

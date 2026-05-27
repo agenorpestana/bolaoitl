@@ -30,14 +30,14 @@ export default function Header({ usuario, adminLogado, onLogout, activeTab, setA
         
         {/* Logo / Title */}
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-red to-brand-blue shadow-lg shadow-brand-blue-dark/40">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-blue-vibrant to-brand-blue shadow-lg shadow-brand-blue-dark/40">
             <Trophy className="h-5 w-5 text-white animate-pulse" />
           </div>
           <div>
-            <span className="bg-gradient-to-r from-brand-red via-slate-100 to-brand-blue bg-clip-text text-lg font-extrabold tracking-tight text-transparent">
+            <span className="bg-gradient-to-r from-brand-blue-vibrant via-slate-100 to-brand-blue-accent bg-clip-text text-lg font-extrabold tracking-tight text-transparent">
               CARTOLA ITL
             </span>
-            <span className="hidden sm:inline-block ml-2 text-xs font-semibold tracking-wider uppercase text-brand-red bg-brand-blue-dark/60 border border-brand-blue-light/30 px-1.5 py-0.5 rounded">
+            <span className="hidden sm:inline-block ml-2 text-xs font-semibold tracking-wider uppercase text-brand-blue-vibrant bg-brand-blue-dark/60 border border-brand-blue-light/30 px-1.5 py-0.5 rounded">
               PROVEDOR ITLFIBRA
             </span>
           </div>
@@ -55,8 +55,8 @@ export default function Header({ usuario, adminLogado, onLogout, activeTab, setA
                 onClick={() => handleNav(item.id)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                   isActive 
-                    ? 'bg-brand-blue-light/75 text-white border border-brand-red/40 shadow-inner' 
-                    : 'text-slate-350 hover:text-brand-red hover:bg-brand-blue-dark/40'
+                    ? 'bg-brand-blue-light/75 text-white border border-brand-blue-accent/40 shadow-inner' 
+                    : 'text-slate-350 hover:text-brand-blue-vibrant hover:bg-brand-blue-dark/40'
                 }`}
               >
                 <Icon className="h-4 w-4" />
@@ -88,13 +88,13 @@ export default function Header({ usuario, adminLogado, onLogout, activeTab, setA
               <span className="text-xl" role="img" aria-label="avatar">{usuario.avatar || "⚽"}</span>
               <div className="flex flex-col text-left">
                 <span className="text-xs font-semibold text-slate-200 max-w-[130px] truncate">{usuario.nome}</span>
-                <span className="text-[10px] font-bold text-brand-red">{usuario.pontos_total} Pts • {usuario.cidade}</span>
+                <span className="text-[10px] font-bold text-brand-blue-vibrant">{usuario.pontos_total} Pts • {usuario.cidade}</span>
               </div>
               <button
                 id="btn-logout"
                 title="Sair da Conta"
                 onClick={onLogout}
-                className="ml-2 hover:bg-slate-800 p-1 rounded text-red-400 hover:text-red-300 transition-colors"
+                className="ml-2 hover:bg-slate-800 p-1 rounded text-red-500 hover:text-red-400 transition-colors"
               >
                 <LogOut className="h-4 w-4" />
               </button>
@@ -109,7 +109,7 @@ export default function Header({ usuario, adminLogado, onLogout, activeTab, setA
               <button
                 id="btn-logout-admin"
                 onClick={onLogout}
-                className="ml-2 hover:bg-slate-800 p-1 rounded text-red-400 hover:text-red-300 transition-colors"
+                className="ml-2 hover:bg-slate-800 p-1 rounded text-red-500 hover:text-red-400 transition-colors"
               >
                 <LogOut className="h-4 w-4" />
               </button>
@@ -118,7 +118,7 @@ export default function Header({ usuario, adminLogado, onLogout, activeTab, setA
             <button
               id="nav-login-cta"
               onClick={() => setActiveTab('login')}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-brand-red to-brand-red-hover hover:scale-105 text-white text-sm font-bold rounded-lg shadow-md hover:shadow-brand-red/30 active:scale-95 transition-all duration-200"
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-brand-blue-accent to-brand-blue hover:scale-105 text-white text-sm font-bold rounded-lg shadow-md hover:shadow-brand-blue-accent/30 active:scale-95 transition-all duration-200"
             >
               Entrar Grátis
             </button>
@@ -128,7 +128,7 @@ export default function Header({ usuario, adminLogado, onLogout, activeTab, setA
         {/* Mobile menu button */}
         <div className="flex md:hidden items-center gap-2">
           {usuario && (
-            <div className="text-xs font-bold text-brand-red bg-slate-900/90 border border-slate-800/80 px-2 py-1 rounded">
+            <div className="text-xs font-bold text-brand-blue-vibrant bg-slate-900/90 border border-slate-800/80 px-2 py-1 rounded">
               {usuario.pontos_total} Pts
             </div>
           )}
@@ -136,7 +136,7 @@ export default function Header({ usuario, adminLogado, onLogout, activeTab, setA
           <button
             id="mobile-menu-trigger"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-emerald-400"
+            className="p-2 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-brand-blue-vibrant"
           >
             {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
@@ -157,8 +157,8 @@ export default function Header({ usuario, adminLogado, onLogout, activeTab, setA
                 onClick={() => handleNav(item.id)}
                 className={`flex w-full items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   isActive 
-                    ? 'bg-brand-blue text-brand-red border border-brand-red/30' 
-                    : 'text-slate-300 hover:text-brand-red hover:bg-slate-900/40'
+                    ? 'bg-brand-blue text-brand-blue-vibrant border border-brand-blue-light/50' 
+                    : 'text-slate-300 hover:text-brand-blue-vibrant hover:bg-slate-900/40'
                 }`}
               >
                 <Icon className="h-4 w-4" />
@@ -221,7 +221,7 @@ export default function Header({ usuario, adminLogado, onLogout, activeTab, setA
               <button
                 id="mobile-login-cta"
                 onClick={() => handleNav('login')}
-                className="flex w-full justify-center items-center gap-2 py-2.5 bg-gradient-to-r from-brand-red to-brand-red-hover text-white font-bold rounded-lg text-sm transition-all"
+                className="flex w-full justify-center items-center gap-2 py-2.5 bg-gradient-to-r from-brand-blue-accent to-brand-blue text-white font-bold rounded-lg text-sm transition-all"
               >
                 Faça seu Login
               </button>

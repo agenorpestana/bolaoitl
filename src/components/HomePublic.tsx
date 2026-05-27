@@ -189,6 +189,10 @@ export default function HomePublic({ onParticipateCta, metrics, jogos }: HomePub
   const targetDate = new Date("2026-06-11T20:00:00Z");
   const [timeLeft, setTimeLeft] = React.useState({ days: 0, hours: 0, mins: 0, secs: 0 });
 
+  const matchHighlights = React.useMemo(() => {
+    return (jogos || []).filter(j => j.status === 'PENDENTE').slice(0, 3);
+  }, [jogos]);
+
   React.useEffect(() => {
     const calculateTimeLeft = () => {
       const now = new Date();
@@ -206,34 +210,29 @@ export default function HomePublic({ onParticipateCta, metrics, jogos }: HomePub
 
     setTimeLeft(calculateTimeLeft());
 
-    const interval = setInterval(() => {
+    const timer = setInterval(() => {
       setTimeLeft(calculateTimeLeft());
     }, 1000);
-    return () => clearInterval(interval);
+
+    return () => clearInterval(timer);
   }, []);
 
-  // Filter 3 closest upcoming matches from the permitted games array
-  const matchHighlights = jogos
-    .filter(g => g.status === 'PENDENTE' && new Date(g.data_jogo).getTime() > new Date(metrics?.data_servidor || new Date().toISOString()).getTime())
-    .slice(0, 3);
-
   return (
-    <div className="space-y-12 pb-16">
-      
+    <div className="space-y-12">
       {/* Dynamic Hero Banner Segment */}
       <section className="relative overflow-hidden rounded-3xl bg-slate-950 border border-brand-blue-light/50 shadow-2xl">
         {/* Visual green grass ambient mesh effect */}
         <div className="absolute inset-x-0 -bottom-32 -top-10 bg-[radial-gradient(circle_at_bottom_left,rgba(15,7,77,0.35),transparent_50%)]" />
-        <div className="absolute inset-x-0 -top-32 -bottom-10 bg-[radial-gradient(circle_at_top_right,rgba(230,57,70,0.12),transparent_40%)]" />
+        <div className="absolute inset-x-0 -top-32 -bottom-10 bg-[radial-gradient(circle_at_top_right,rgba(37,99,235,0.08),transparent_40%)]" />
 
         <div className="relative px-6 py-12 md:py-20 md:px-12 max-w-4xl mx-auto text-center space-y-6">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-brand-blue-dark/80 border border-brand-red/30 text-xs font-bold uppercase tracking-wider text-brand-red">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-brand-blue-dark/80 border border-brand-blue-accent/30 text-xs font-bold uppercase tracking-wider text-brand-blue-vibrant">
             <Zap className="h-3.5 w-3.5 text-yellow-500" /> EXCLUSIVO PARA CLIENTES DO PROVEDOR
           </div>
 
           <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight text-slate-100">
             CARTOLA ITL <br />
-            <span className="bg-gradient-to-r from-brand-red via-red-300 to-yellow-500 bg-clip-text text-transparent text-3xl md:text-5xl block mt-2">
+            <span className="bg-gradient-to-r from-brand-blue-vibrant via-blue-400 to-yellow-500 bg-clip-text text-transparent text-3xl md:text-5xl block mt-2">
               PROVEDOR ITLFIBRA
             </span>
           </h1>
@@ -267,14 +266,14 @@ export default function HomePublic({ onParticipateCta, metrics, jogos }: HomePub
             <button
               id="hero-participate-cta"
               onClick={onParticipateCta}
-              className="group flex items-center justify-center gap-2.5 px-8 py-4 w-full sm:w-auto bg-gradient-to-r from-brand-red to-brand-red-hover hover:scale-[1.02] text-white font-extrabold rounded-xl shadow-lg shadow-brand-red/10 active:scale-95 transition-all cursor-pointer text-base"
+              className="group flex items-center justify-center gap-2.5 px-8 py-4 w-full sm:w-auto bg-gradient-to-r from-brand-blue-accent to-brand-blue hover:scale-[1.02] text-white font-extrabold rounded-xl shadow-lg shadow-brand-blue-accent/10 active:scale-95 transition-all cursor-pointer text-base"
             >
               Participar Agora Grátis
               <ChevronRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
             </button>
             <a
               href="#premios-regras"
-              className="text-xs font-semibold text-slate-300 hover:text-brand-red border border-slate-800 hover:bg-slate-900 px-5 py-3 rounded-xl transition"
+              className="text-xs font-semibold text-slate-300 hover:text-brand-blue-vibrant border border-slate-800 hover:bg-slate-900 px-5 py-3 rounded-xl transition"
             >
               Ver Premiações e Regras
             </a>
@@ -287,7 +286,7 @@ export default function HomePublic({ onParticipateCta, metrics, jogos }: HomePub
               <div className="text-[10px] text-slate-400 uppercase font-semibold">Competidores</div>
             </div>
             <div className="px-2 text-center">
-              <div id="metric-bets-count" className="text-xl md:text-2xl font-black text-brand-red font-mono">{metrics?.total_palpites ?? 0}</div>
+              <div id="metric-bets-count" className="text-xl md:text-2xl font-black text-brand-blue-vibrant font-mono">{metrics?.total_palpites ?? 0}</div>
               <div className="text-[10px] text-slate-400 uppercase font-semibold">Palpites Feitos</div>
             </div>
             <div className="px-2 text-center">
@@ -304,13 +303,13 @@ export default function HomePublic({ onParticipateCta, metrics, jogos }: HomePub
         <section className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-              <Hourglass className="h-5 w-5 text-brand-red" />
+              <Hourglass className="h-5 w-5 text-brand-blue-accent" />
               Jogos em Destaque
             </h2>
             <button 
               id="cta-view-all-games"
               onClick={onParticipateCta} 
-              className="text-xs font-bold text-brand-red hover:underline"
+              className="text-xs font-bold text-brand-blue-vibrant hover:underline"
             >
               Palpitar nestes jogos
             </button>
@@ -324,7 +323,7 @@ export default function HomePublic({ onParticipateCta, metrics, jogos }: HomePub
               >
                 <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase">
                   <span>{getFriendlyRoundName(jogo.rodada)}</span>
-                  <span className="bg-brand-blue/80 text-brand-red px-2 py-0.5 rounded border border-brand-red/20">
+                  <span className="bg-brand-blue/80 text-brand-blue-vibrant px-2 py-0.5 rounded border border-brand-blue-accent/20 font-mono">
                     Aberto
                   </span>
                 </div>
@@ -359,17 +358,17 @@ export default function HomePublic({ onParticipateCta, metrics, jogos }: HomePub
       {/* Grupos Oficiais Copa 2026 Grid */}
       <section className="space-y-6">
         <div className="flex items-center gap-2">
-          <div className="h-6 w-1.5 rounded-full bg-brand-red" />
+          <div className="h-6 w-1.5 rounded-full bg-brand-blue-accent" />
           <h2 className="text-xl font-bold text-slate-100">Grupos Oficiais - Copa do Mundo 2026</h2>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {COPA_GROUPS.map((group, gIdx) => (
             <div 
               key={gIdx} 
-              className="bg-slate-900/55 rounded-2xl border border-slate-800 p-4 space-y-3 shadow-md hover:border-brand-red/35 transition-all duration-300"
+              className="bg-slate-900/55 rounded-2xl border border-slate-800 p-4 space-y-3 shadow-md hover:border-brand-blue-accent/30 transition-all duration-300"
             >
               <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
-                <span className="text-xs font-black uppercase tracking-wider text-brand-red font-mono">
+                <span className="text-xs font-black uppercase tracking-wider text-brand-blue-vibrant font-mono">
                   {group.name}
                 </span>
                 <span className="text-[9px] bg-slate-950 px-2 py-0.5 rounded-full border border-slate-800/80 text-slate-400 font-mono">
@@ -409,7 +408,7 @@ export default function HomePublic({ onParticipateCta, metrics, jogos }: HomePub
             <button 
               id="cta-ranking-tab"
               onClick={() => onParticipateCta()} 
-              className="text-xs font-bold text-brand-red hover:underline"
+              className="text-xs font-bold text-brand-blue-vibrant hover:underline"
             >
               Ver todos
             </button>
@@ -435,7 +434,7 @@ export default function HomePublic({ onParticipateCta, metrics, jogos }: HomePub
                       <span className="font-semibold text-slate-200 truncate max-w-[140px]">{top.nome}</span>
                     </span>
                     <span className="w-20 text-right text-xs text-slate-400 truncate">{top.cidade}</span>
-                    <span className="w-16 text-right font-black font-mono text-brand-red">{top.pontos} p</span>
+                    <span className="w-16 text-right font-black font-mono text-brand-blue-vibrant">{top.pontos} p</span>
                   </div>
                 ))
               ) : (
@@ -453,13 +452,13 @@ export default function HomePublic({ onParticipateCta, metrics, jogos }: HomePub
           {/* Rules Card */}
           <div className="bg-slate-900/50 border border-slate-800/60 rounded-2xl p-6 space-y-4">
             <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-              <BookOpen className="h-5 w-5 text-brand-red" />
+              <BookOpen className="h-5 w-5 text-brand-blue-accent" />
               Critérios de Funcionamento
             </h2>
             <div className="space-y-3">
               {REGRAS_PROG.map((reg) => (
                 <div key={reg.id} className="flex gap-3 text-left">
-                  <div className="flex h-5 w-5 mt-0.5 shrink-0 items-center justify-center rounded-md bg-brand-blue-dark text-[10px] font-bold text-brand-red border border-brand-blue-light/50">
+                  <div className="flex h-5 w-5 mt-0.5 shrink-0 items-center justify-center rounded-md bg-brand-blue-dark text-[10px] font-bold text-brand-blue-vibrant border border-brand-blue-light/50">
                     {reg.id}
                   </div>
                   <div>
@@ -504,7 +503,7 @@ export default function HomePublic({ onParticipateCta, metrics, jogos }: HomePub
       <section className="bg-slate-950 border border-brand-blue-light/35 p-6 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-6 text-left">
         <div className="flex gap-4 items-center">
           <div className="h-12 w-12 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center">
-            <ShieldCheck className="h-6 w-6 text-brand-red" />
+            <ShieldCheck className="h-6 w-6 text-brand-blue-accent" />
           </div>
           <div>
             <h3 className="text-sm font-bold text-slate-200">Integração Direta com Provedor</h3>
@@ -517,7 +516,7 @@ export default function HomePublic({ onParticipateCta, metrics, jogos }: HomePub
         <button
           id="btn-trigger-register"
           onClick={onParticipateCta}
-          className="px-5 py-3 bg-brand-blue hover:bg-brand-blue-light text-brand-red text-xs font-bold rounded-lg border border-brand-red/30 active:scale-95 transition"
+          className="px-5 py-3 bg-brand-blue hover:bg-brand-blue-light text-brand-blue-vibrant text-xs font-bold rounded-lg border border-brand-blue-accent/30 active:scale-95 transition"
         >
           Validar meu Contrato agora
         </button>
