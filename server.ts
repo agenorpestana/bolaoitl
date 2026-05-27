@@ -1413,8 +1413,8 @@ async function startServer() {
           const s = String(contrato.status).toUpperCase().trim();
           const sInt = String(contrato.status_internet).toUpperCase().trim();
 
-          if (s === "A") {
-            if (sInt === "A") {
+          if (s === "A" || s === "FA") {
+            if (sInt === "A" || sInt === "FA") {
               isAllowed = true;
               break;
             } else if (sInt === "CA") {
