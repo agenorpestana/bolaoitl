@@ -936,6 +936,15 @@ async function initializeDatabase() {
       await prisma.$queryRaw`SELECT 1 FROM usuarios LIMIT 1`;
       schemaIsPushed = true;
       console.log("[MySql Sync] Table structure looks correct (table 'usuarios' found). Skipping schema push to prevent data loss.");
+
+      try {
+        await prisma.$executeRawUnsafe("ALTER TABLE usuarios MODIFY COLUMN avatar VARCHAR(255) DEFAULT '⚽'");
+        await prisma.$executeRawUnsafe("ALTER TABLE jogos MODIFY COLUMN time_casa_bandeira VARCHAR(255) DEFAULT NULL");
+        await prisma.$executeRawUnsafe("ALTER TABLE jogos MODIFY COLUMN time_fora_bandeira VARCHAR(255) DEFAULT NULL");
+        console.log("[MySql Sync] Columns 'avatar', 'time_casa_bandeira', and 'time_fora_bandeira' successfully verified and enlarged to VARCHAR(255) via ALTER TABLE.");
+      } catch (alterErr: any) {
+        console.log("[MySql Sync] Safe column alteration check completed or bypassed: ", alterErr.message);
+      }
     } catch (err: any) {
       const errMsg = err.message || "";
       console.log("[MySql Sync] SELECT query check result/error:", errMsg);

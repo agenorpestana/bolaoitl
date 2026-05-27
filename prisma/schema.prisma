@@ -18,7 +18,7 @@ model Usuario {
   telefone        String     @db.VarChar(50)
   email           String     @db.VarChar(150)
   cidade          String     @db.VarChar(100)
-  avatar          String?    @default("⚽") @db.VarChar(10)
+  avatar          String?    @default("⚽") @db.VarChar(255)
   pontos_total    Int        @default(0)
   acertos_exato   Int        @default(0)
   acertos_vencedor Int        @default(0)
@@ -39,8 +39,8 @@ model Jogo {
   api_id            String?    @unique @db.VarChar(100)
   time_casa         String     @db.VarChar(100)
   time_fora         String     @db.VarChar(100)
-  time_casa_bandeira String?    @db.VarChar(10)
-  time_fora_bandeira String?    @db.VarChar(10)
+  time_casa_bandeira String?    @db.VarChar(255)
+  time_fora_bandeira String?    @db.VarChar(255)
   data_jogo         DateTime
   placar_casa       Int?
   placar_fora       Int?
