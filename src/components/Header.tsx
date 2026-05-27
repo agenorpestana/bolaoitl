@@ -25,19 +25,19 @@ export default function Header({ usuario, adminLogado, onLogout, activeTab, setA
   };
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-emerald-900/60 bg-slate-950/90 backdrop-blur-md">
+    <header className="sticky top-0 z-40 w-full border-b border-brand-blue-light/50 bg-slate-950/95 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         
         {/* Logo / Title */}
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-400 via-emerald-600 to-yellow-500 shadow-lg shadow-emerald-950/40">
-            <Trophy className="h-5 w-5 text-slate-950 animate-pulse" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-red to-brand-blue shadow-lg shadow-brand-blue-dark/40">
+            <Trophy className="h-5 w-5 text-white animate-pulse" />
           </div>
           <div>
-            <span className="bg-gradient-to-r from-emerald-400 via-emerald-200 to-yellow-400 bg-clip-text text-lg font-extrabold tracking-tight text-transparent">
+            <span className="bg-gradient-to-r from-brand-red via-slate-100 to-brand-blue bg-clip-text text-lg font-extrabold tracking-tight text-transparent">
               CARTOLA ITL
             </span>
-            <span className="hidden sm:inline-block ml-2 text-xs font-semibold tracking-wider uppercase text-yellow-500/90 bg-yellow-950/40 border border-yellow-800/30 px-1.5 py-0.5 rounded">
+            <span className="hidden sm:inline-block ml-2 text-xs font-semibold tracking-wider uppercase text-brand-red bg-brand-blue-dark/60 border border-brand-blue-light/30 px-1.5 py-0.5 rounded">
               PROVEDOR ITLFIBRA
             </span>
           </div>
@@ -55,8 +55,8 @@ export default function Header({ usuario, adminLogado, onLogout, activeTab, setA
                 onClick={() => handleNav(item.id)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                   isActive 
-                    ? 'bg-emerald-950 text-emerald-400 border border-emerald-800/50 shadow-inner' 
-                    : 'text-slate-300 hover:text-emerald-400 hover:bg-slate-900/50'
+                    ? 'bg-brand-blue-light/75 text-white border border-brand-red/40 shadow-inner' 
+                    : 'text-slate-350 hover:text-brand-red hover:bg-brand-blue-dark/40'
                 }`}
               >
                 <Icon className="h-4 w-4" />
@@ -88,7 +88,7 @@ export default function Header({ usuario, adminLogado, onLogout, activeTab, setA
               <span className="text-xl" role="img" aria-label="avatar">{usuario.avatar || "⚽"}</span>
               <div className="flex flex-col text-left">
                 <span className="text-xs font-semibold text-slate-200 max-w-[130px] truncate">{usuario.nome}</span>
-                <span className="text-[10px] font-bold text-emerald-400">{usuario.pontos_total} Pts • {usuario.cidade}</span>
+                <span className="text-[10px] font-bold text-brand-red">{usuario.pontos_total} Pts • {usuario.cidade}</span>
               </div>
               <button
                 id="btn-logout"
@@ -118,7 +118,7 @@ export default function Header({ usuario, adminLogado, onLogout, activeTab, setA
             <button
               id="nav-login-cta"
               onClick={() => setActiveTab('login')}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-slate-950 text-sm font-bold rounded-lg shadow-md shadow-emerald-950/20 active:scale-95 transition-all"
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-brand-red to-brand-red-hover hover:scale-105 text-white text-sm font-bold rounded-lg shadow-md hover:shadow-brand-red/30 active:scale-95 transition-all duration-200"
             >
               Entrar Grátis
             </button>
@@ -128,7 +128,7 @@ export default function Header({ usuario, adminLogado, onLogout, activeTab, setA
         {/* Mobile menu button */}
         <div className="flex md:hidden items-center gap-2">
           {usuario && (
-            <div className="text-xs font-bold text-emerald-400 bg-slate-900/90 border border-slate-800/80 px-2 py-1 rounded">
+            <div className="text-xs font-bold text-brand-red bg-slate-900/90 border border-slate-800/80 px-2 py-1 rounded">
               {usuario.pontos_total} Pts
             </div>
           )}
@@ -157,8 +157,8 @@ export default function Header({ usuario, adminLogado, onLogout, activeTab, setA
                 onClick={() => handleNav(item.id)}
                 className={`flex w-full items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   isActive 
-                    ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-900/60' 
-                    : 'text-slate-300 hover:text-emerald-400 hover:bg-slate-900/40'
+                    ? 'bg-brand-blue text-brand-red border border-brand-red/30' 
+                    : 'text-slate-300 hover:text-brand-red hover:bg-slate-900/40'
                 }`}
               >
                 <Icon className="h-4 w-4" />
@@ -221,7 +221,7 @@ export default function Header({ usuario, adminLogado, onLogout, activeTab, setA
               <button
                 id="mobile-login-cta"
                 onClick={() => handleNav('login')}
-                className="flex w-full justify-center items-center gap-2 py-2.5 bg-gradient-to-r from-emerald-500 to-emerald-600 text-slate-950 font-bold rounded-lg text-sm"
+                className="flex w-full justify-center items-center gap-2 py-2.5 bg-gradient-to-r from-brand-red to-brand-red-hover text-white font-bold rounded-lg text-sm transition-all"
               >
                 Faça seu Login
               </button>

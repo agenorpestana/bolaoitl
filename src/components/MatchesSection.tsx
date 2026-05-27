@@ -251,7 +251,7 @@ export default function MatchesSection({
             ? 'border-red-900/40 shadow-red-950/5' 
             : isReadonly 
               ? 'border-slate-800/80 hover:border-slate-800' 
-              : 'border-emerald-950/40 hover:border-emerald-900/60 shadow-emerald-950/5'
+              : 'border-brand-blue-light/40 hover:border-brand-red/60 shadow-brand-blue-dark/5'
         }`}
       >
         
@@ -281,7 +281,7 @@ export default function MatchesSection({
               <Lock className="h-3 w-3" /> {getLockTimeLeftStr(jogo)}
             </span>
           ) : (
-            <span className="self-start sm:self-auto text-emerald-400 bg-emerald-950/40 border border-emerald-900/40 px-2 py-0.5 rounded flex items-center gap-1">
+            <span className="self-start sm:self-auto text-brand-red bg-brand-blue-dark/85 border border-brand-red/30 px-2 py-0.5 rounded flex items-center gap-1">
               <Unlock className="h-3 w-3" /> Aberto • <Clock className="h-3 w-3 inline" /> {getLockTimeLeftStr(jogo)}
             </span>
           )}
@@ -315,7 +315,7 @@ export default function MatchesSection({
                   ? 'bg-slate-950 border-slate-800/60 text-slate-600 cursor-not-allowed'
                   : isReadonly
                     ? 'bg-slate-950 border-slate-900 text-slate-400'
-                    : 'bg-slate-950 border-emerald-900 text-emerald-400 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500'
+                    : 'bg-slate-950 border-brand-blue-light text-brand-red focus:border-brand-red focus:ring-1 focus:ring-brand-red'
               }`}
             />
 
@@ -333,7 +333,7 @@ export default function MatchesSection({
                   ? 'bg-slate-950 border-slate-800/60 text-slate-600 cursor-not-allowed'
                   : isReadonly
                     ? 'bg-slate-950 border-slate-900 text-slate-400'
-                    : 'bg-slate-950 border-emerald-900 text-emerald-400 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500'
+                    : 'bg-slate-950 border-brand-blue-light text-brand-red focus:border-brand-red focus:ring-1 focus:ring-brand-red'
               }`}
             />
 
@@ -356,8 +356,8 @@ export default function MatchesSection({
           <div>
             {token ? (
               userBet ? (
-                <div className="text-[11px] text-emerald-400/90 font-semibold flex items-center gap-1">
-                  <CheckCircle className="h-3.5 w-3.5 inline text-emerald-500" /> Palpitado: {userBet.placar_casa}x{userBet.placar_fora}
+                <div className="text-[11px] text-brand-red font-semibold flex items-center gap-1">
+                  <CheckCircle className="h-3.5 w-3.5 inline text-brand-red" /> Palpitado: {userBet.placar_casa}x{userBet.placar_fora}
                 </div>
               ) : (
                 <span className="text-[10px] text-slate-500 font-medium">Você ainda não palpitou</span>
@@ -373,7 +373,7 @@ export default function MatchesSection({
               id={`btn-save-palpite-${jogo.id}`}
               onClick={() => handleSaveClick(jogo.id)}
               disabled={isSaving}
-              className="group flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-slate-950 font-bold rounded-lg transition transform active:scale-95 text-[11px] w-full xs:w-auto justify-center"
+              className="group flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-brand-red to-brand-red-hover hover:scale-105 hover:shadow-md hover:shadow-brand-red/10 text-white font-bold rounded-lg transition transform active:scale-95 text-[11px] w-full xs:w-auto justify-center"
             >
               <Save className="h-3 w-3" />
               {isSaving ? "Salvando..." : "Salvar"}
@@ -390,7 +390,7 @@ export default function MatchesSection({
                 pointsWon && pointsWon > 5 
                   ? 'bg-yellow-950/80 border border-yellow-700/40 text-yellow-500 shadow-md animate-pulse' 
                   : pointsWon && pointsWon > 0
-                    ? 'bg-emerald-950/80 border border-emerald-800/40 text-emerald-400'
+                    ? 'bg-brand-blue/80 border border-brand-red/30 text-brand-red'
                     : 'bg-slate-950/80 border border-slate-800/60 text-slate-500'
               }`}>
                 +{pointsWon || 0} Pts {jogo.status === 'AO_VIVO' ? '🔴' : ''}
@@ -455,7 +455,7 @@ export default function MatchesSection({
           onClick={() => setSelectedCampeonato('COPA_MUNDO')}
           className={`flex-1 md:flex-initial px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-wider transition duration-200 ${
             selectedCampeonato === 'COPA_MUNDO'
-              ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-slate-950 font-black shadow-md shadow-emerald-500/10'
+              ? 'bg-gradient-to-r from-brand-red to-brand-red-hover text-white font-black shadow-md shadow-brand-red/15'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/30'
           }`}
         >
@@ -465,7 +465,7 @@ export default function MatchesSection({
           onClick={() => setSelectedCampeonato('LIBERTADORES')}
           className={`flex-1 md:flex-initial px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-wider transition duration-200 ${
             selectedCampeonato === 'LIBERTADORES'
-              ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-slate-950 font-black shadow-md shadow-emerald-500/10'
+              ? 'bg-gradient-to-r from-brand-red to-brand-red-hover text-white font-black shadow-md shadow-brand-red/15'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/30'
           }`}
         >
@@ -476,7 +476,7 @@ export default function MatchesSection({
             onClick={() => setSelectedCampeonato('BRASILEIRAO')}
             className={`flex-1 md:flex-initial px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-wider transition duration-200 ${
               selectedCampeonato === 'BRASILEIRAO'
-                ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-slate-950 font-black shadow-md shadow-emerald-500/10'
+                ? 'bg-gradient-to-r from-brand-red to-brand-red-hover text-white font-black shadow-md shadow-brand-red/15'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/30'
             }`}
           >
@@ -508,7 +508,7 @@ export default function MatchesSection({
                 onClick={() => setActiveRodada(rd)}
                 className={`px-3 py-1.5 text-xs font-bold rounded-lg transition ${
                   activeRodada === rd
-                    ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                    ? 'bg-brand-blue/80 text-brand-red border border-brand-red/40'
                     : 'bg-slate-900/40 text-slate-400 hover:text-slate-200'
                 }`}
               >
@@ -522,7 +522,7 @@ export default function MatchesSection({
             onClick={() => setActiveRodada('TODOS')}
             className={`px-3 py-1.5 text-xs font-bold rounded-lg transition ${
               activeRodada === 'TODOS'
-                ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                ? 'bg-brand-blue/80 text-brand-red border border-brand-red/40'
                 : 'bg-slate-900/40 text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -543,7 +543,7 @@ export default function MatchesSection({
               onClick={() => setFilterStatus(item.id as any)}
               className={`px-2.5 py-1 rounded-md font-semibold transition ${
                 filterStatus === item.id
-                  ? 'bg-emerald-950 text-emerald-400 font-bold shadow'
+                  ? 'bg-brand-blue/80 text-brand-red font-bold shadow'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -562,7 +562,7 @@ export default function MatchesSection({
           {pendingOrLiveGames.length > 0 && (
             <div className="space-y-4">
               <div className="flex items-center gap-2 text-xs font-black uppercase text-slate-400 tracking-wider">
-                <Unlock className="h-3.5 w-3.5 text-emerald-400" />
+                <Unlock className="h-3.5 w-3.5 text-brand-red" />
                 <span>Disponíveis & Em Andamento</span>
                 <span className="flex-1 h-px bg-slate-800/70 ml-2" />
               </div>

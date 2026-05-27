@@ -43,7 +43,7 @@ export default function RankingSection({ ranking }: RankingSectionProps) {
     <div className="space-y-8 text-left">
       
       {/* Banner introduction with Trophy */}
-      <div className="bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 border border-emerald-950/60 p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-xl">
+      <div className="bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 border border-brand-blue-light/50 p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-xl">
         <div className="flex gap-4 items-center">
           <div className="h-12 w-12 rounded-xl bg-yellow-400/10 border border-yellow-700/30 flex items-center justify-center shrink-0">
             <Trophy className="h-6 w-6 text-yellow-500 animate-pulse" />
@@ -56,15 +56,15 @@ export default function RankingSection({ ranking }: RankingSectionProps) {
               </span>
             </h2>
             <p className="text-xs text-slate-400 mt-1 max-w-lg leading-relaxed">
-              Consulte sua colocação em tempo real. Os desempates consideram maior número de <span className="text-emerald-400 font-semibold">Placar Exato (X)</span>, menor índice de erro e correspondência literal de cadastro.
+              Consulte sua colocação em tempo real. Os desempates consideram maior número de <span className="text-brand-red font-semibold">Placar Exato (X)</span>, menor índice de erro e correspondência literal de cadastro.
             </p>
           </div>
         </div>
 
         {/* Badges system brief summary */}
         <div className="flex items-center gap-1 bg-slate-900/40 px-3 py-2 rounded-xl border border-slate-800">
-          <Star className="h-4 w-4 text-emerald-400 fill-emerald-400" />
-          <span className="text-[10px] font-black uppercase text-emerald-400 tracking-wider">RANKING AUDITADO DIARIAMENTE</span>
+          <Star className="h-4 w-4 text-brand-red fill-brand-red" />
+          <span className="text-[10px] font-black uppercase text-brand-red tracking-wider">RANKING AUDITADO DIARIAMENTE</span>
         </div>
       </div>
 
@@ -79,7 +79,7 @@ export default function RankingSection({ ranking }: RankingSectionProps) {
             placeholder="Buscar participante por nome..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 bg-slate-900/80 border border-slate-800 focus:border-emerald-500 hover:border-slate-700 rounded-lg text-xs font-semibold text-slate-200 placeholder-slate-500"
+            className="w-full pl-9 pr-4 py-2.5 bg-slate-900/80 border border-slate-800 focus:border-brand-red hover:border-slate-700 rounded-lg text-xs font-semibold text-slate-200 placeholder-slate-500"
           />
         </div>
 
@@ -88,7 +88,7 @@ export default function RankingSection({ ranking }: RankingSectionProps) {
           <select
             value={selectedCity}
             onChange={(e) => setSelectedCity(e.target.value)}
-            className="w-full px-3 py-2.5 bg-slate-900/80 border border-slate-800 focus:border-emerald-500 hover:border-slate-700 rounded-lg text-xs font-semibold text-slate-200"
+            className="w-full px-3 py-2.5 bg-slate-900/80 border border-slate-800 focus:border-brand-red hover:border-slate-700 rounded-lg text-xs font-semibold text-slate-200"
           >
             <option value="TODAS">Município (Todos)</option>
             {distinctCities.map((ct) => (
@@ -126,8 +126,8 @@ export default function RankingSection({ ranking }: RankingSectionProps) {
 
           {/* 1st Place Hero Podium */}
           {podium1st && (
-            <div className="order-1 w-full md:w-72 bg-gradient-to-b from-slate-900 via-slate-950 to-slate-900 border border-emerald-900/60 p-6 rounded-[2.5rem] flex flex-col items-center justify-between text-center min-h-[260px] shadow-2xl relative overflow-hidden group">
-              <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-emerald-500 via-yellow-500 to-green-500" />
+            <div className="order-1 w-full md:w-72 bg-gradient-to-b from-slate-900 via-slate-950 to-slate-900 border border-brand-red/30 p-6 rounded-[2.5rem] flex flex-col items-center justify-between text-center min-h-[260px] shadow-2xl relative overflow-hidden group">
+              <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-brand-blue via-brand-red to-yellow-500" />
               <span className="absolute -top-3 -right-3 text-5xl opacity-10 font-bold select-none text-yellow-500">🥇</span>
               
               <div className="flex flex-col items-center space-y-3">
@@ -226,7 +226,7 @@ export default function RankingSection({ ranking }: RankingSectionProps) {
                       <div className="hidden sm:flex items-center gap-3 font-mono">
                         <span className="w-24 text-right text-slate-400 font-sans font-medium truncate hidden lg:inline">{user.cidade}</span>
                         <span className="w-12 text-center font-bold text-yellow-500">{user.acertos_exato}</span>
-                        <span className="w-12 text-center font-bold text-emerald-400">{user.acertos_vencedor}</span>
+                        <span className="w-12 text-center font-bold text-brand-red">{user.acertos_vencedor}</span>
                         <span className="w-12 text-center font-bold text-red-500/80">{user.erros}</span>
                       </div>
 
@@ -234,12 +234,12 @@ export default function RankingSection({ ranking }: RankingSectionProps) {
                         <div className="flex gap-1.5">
                           <span className="text-yellow-500 font-semibold">{user.acertos_exato}EX</span>
                           <span>|</span>
-                          <span className="text-emerald-400 font-semibold">{user.acertos_vencedor}VC</span>
+                          <span className="text-brand-red font-semibold">{user.acertos_vencedor}VC</span>
                         </div>
                       </div>
 
                       {/* Total points */}
-                      <span className="w-16 text-right font-black font-mono text-emerald-400 text-sm">
+                      <span className="w-16 text-right font-black font-mono text-brand-red text-sm">
                         {user.pontos} p
                       </span>
                     </div>
@@ -259,7 +259,7 @@ export default function RankingSection({ ranking }: RankingSectionProps) {
         {/* Gamification Badge definitions */}
         <section className="lg:col-span-4 space-y-4">
           <div className="bg-slate-900/40 border border-slate-850/60 rounded-2xl p-5 space-y-4 text-left">
-            <h3 className="text-sm font-black uppercase text-emerald-400 tracking-wider">Sistema de Medalhas</h3>
+            <h3 className="text-sm font-black uppercase text-brand-red tracking-wider">Sistema de Medalhas</h3>
             <p className="text-[11px] text-slate-450 leading-relaxed">
               Diferencial competitivo: Conquiste insígnias de honra ao realizar performances gloriosas nas rodadas da Copa.
             </p>

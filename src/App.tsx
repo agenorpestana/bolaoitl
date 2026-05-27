@@ -178,7 +178,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 font-sans text-slate-100 flex flex-col selection:bg-emerald-500 selection:text-slate-950 relative">
+    <div className="min-h-screen bg-slate-950 font-sans text-slate-100 flex flex-col selection:bg-brand-red selection:text-white relative">
       
       {/* Dynamic Upper Custom Alerts Alert */}
       {alertInfo && (
@@ -187,13 +187,13 @@ export default function App() {
           className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-5 py-3.5 rounded-full border shadow-2xl transition duration-300 ${
             alertInfo.isErr 
               ? 'bg-red-950 border-red-500 text-red-200' 
-              : 'bg-emerald-950 border-emerald-500 text-emerald-200'
+              : 'bg-brand-blue-dark border-brand-red text-slate-100'
           }`}
         >
           {alertInfo.isErr ? (
             <Info className="h-4 w-4 shrink-0 text-red-500" />
           ) : (
-            <CheckCircle className="h-4 w-4 shrink-0 text-emerald-500" />
+            <CheckCircle className="h-4 w-4 shrink-0 text-brand-red" />
           )}
           <span className="text-xs font-black tracking-wide">{alertInfo.msg}</span>
         </div>
@@ -214,11 +214,11 @@ export default function App() {
           /* Elegant loading loader */
           <div className="flex flex-col items-center justify-center py-24 space-y-4">
             <div className="relative flex items-center justify-center">
-              <div className="h-16 w-16 rounded-full border-4 border-slate-900 border-t-emerald-500 animate-spin" />
-              <Dribbble className="h-6 w-6 text-emerald-500 absolute animate-pulse" />
+              <div className="h-16 w-16 rounded-full border-4 border-slate-900 border-t-brand-red animate-spin" />
+              <Dribbble className="h-6 w-6 text-brand-red absolute animate-pulse" />
             </div>
             <div>
-              <p className="text-xs font-black uppercase tracking-widest text-emerald-400">Carregando Cartola ITL...</p>
+              <p className="text-xs font-black uppercase tracking-widest text-brand-red">Carregando Cartola ITL...</p>
               <p className="text-[10px] text-slate-500 font-mono mt-1">Lendo tabelas ixc_usuarios, palpites e rodadas</p>
             </div>
           </div>
@@ -268,18 +268,16 @@ export default function App() {
       </main>
 
       {/* Visual platform credits footer omission */}
-      <footer className="w-full bg-slate-950 border-t border-slate-900 py-6 text-center text-xs text-slate-500 mt-auto select-none">
+       <footer className="w-full bg-slate-950 border-t border-brand-blue-light/35 py-6 text-center text-xs text-slate-500 mt-auto select-none">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-2 flex flex-col sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-1.5 justify-center sm:justify-start">
-            <span className="font-extrabold text-[10px] tracking-wider uppercase text-emerald-500/80 bg-emerald-950/20 border border-emerald-900/30 px-1.5 py-0.5 rounded">
+            <span className="font-extrabold text-[10px] tracking-wider uppercase text-brand-red bg-brand-blue-dark/50 border border-brand-blue-light/50 px-1.5 py-0.5 rounded">
               CARTOLA ITL - PROVEDOR ITLFIBRA
             </span>
             <span>© Todos os direitos reservados.</span>
           </div>
-          <div className="flex items-center justify-center gap-1.5 text-[10px] uppercase font-bold text-slate-500">
-            <span>Desenvolvido com</span>
-            <Heart className="h-3 w-3 text-red-500 fill-red-500 animate-pulse" />
-            <span>para Provedores ISP de Ultra Velocidade</span>
+          <div className="flex items-center justify-center gap-1.5 text-[10px] uppercase font-bold text-slate-400">
+            <span>Desenvolvido por: Agenor Pestana - ITLFIBRA ULTRA VELOCIDADE</span>
           </div>
         </div>
       </footer>
