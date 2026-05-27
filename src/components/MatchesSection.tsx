@@ -20,6 +20,16 @@ export function getFriendlyRoundName(rdNum: number | string): string {
   }
 }
 
+export function getGameCampeonato(jogo: Jogo): 'COPA_MUNDO' | 'LIBERTADORES' {
+  if (jogo.api_id) {
+    const idLower = jogo.api_id.toLowerCase();
+    if (idLower.includes("libertadores")) {
+      return 'LIBERTADORES';
+    }
+  }
+  return 'COPA_MUNDO';
+}
+
 interface MatchesSectionProps {
   jogos: Jogo[];
   palpites: Palpite[];
@@ -38,6 +48,15 @@ export default function MatchesSection({
   dataServidor 
 }: MatchesSectionProps) {
   
+  const hasCopaGames = React.useMemo(() => jogos.some(j => getGameCampeonato(j) === 'COPA_MUNDO'), [jogos]);
+  const hasLibertadoresGames = React.useMemo(() => jogos.some(j => getGameCampeonato(j) === 'LIBERTADORES'), [jogos]);
+
+  const [selectedCampeonato, setSelectedCampeonato] = React.useState<'COPA_MUNDO' | 'LIBERTADORES'>(() => {
+    if (jogos.some(j => getGameCampeonato(j) === 'COPA_MUNDO')) return 'COPA_MUNDO';
+    if (jogos.some(j => getGameCampeonato(j) === 'LIBERTADORES')) return 'LIBERTADORES';
+    return 'COPA_MUNDO';
+  });
+
   const [activeRodada, setActiveRodada] = React.useState<number | 'TODOS' | null>(null);
   const [filterStatus, setFilterStatus] = React.useState<'TODOS' | 'ABERTO' | 'AO_VIVO' | 'ENCERRADO'>('TODOS');
   
@@ -85,29 +104,49 @@ export default function MatchesSection({
     }, 400);
   };
 
-  // Determine rounds available in database
-  const rounds = Array.from(new Set(jogos.map(g => g.rodada))).sort((a, b) => a - b);
+  // Filter games based on selected championship to avoid mixing calendars
+  const championshipJogos = React.useMemo(() => {
+    return jogos.filter(j => getGameCampeonato(j) === selectedCampeonato);
+  }, [jogos, selectedCampeonato]);
 
-  // Determine current active/open round dynamically
-  const isRdFinished = (rdNum: number) => {
-    const matchesInRd = jogos.filter(j => j.rodada === rdNum);
-    return matchesInRd.length > 0 && matchesInRd.every(j => j.status === 'ENCERRADO');
-  };
-  const currentRound = rounds.find(rd => !isRdFinished(rd)) || (rounds.length > 0 ? rounds[rounds.length - 1] : null);
+  // Determine rounds available for this championship
+  const rounds = React.useMemo(() => {
+    const rds = Array.from(new Set(championshipJogos.map(g => g.rodada)));
+    return rds.sort((a: number, b: number) => a - b);
+  }, [championshipJogos]);
 
-  const currentRoundIdx = rounds.findIndex(rd => rd === currentRound);
-  const nextRound = currentRoundIdx !== -1 && currentRoundIdx + 1 < rounds.length ? rounds[currentRoundIdx + 1] : null;
+  const isPastGame = React.useCallback((jogo: Jogo): boolean => {
+    const nowMs = new Date(dataServidor || new Date().toISOString()).getTime();
+    const gameMs = new Date(jogo.data_jogo).getTime();
+    return gameMs <= nowMs;
+  }, [dataServidor]);
 
-  // Initialize active rodada to currentRound once on load
-  const hasInitializedRound = React.useRef(false);
+  // Determine current active/open round dynamically for this championship
+  const isRdFinished = React.useCallback((rdNum: number) => {
+    const matchesInRd = championshipJogos.filter(j => j.rodada === rdNum);
+    return matchesInRd.length > 0 && matchesInRd.every(j => j.status === 'ENCERRADO' || isPastGame(j));
+  }, [championshipJogos, isPastGame]);
+
+  const currentRound = React.useMemo(() => {
+    return rounds.find(rd => !isRdFinished(rd)) || (rounds.length > 0 ? rounds[rounds.length - 1] : null);
+  }, [rounds, isRdFinished]);
+
+  const currentRoundIdx = React.useMemo(() => {
+    return rounds.findIndex(rd => rd === currentRound);
+  }, [rounds, currentRound]);
+
+  const nextRound = React.useMemo(() => {
+    return currentRoundIdx !== -1 && currentRoundIdx + 1 < rounds.length ? rounds[currentRoundIdx + 1] : null;
+  }, [rounds, currentRoundIdx]);
+
+  // Synchronize active rodada when championship or currentRound changes
   React.useEffect(() => {
-    if (jogos.length > 0 && !hasInitializedRound.current) {
-      if (currentRound !== undefined && currentRound !== null) {
-        setActiveRodada(currentRound);
-        hasInitializedRound.current = true;
-      }
+    if (currentRound !== undefined && currentRound !== null) {
+      setActiveRodada(currentRound);
+    } else {
+      setActiveRodada(null);
     }
-  }, [jogos, currentRound]);
+  }, [selectedCampeonato, currentRound]);
 
   // Time-locked assessment
   const isMatchLocked = (jogo: Jogo): boolean => {
@@ -147,24 +186,35 @@ export default function MatchesSection({
   };
 
   // Filtered games list calculation
-  const filteredGames = jogos.filter(jogo => {
-    const matchesRound = activeRodada === 'TODOS' || activeRodada === null || jogo.rodada === activeRodada;
-    
-    let matchesStatus = true;
-    if (filterStatus === 'ABERTO') {
-      matchesStatus = jogo.status === 'PENDENTE' && !isMatchLocked(jogo);
-    } else if (filterStatus === 'AO_VIVO') {
-      matchesStatus = jogo.status === 'AO_VIVO';
-    } else if (filterStatus === 'ENCERRADO') {
-      matchesStatus = jogo.status === 'ENCERRADO';
-    }
+  const filteredGames = React.useMemo(() => {
+    return championshipJogos.filter(jogo => {
+      const matchesRound = activeRodada === 'TODOS' || activeRodada === null || jogo.rodada === activeRodada;
+      
+      let matchesStatus = true;
+      if (filterStatus === 'ABERTO') {
+        matchesStatus = jogo.status === 'PENDENTE' && !isMatchLocked(jogo);
+      } else if (filterStatus === 'AO_VIVO') {
+        matchesStatus = jogo.status === 'AO_VIVO';
+      } else if (filterStatus === 'ENCERRADO') {
+        matchesStatus = jogo.status === 'ENCERRADO' || (jogo.status === 'PENDENTE' && isPastGame(jogo));
+      }
 
-    return matchesRound && matchesStatus;
-  });
+      return matchesRound && matchesStatus;
+    });
+  }, [championshipJogos, activeRodada, filterStatus, dataServidor]);
 
   // Split into active/pending matches versus finished matches as requested
-  const pendingOrLiveGames = filteredGames.filter(jogo => jogo.status !== 'ENCERRADO');
-  const concludedGames = filteredGames.filter(jogo => jogo.status === 'ENCERRADO');
+  const pendingOrLiveGames = React.useMemo(() => {
+    return filteredGames.filter(jogo => 
+      jogo.status === 'AO_VIVO' || (jogo.status === 'PENDENTE' && !isPastGame(jogo))
+    );
+  }, [filteredGames, isPastGame]);
+
+  const concludedGames = React.useMemo(() => {
+    return filteredGames.filter(jogo => 
+      jogo.status === 'ENCERRADO' || (jogo.status === 'PENDENTE' && isPastGame(jogo))
+    );
+  }, [filteredGames, isPastGame]);
 
   const renderMatchCard = (jogo: Jogo) => {
     const isReadonly = isMatchLocked(jogo);
@@ -378,6 +428,32 @@ export default function MatchesSection({
           <div>
             <b>Mecânica Automatizada das Rodadas:</b> Atualmente estamos na <span className="text-emerald-400 font-black">{getFriendlyRoundName(currentRound)} (Atual)</span>. Palpites estão autorizados unicamente para esta rodada. As partidas das próximas rodadas serão liberadas para palpite de forma 100% dinâmica assim que findar o último confronto da rodada vigente!
           </div>
+        </div>
+      )}
+
+      {/* Championship Selector Tabs */}
+      {hasCopaGames && hasLibertadoresGames && (
+        <div className="flex bg-slate-900/40 p-1.5 rounded-xl border border-slate-900 w-full md:w-fit gap-1 font-sans">
+          <button
+            onClick={() => setSelectedCampeonato('COPA_MUNDO')}
+            className={`flex-1 md:flex-initial px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-wider transition duration-200 ${
+              selectedCampeonato === 'COPA_MUNDO'
+                ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-slate-950 font-black shadow-md shadow-emerald-500/10'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/30'
+            }`}
+          >
+            🏆 Copa do Mundo 2026
+          </button>
+          <button
+            onClick={() => setSelectedCampeonato('LIBERTADORES')}
+            className={`flex-1 md:flex-initial px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-wider transition duration-200 ${
+              selectedCampeonato === 'LIBERTADORES'
+                ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-slate-950 font-black shadow-md shadow-emerald-500/10'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/30'
+            }`}
+          >
+            🛰️ Copa Libertadores
+          </button>
         </div>
       )}
 

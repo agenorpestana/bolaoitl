@@ -1170,32 +1170,43 @@ async function startServer() {
 
         db.jogos.forEach(g => {
           const gameMs = new Date(g.data_jogo).getTime();
+          const elapsedMins = (nowMs - gameMs) / (1000 * 60);
+          const isRealMatch = g.api_id && (g.api_id.startsWith("football_api_") || g.api_id.startsWith("libertadores_soccer_"));
           
           // 1. Transition game from PENDENTE to AO_VIVO once the kickoff time has arrived/passed
           if (g.status === 'PENDENTE' && gameMs <= nowMs) {
-            g.status = 'AO_VIVO';
-            g.placar_casa = 0;
-            g.placar_fora = 0;
-            updatedCount++;
-            console.log(`[Auto-Sync Backtimer Simulation] Jogo iniciado automaticamente: ${g.time_casa} x ${g.time_fora}`);
+            if (elapsedMins < 105) {
+              g.status = 'AO_VIVO';
+              if (g.placar_casa === null) g.placar_casa = 0;
+              if (g.placar_fora === null) g.placar_fora = 0;
+              updatedCount++;
+              console.log(`[Auto-Sync Backtimer Simulation] Jogo iniciado automaticamente: ${g.time_casa} x ${g.time_fora}`);
+            } else {
+              g.status = 'ENCERRADO';
+              if (g.placar_casa === null) g.placar_casa = Math.floor(Math.random() * 3);
+              if (g.placar_fora === null) g.placar_fora = Math.floor(Math.random() * 3);
+              updatedCount++;
+              console.log(`[Auto-Sync Backtimer Simulation] Jogo encerrado automaticamente na inicialização: ${g.time_casa} x ${g.time_fora}`);
+            }
           } 
           // 2. Simulating real-time game updates while AO_VIVO
           else if (g.status === 'AO_VIVO') {
-            // Increment goals slowly per minute during playtime
-            const shouldGoalCasa = Math.random() < 0.04; // 4% chance per minute to score
-            const shouldGoalFora = Math.random() < 0.04; 
-            
-            if (shouldGoalCasa) {
-              g.placar_casa = (g.placar_casa || 0) + 1;
-              updatedCount++;
-            }
-            if (shouldGoalFora) {
-              g.placar_fora = (g.placar_fora || 0) + 1;
-              updatedCount++;
+            if (!isRealMatch) {
+              // Increment goals slowly per minute during playtime for mock games only
+              const shouldGoalCasa = Math.random() < 0.04; // 4% chance per minute to score
+              const shouldGoalFora = Math.random() < 0.04; 
+              
+              if (shouldGoalCasa) {
+                g.placar_casa = (g.placar_casa || 0) + 1;
+                updatedCount++;
+              }
+              if (shouldGoalFora) {
+                g.placar_fora = (g.placar_fora || 0) + 1;
+                updatedCount++;
+              }
             }
 
             // 3. Conclude game automatically after 105 minutes (90' plus halftime rest / extra time)
-            const elapsedMins = (nowMs - gameMs) / (1000 * 60);
             if (elapsedMins >= 105) {
               g.status = 'ENCERRADO';
               updatedCount++;
@@ -2392,16 +2403,37 @@ async function startServer() {
 
     db.jogos.forEach(g => {
       const gTime = new Date(g.data_jogo).getTime();
+      const elapsedMins = (now - gTime) / (1000 * 60);
+      const isRealMatch = g.api_id && (g.api_id.startsWith("football_api_") || g.api_id.startsWith("libertadores_soccer_"));
+
       // Only sync games that have actually started or are simulated start (prior to current local time)
       if (g.status === 'PENDENTE' && gTime <= now) {
-        g.status = 'AO_VIVO';
-        g.placar_casa = Math.floor(Math.random() * 3);
-        g.placar_fora = Math.floor(Math.random() * 3);
-        updatedCount++;
+        if (elapsedMins < 105) {
+          g.status = 'AO_VIVO';
+          if (g.placar_casa === null) g.placar_casa = 0;
+          if (g.placar_fora === null) g.placar_fora = 0;
+          updatedCount++;
+        } else {
+          g.status = 'ENCERRADO';
+          if (g.placar_casa === null) g.placar_casa = Math.floor(Math.random() * 3);
+          if (g.placar_fora === null) g.placar_fora = Math.floor(Math.random() * 3);
+          updatedCount++;
+        }
       } else if (g.status === 'AO_VIVO') {
-        // Classify as finished
-        g.status = 'ENCERRADO';
-        updatedCount++;
+        if (elapsedMins >= 105) {
+          g.status = 'ENCERRADO';
+          updatedCount++;
+        } else if (!isRealMatch) {
+          // Increment some goals for mock games occasionally while live
+          if (Math.random() < 0.2) {
+            g.placar_casa = (g.placar_casa || 0) + 1;
+            updatedCount++;
+          }
+          if (Math.random() < 0.2) {
+            g.placar_fora = (g.placar_fora || 0) + 1;
+            updatedCount++;
+          }
+        }
       }
     });
 
