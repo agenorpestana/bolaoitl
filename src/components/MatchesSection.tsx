@@ -68,6 +68,31 @@ export default function MatchesSection({
   const [activeRodada, setActiveRodada] = React.useState<number | 'TODOS' | null>(null);
   const [filterStatus, setFilterStatus] = React.useState<'TODOS' | 'ABERTO' | 'AO_VIVO' | 'ENCERRADO'>('TODOS');
   
+  const [isBlocked, setIsBlocked] = React.useState<boolean>(false);
+  const [blockReason, setBlockReason] = React.useState<string>("");
+
+  React.useEffect(() => {
+    if (token) {
+      fetch("/api/auth/check-block-status", {
+        headers: { "Authorization": `Bearer ${token}` }
+      })
+      .then(res => {
+        if (res.ok) return res.json();
+        throw new Error();
+      })
+      .then(data => {
+        setIsBlocked(!!data.blocked);
+        setBlockReason(data.reason || "");
+      })
+      .catch(() => {
+        setIsBlocked(false);
+      });
+    } else {
+      setIsBlocked(false);
+      setBlockReason("");
+    }
+  }, [token]);
+
   // Temporary score inputs state mapped to game id
   const [inputs, setInputs] = React.useState<{ [key: string]: { casa: string; fora: string } }>({});
   const [savingKeys, setSavingKeys] = React.useState<{ [key: string]: boolean }>({});
@@ -306,15 +331,15 @@ export default function MatchesSection({
             <input
               type="text"
               maxLength={2}
-              disabled={!token || isReadonly}
+              disabled={!token || isReadonly || isBlocked}
               placeholder="-"
               value={inputVal.casa}
               onChange={(e) => handleInputChange(jogo.id, 'casa', e.target.value)}
               className={`w-9 h-9 sm:w-11 sm:h-11 md:w-12 md:h-12 text-center text-base sm:text-lg md:text-xl font-black font-mono rounded-xl border transition ${
                 !token 
                   ? 'bg-slate-950 border-slate-800/60 text-slate-600 cursor-not-allowed'
-                  : isReadonly
-                    ? 'bg-slate-950 border-slate-900 text-slate-400'
+                  : (isReadonly || isBlocked)
+                    ? 'bg-slate-950 border-slate-900 text-slate-500 cursor-not-allowed'
                     : 'bg-slate-950 border-brand-blue-light text-brand-blue-vibrant focus:border-brand-blue-accent focus:ring-1 focus:ring-brand-blue-accent'
               }`}
             />
@@ -324,15 +349,15 @@ export default function MatchesSection({
             <input
               type="text"
               maxLength={2}
-              disabled={!token || isReadonly}
+              disabled={!token || isReadonly || isBlocked}
               placeholder="-"
               value={inputVal.fora}
               onChange={(e) => handleInputChange(jogo.id, 'fora', e.target.value)}
               className={`w-9 h-9 sm:w-11 sm:h-11 md:w-12 md:h-12 text-center text-base sm:text-lg md:text-xl font-black font-mono rounded-xl border transition ${
                 !token 
                   ? 'bg-slate-950 border-slate-800/60 text-slate-600 cursor-not-allowed'
-                  : isReadonly
-                    ? 'bg-slate-950 border-slate-900 text-slate-400'
+                  : (isReadonly || isBlocked)
+                    ? 'bg-slate-950 border-slate-900 text-slate-500 cursor-not-allowed'
                     : 'bg-slate-950 border-brand-blue-light text-brand-blue-vibrant focus:border-brand-blue-accent focus:ring-1 focus:ring-brand-blue-accent'
               }`}
             />
@@ -355,7 +380,9 @@ export default function MatchesSection({
         <div className="pt-2 border-t border-slate-900 flex flex-col xs:flex-row gap-2 xs:gap-0 justify-between items-start xs:items-center text-xs">
           <div>
             {token ? (
-              userBet ? (
+              isBlocked ? (
+                <span className="text-[10px] text-red-500 font-bold bg-red-950/20 px-2 py-0.5 rounded border border-red-950/40">Palpites suspensos</span>
+              ) : userBet ? (
                 <div className="text-[11px] text-brand-blue-vibrant font-semibold flex items-center gap-1">
                   <CheckCircle className="h-3.5 w-3.5 inline text-brand-blue-vibrant" /> Palpitado: {userBet.placar_casa}x{userBet.placar_fora}
                 </div>
@@ -368,7 +395,7 @@ export default function MatchesSection({
           </div>
 
           {/* Guess action button */}
-          {token && !isReadonly && (
+          {token && !isReadonly && !isBlocked && (
             <button
               id={`btn-save-palpite-${jogo.id}`}
               onClick={() => handleSaveClick(jogo.id)}
@@ -436,6 +463,18 @@ export default function MatchesSection({
           </button>
         )}
       </div>
+
+      {/* Payment Blocked Warning Banner */}
+      {isBlocked && (
+        <div className="bg-red-950/40 border border-red-500/40 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center gap-3 text-xs text-red-200 animate-fadeIn">
+          <div className="h-8 w-8 rounded-lg bg-red-950 border border-red-850 flex items-center justify-center shrink-0">
+            <AlertCircle className="h-4 w-4 text-red-500 animate-pulse" />
+          </div>
+          <div>
+            <b className="text-red-400 uppercase tracking-wider block sm:inline">Palpites Bloqueados por Pendência Financeira:</b> {blockReason || "Seu contrato está bloqueado por falta de pagamento. Regularize suas mensalidades no painel do Provedor para voltar a palpitar!"}
+          </div>
+        </div>
+      )}
 
       {/* Warning current active round explanation banner */}
       {currentRound && (

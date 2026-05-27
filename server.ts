@@ -1366,6 +1366,112 @@ async function startServer() {
   // PUBLIC & CLIENT API ROUTES
   // ==========================================
 
+  // Helper to verify contract block status with IXC Soft
+  async function checkIxcClientBlocked(ixcId: string, db: LocalDatabase): Promise<{ blocked: boolean; reason?: string }> {
+    const isOfflineMode = db.configs_ixc.offline_mode;
+    if (isOfflineMode) {
+      const matchedUser = db.usuarios.find(u => String(u.ixc_id) === String(ixcId));
+      if (matchedUser && matchedUser.bloqueado) {
+        return { blocked: true, reason: "Acesso suspenso por restrição administrativa ou simulação de bloqueio no sistema do Provedor." };
+      }
+      if (matchedUser && (matchedUser.nome.toLowerCase().includes("bloqueado") || matchedUser.email.toLowerCase().includes("bloqueado"))) {
+        return { blocked: true, reason: "Bloqueado por falta de pagamento (Simulação modo offline)." };
+      }
+      return { blocked: false };
+    }
+
+    try {
+      const authStr = Buffer.from(db.configs_ixc.token).toString("base64");
+      const payload = {
+        qtype: "cliente_contrato.id_cliente",
+        query: String(ixcId),
+        oper: "=",
+        rp: "100",
+        sortname: "cliente_contrato.id",
+        sortorder: "desc"
+      };
+
+      const response = await axios.post(
+        `${db.configs_ixc.url}/webservice/v1/cliente_contrato`,
+        payload,
+        {
+          headers: {
+            "Authorization": `Basic ${authStr}`,
+            "Content-Type": "application/json",
+            "ixcsoft": "listar"
+          },
+          timeout: db.configs_ixc.timeout || 5000
+        }
+      );
+
+      if (response.data && response.data.registros && response.data.registros.length > 0) {
+        const contratos = response.data.registros;
+        let isAllowed = false;
+        let blockedReason = "Nenhum contrato ativo localizado no sistema do Provedor.";
+
+        for (const contrato of contratos) {
+          const s = String(contrato.status).toUpperCase().trim();
+          const sInt = String(contrato.status_internet).toUpperCase().trim();
+
+          if (s === "A") {
+            if (sInt === "A") {
+              isAllowed = true;
+              break;
+            } else if (sInt === "CA") {
+              blockedReason = "Bloqueado por falta de pagamento (CA).";
+            } else {
+              blockedReason = `Contrato com status de internet suspenso (${sInt}).`;
+            }
+          } else if (s === "I") {
+            blockedReason = "Contrato desativado ou inativo (Status I).";
+          }
+        }
+
+        if (isAllowed) {
+          return { blocked: false };
+        } else {
+          return { blocked: true, reason: blockedReason };
+        }
+      } else {
+        return { blocked: true, reason: "Nenhum contrato localizado para este cliente no sistema do Provedor." };
+      }
+    } catch (err: any) {
+      console.error("[IXC Contract Validation API Error]:", err.message);
+      // Fallback safely to not block the user during API outages so they can still make guesses
+      return { blocked: false };
+    }
+  }
+
+  // Check if current user is blocked based on contract conditions
+  app.get("/api/auth/check-block-status", async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Token de acesso ausente ou inválido." });
+    }
+    const token = authHeader.split(" ")[1];
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as any;
+      if (decoded.role === "ADMIN") {
+        return res.json({ blocked: false });
+      }
+      const db = loadDatabase();
+      const usuario = db.usuarios.find(u => u.id === decoded.id);
+      if (!usuario) {
+        return res.status(404).json({ error: "Usuário não localizado." });
+      }
+      if (usuario.bloqueado) {
+        return res.json({ blocked: true, reason: "Acesso suspenso por restrição administrativa." });
+      }
+      if (usuario.ixc_id) {
+        const blockCheck = await checkIxcClientBlocked(usuario.ixc_id, db);
+        return res.json({ blocked: blockCheck.blocked, reason: blockCheck.reason });
+      }
+      res.json({ blocked: false });
+    } catch (err) {
+      res.status(401).json({ error: "Seção expirada." });
+    }
+  });
+
   // CPF/CNPJ verification and integration with simulated/real IXC Soft
   app.post("/api/auth/ixc-validate", async (req, res) => {
     const { cpf_cnpj, nome_complementar, telefone, email, cidade } = req.body;
@@ -1742,7 +1848,7 @@ async function startServer() {
   });
 
   // Put a new user bet or update
-  app.post("/api/palpites", (req: any, res) => {
+  app.post("/api/palpites", async (req: any, res) => {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({ error: "Token de acesso ausente ou inválido." });
@@ -1778,6 +1884,24 @@ async function startServer() {
     }
 
     const db = loadDatabase();
+
+    // Verify if the user is contract-blocked for finance/non-payment reasons
+    if (userId !== 999999) {
+      const usuario = db.usuarios.find(u => u.id === userId);
+      if (usuario) {
+        if (usuario.bloqueado) {
+          return res.status(403).json({ error: "Acesso suspenso por restrição administrativa." });
+        }
+        if (usuario.ixc_id) {
+          const blockCheck = await checkIxcClientBlocked(usuario.ixc_id, db);
+          if (blockCheck.blocked) {
+            return res.status(403).json({ 
+              error: `Seu palpite não pôde ser salvo porque seu contrato está bloqueado no Provedor: ${blockCheck.reason || "Falta de pagamento."}` 
+            });
+          }
+        }
+      }
+    }
     const jogo = db.jogos.find(j => j.id === Number(jogo_id));
 
     if (!jogo) {
