@@ -23,6 +23,7 @@ import {
   AdminUser 
 } from "./src/types";
 import { INITIAL_GAMES, INITIAL_POINTS_CONFIG, CIDADES_ATENDIDAS } from "./src/data";
+import { enrichGameDetails } from "./src/utils/gameEnricher";
 
 const JWT_SECRET = process.env.JWT_SECRET || "copa-bolao-2026-super-secret-key-isp";
 
@@ -298,7 +299,7 @@ async function syncFootballApiReal(db: LocalDatabase, req?: express.Request): Pr
       placarFora = Number(item.goals.away);
     }
 
-    const shortStatus = item.fixture.status.short;
+    let shortStatus = item.fixture.status.short;
     let mappedStatus = "PENDENTE";
     if (["FT", "AET", "PEN"].includes(shortStatus)) {
       mappedStatus = "ENCERRADO";
@@ -313,12 +314,15 @@ async function syncFootballApiReal(db: LocalDatabase, req?: express.Request): Pr
         mappedStatus = "PENDENTE";
         placarCasa = null;
         placarFora = null;
+        shortStatus = "NS";
       } else {
         const elapsedMins = (nowTime - shiftedLocalTime) / (1000 * 60);
         if (elapsedMins >= 105) {
           mappedStatus = "ENCERRADO";
+          shortStatus = "FT";
         } else {
           mappedStatus = "AO_VIVO";
+          shortStatus = elapsedMins < 50 ? "1H" : elapsedMins < 60 ? "HT" : "2H";
         }
       }
     }
@@ -344,6 +348,7 @@ async function syncFootballApiReal(db: LocalDatabase, req?: express.Request): Pr
       existingJogo.placar_fora = placarFora;
       existingJogo.status = mappedStatus as any;
       existingJogo.rodada = mappedRound;
+      existingJogo.status_detalhado = shortStatus;
       updatedCount++;
     } else {
       const newId = db.jogos.length > 0 ? Math.max(...db.jogos.map(j => j.id)) + 1 : 1;
@@ -358,7 +363,8 @@ async function syncFootballApiReal(db: LocalDatabase, req?: express.Request): Pr
         placar_casa: placarCasa,
         placar_fora: placarFora,
         status: mappedStatus as any,
-        rodada: mappedRound
+        rodada: mappedRound,
+        status_detalhado: shortStatus
       });
       addedCount++;
     }
@@ -1841,8 +1847,10 @@ async function startServer() {
       rawUserGuesses = db.palpites.filter(p => p.usuario_id === userId);
     }
 
+    const enriched = filteredGames.map(g => enrichGameDetails(g));
+
     res.json({
-      jogos: filteredGames,
+      jogos: enriched,
       palpites: rawUserGuesses,
       data_servidor: new Date().toISOString()
     });
@@ -2412,7 +2420,7 @@ async function startServer() {
   // Admin Matches directory
   app.get("/api/admin/jogos", verifyAdminToken, (req, res) => {
     const db = loadDatabase();
-    res.json(db.jogos);
+    res.json(db.jogos.map(g => enrichGameDetails(g)));
   });
 
   // Create match manually

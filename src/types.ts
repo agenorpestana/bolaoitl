@@ -27,6 +27,37 @@ export interface Jogo {
   placar_fora: number | null;
   status: 'PENDENTE' | 'AO_VIVO' | 'ENCERRADO';
   rodada: number;
+  // ENRICHMENTS
+  status_detalhado?: string;
+  estatisticas?: {
+    posse_casa: number;
+    posse_fora: number;
+    chutes_casa: number;
+    chutes_fora: number;
+    faltas_casa: number;
+    faltas_fora: number;
+    cartoes_amarelos_casa: number;
+    cartoes_amarelos_fora: number;
+    cartoes_vermelhos_casa: number;
+    cartoes_vermelhos_fora: number;
+    escanteios_casa?: number;
+    escanteios_fora?: number;
+  };
+  escalacao?: {
+    titular_casa: string[];
+    titular_fora: string[];
+    reservas_casa: string[];
+    reservas_fora: string[];
+    tecnico_casa?: string;
+    tecnico_fora?: string;
+  };
+  preview?: {
+    vitoria_casa: number;
+    empate: number;
+    vitoria_fora: number;
+    placar_estimado_casa: number;
+    placar_estimado_fora: number;
+  };
 }
 
 export interface Palpite {
