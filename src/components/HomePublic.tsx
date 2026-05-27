@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import { REGRAS_PROG, PREMIACOES } from '../data';
 import { Jogo } from '../types';
+import { getFriendlyRoundName } from './MatchesSection';
 
 const flagEmojiToIso = (flag: string): string | null => {
   if (!flag) return null;
@@ -322,7 +323,7 @@ export default function HomePublic({ onParticipateCta, metrics, jogos }: HomePub
                 className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 flex flex-col justify-between space-y-4 hover:border-emerald-950 transition"
               >
                 <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase">
-                  <span>Rodada {jogo.rodada}</span>
+                  <span>{getFriendlyRoundName(jogo.rodada)}</span>
                   <span className="bg-emerald-950 text-emerald-400 px-2 py-0.5 rounded border border-emerald-900/40">
                     Aberto
                   </span>

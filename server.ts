@@ -237,12 +237,6 @@ async function saveDatabaseToMySqlIncremental(db: LocalDatabase | null) {
       });
     }
 
-    // Handle deletions of users
-    const dbUserIds = db.usuarios.map(u => u.id);
-    await prisma.usuario.deleteMany({
-      where: { id: { notIn: dbUserIds } }
-    });
-
     // 2. Sync games (Jogo)
     for (const g of db.jogos) {
       await prisma.jogo.upsert({
@@ -275,11 +269,6 @@ async function saveDatabaseToMySqlIncremental(db: LocalDatabase | null) {
       });
     }
 
-    const dbJogoIds = db.jogos.map(g => g.id);
-    await prisma.jogo.deleteMany({
-      where: { id: { notIn: dbJogoIds } }
-    });
-
     // 3. Sync bets (Palpite)
     for (const p of db.palpites) {
       const userExist = db.usuarios.some(u => u.id === p.usuario_id);
@@ -306,11 +295,6 @@ async function saveDatabaseToMySqlIncremental(db: LocalDatabase | null) {
         }
       });
     }
-
-    const dbPalpiteIds = db.palpites.map(p => p.id);
-    await prisma.palpite.deleteMany({
-      where: { id: { notIn: dbPalpiteIds } }
-    });
 
     // 4. Sync Configs (Configuracoes)
     const isLibAtivoStr = db.configs_libertadores?.ativo ? "true" : "false";
@@ -595,19 +579,45 @@ async function loadDatabaseFromMySql(): Promise<LocalDatabase> {
   };
 }
 
+async function loadDatabaseFromMySqlWithRetry(retries = 5, delayMs = 3000): Promise<LocalDatabase> {
+  for (let i = 1; i <= retries; i++) {
+    try {
+      if (prisma) {
+        return await loadDatabaseFromMySql();
+      }
+      throw new Error("Prisma client not initialized");
+    } catch (err: any) {
+      console.log(`[MySql DB Connection] Attempt ${i}/${retries} failed to fetch from MySQL: ${err.message}`);
+      if (i === retries) {
+        throw err;
+      }
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+  throw new Error("Failed to connect to MySQL after retries");
+}
+
 async function initializeDatabase() {
   if (prisma) {
     // Check if the usuarios table already exists to prevent destructive db push runs on every startup/reboot
     let schemaIsPushed = false;
+    let databaseIsOffline = false;
     try {
       await prisma.$queryRaw`SELECT 1 FROM usuarios LIMIT 1`;
       schemaIsPushed = true;
       console.log("[MySql Sync] Table structure looks correct (table 'usuarios' found). Skipping schema push to prevent data loss.");
     } catch (err: any) {
-      console.log("[MySql Sync] Tables not found or query failed. Pushing schema initially...", err.message);
+      const errMsg = err.message || "";
+      console.log("[MySql Sync] SELECT query check result/error:", errMsg);
+      if (errMsg.includes("doesn't exist") || errMsg.includes("no such table") || errMsg.includes("exist") || errMsg.includes("P2010")) {
+        schemaIsPushed = false;
+      } else {
+        databaseIsOffline = true;
+        schemaIsPushed = true; // prevent executing schema push when MySQL is temporarily offline/unreachable
+      }
     }
 
-    if (!schemaIsPushed) {
+    if (!schemaIsPushed && !databaseIsOffline) {
       try {
         const { execSync } = await import("child_process");
         console.log("[MySql Sync] Dynamic push starting: npx prisma db push --accept-data-loss (first-time database setup only!)");
@@ -632,11 +642,13 @@ async function initializeDatabase() {
     }
 
     try {
-      console.log("[MySql Sync] Retrieving state from MySQL server...");
-      cachedDb = await loadDatabaseFromMySql();
-      console.log(`[MySql Sync] Cache filled from MySQL: ${cachedDb.usuarios.length} users parsed, ${cachedDb.palpites.length} bets.`);
+      console.log("[MySql Sync] Retrieving state from MySQL server (with retries if needed)...");
+      cachedDb = await loadDatabaseFromMySqlWithRetry(5, 3000);
+      console.log(`[MySql Sync] Cache successfully filled from MySQL: ${cachedDb.usuarios.length} users parsed, ${cachedDb.palpites.length} bets.`);
+      // Immediately save back to database.json so the local file cache is 100% synchronized with the database of truth
+      saveDatabaseToFile(cachedDb);
     } catch (err: any) {
-      console.error("[MySql Sync] MySQL connection failed, falling back to local database.json. Error:", err.message);
+      console.error("[MySql Sync] MySQL connection failed completely, falling back to local database.json. Error:", err.message);
       cachedDb = loadDatabaseFromFile();
     }
   } else {
@@ -1568,6 +1580,13 @@ async function startServer() {
     db.palpites = db.palpites.filter(p => p.usuario_id !== id);
     
     saveDatabase(db);
+    
+    if (prisma) {
+      prisma.usuario.delete({ where: { id } }).catch((err: any) => {
+        console.error(`[MySQL Sync] Failed to explicitly delete user ${id} from MySQL:`, err.message);
+      });
+    }
+
     addLog("Admin (Suporte)", "EXCLUSAO_CADASTRO", `Removido participante ${user.nome} e seus palpites`, req);
 
     res.json({ success: true });
@@ -1661,6 +1680,13 @@ async function startServer() {
     const db = loadDatabase();
     db.jogos = db.jogos.filter(g => g.id !== id);
     saveDatabase(db);
+    
+    if (prisma) {
+      prisma.jogo.delete({ where: { id } }).catch((err: any) => {
+        console.error(`[MySQL Sync] Failed to explicitly delete game ${id} from MySQL:`, err.message);
+      });
+    }
+
     addLog("Admin (Suporte)", "EXCLUI_JOGO", `Parada excluída do calendário. ID: ${id}`, req);
     res.json({ success: true });
   });

@@ -4,6 +4,22 @@ import { Jogo, Palpite } from '../types';
 import { renderBandeira } from './HomePublic';
 
 
+export function getFriendlyRoundName(rdNum: number | string): string {
+  const num = Number(rdNum);
+  if (isNaN(num)) return String(rdNum);
+  switch (num) {
+    case 1: return "Fase de Grupos - Rodada 1";
+    case 2: return "Fase de Grupos - Rodada 2";
+    case 3: return "Fase de Grupos - Rodada 3";
+    case 4: return "Fase de 16 avos (32 equipes)";
+    case 5: return "Oitavas de Final";
+    case 6: return "Quartas de Final";
+    case 7: return "Semifinal";
+    case 8: return "Grande Final";
+    default: return `Rodada ${num}`;
+  }
+}
+
 interface MatchesSectionProps {
   jogos: Jogo[];
   palpites: Palpite[];
@@ -146,6 +162,190 @@ export default function MatchesSection({
     return matchesRound && matchesStatus;
   });
 
+  // Split into active/pending matches versus finished matches as requested
+  const pendingOrLiveGames = filteredGames.filter(jogo => jogo.status !== 'ENCERRADO');
+  const concludedGames = filteredGames.filter(jogo => jogo.status === 'ENCERRADO');
+
+  const renderMatchCard = (jogo: Jogo) => {
+    const isReadonly = isMatchLocked(jogo);
+    const userBet = palpites.find(p => p.jogo_id === jogo.id);
+    const inputVal = inputs[jogo.id] || { casa: "", fora: "" };
+    const isSaving = savingKeys[jogo.id] || false;
+    
+    // Check points won if completed
+    const pointsWon = userBet ? userBet.pontos : null;
+
+    return (
+      <div 
+        key={jogo.id} 
+        className={`bg-slate-900/70 border rounded-2xl p-4 sm:p-5 flex flex-col justify-between space-y-4 hover:shadow-lg transition duration-200 ${
+          jogo.status === 'AO_VIVO' 
+            ? 'border-red-900/40 shadow-red-950/5' 
+            : isReadonly 
+              ? 'border-slate-800/80 hover:border-slate-800' 
+              : 'border-emerald-950/40 hover:border-emerald-900/60 shadow-emerald-950/5'
+        }`}
+      >
+        
+        {/* Game Top info bar */}
+        <div className="flex flex-col sm:flex-row gap-1.5 sm:gap-0 sm:items-center justify-between text-[10px] font-bold uppercase">
+          <div className="flex items-center gap-1 text-slate-400">
+            <span className="bg-slate-950 border border-slate-800 px-2 py-0.5 rounded font-mono">
+              {getFriendlyRoundName(jogo.rodada)}
+            </span>
+            <span>•</span>
+            <span className="font-mono">
+              {new Date(jogo.data_jogo).toLocaleDateString('pt-BR')} às {new Date(jogo.data_jogo).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          </div>
+
+          {jogo.status === 'AO_VIVO' ? (
+            <span className="self-start sm:self-auto flex items-center gap-1 bg-red-950/80 border border-red-800/40 text-red-400 px-2.5 py-0.5 rounded animate-pulse">
+              <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+              Ao Vivo ({jogo.placar_casa}x{jogo.placar_fora})
+            </span>
+          ) : jogo.status === 'ENCERRADO' ? (
+            <span className="self-start sm:self-auto bg-slate-950 border border-slate-800 text-slate-400 px-2 py-0.5 rounded font-bold">
+              Encerrado ({jogo.placar_casa}x{jogo.placar_fora})
+            </span>
+          ) : isReadonly ? (
+            <span className="self-start sm:self-auto text-yellow-500 bg-yellow-950/30 border border-yellow-950/60 px-2 py-0.5 rounded flex items-center gap-1">
+              <Lock className="h-3 w-3" /> {getLockTimeLeftStr(jogo)}
+            </span>
+          ) : (
+            <span className="self-start sm:self-auto text-emerald-400 bg-emerald-950/40 border border-emerald-900/40 px-2 py-0.5 rounded flex items-center gap-1">
+              <Unlock className="h-3 w-3" /> Aberto • <Clock className="h-3 w-3 inline" /> {getLockTimeLeftStr(jogo)}
+            </span>
+          )}
+        </div>
+
+        {/* Main Matchup Arena */}
+        <div className="flex items-center justify-between gap-1 sm:gap-2 py-2">
+          
+          {/* Home Team */}
+          <div className="flex flex-col items-center flex-1 space-y-2 text-center min-w-[70px]">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center">
+              {renderBandeira(jogo.time_casa_bandeira, "w-8 h-8 sm:w-10 sm:h-10 shadow-sm", "text-2xl sm:text-3xl")}
+            </div>
+            <span className="text-[10px] sm:text-xs font-bold text-slate-200 mt-1 max-w-[70px] xs:max-w-[100px] sm:max-w-[120px] truncate leading-tight">
+              {jogo.time_casa}
+            </span>
+          </div>
+
+          {/* Guess Input grid */}
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            
+            <input
+              type="text"
+              maxLength={2}
+              disabled={!token || isReadonly}
+              placeholder="-"
+              value={inputVal.casa}
+              onChange={(e) => handleInputChange(jogo.id, 'casa', e.target.value)}
+              className={`w-9 h-9 sm:w-11 sm:h-11 md:w-12 md:h-12 text-center text-base sm:text-lg md:text-xl font-black font-mono rounded-xl border transition ${
+                !token 
+                  ? 'bg-slate-950 border-slate-800/60 text-slate-600 cursor-not-allowed'
+                  : isReadonly
+                    ? 'bg-slate-950 border-slate-900 text-slate-400'
+                    : 'bg-slate-950 border-emerald-900 text-emerald-400 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500'
+              }`}
+            />
+
+            <span className="text-slate-600 font-mono text-xs sm:text-sm">x</span>
+
+            <input
+              type="text"
+              maxLength={2}
+              disabled={!token || isReadonly}
+              placeholder="-"
+              value={inputVal.fora}
+              onChange={(e) => handleInputChange(jogo.id, 'fora', e.target.value)}
+              className={`w-9 h-9 sm:w-11 sm:h-11 md:w-12 md:h-12 text-center text-base sm:text-lg md:text-xl font-black font-mono rounded-xl border transition ${
+                !token 
+                  ? 'bg-slate-950 border-slate-800/60 text-slate-600 cursor-not-allowed'
+                  : isReadonly
+                    ? 'bg-slate-950 border-slate-900 text-slate-400'
+                    : 'bg-slate-950 border-emerald-900 text-emerald-400 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500'
+              }`}
+            />
+
+          </div>
+
+          {/* Away Team */}
+          <div className="flex flex-col items-center flex-1 space-y-2 text-center min-w-[70px]">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center">
+              {renderBandeira(jogo.time_fora_bandeira, "w-8 h-8 sm:w-10 sm:h-10 shadow-sm", "text-2xl sm:text-3xl")}
+            </div>
+            <span className="text-[10px] sm:text-xs font-bold text-slate-200 mt-1 max-w-[70px] xs:max-w-[100px] sm:max-w-[120px] truncate leading-tight font-sans">
+              {jogo.time_fora}
+            </span>
+          </div>
+
+        </div>
+
+        {/* Input action panels */}
+        <div className="pt-2 border-t border-slate-900 flex flex-col xs:flex-row gap-2 xs:gap-0 justify-between items-start xs:items-center text-xs">
+          <div>
+            {token ? (
+              userBet ? (
+                <div className="text-[11px] text-emerald-400/90 font-semibold flex items-center gap-1">
+                  <CheckCircle className="h-3.5 w-3.5 inline text-emerald-500" /> Palpitado: {userBet.placar_casa}x{userBet.placar_fora}
+                </div>
+              ) : (
+                <span className="text-[10px] text-slate-500 font-medium">Você ainda não palpitou</span>
+              )
+            ) : (
+              <span className="text-[10px] text-slate-500 font-medium">Faça login para apostar</span>
+            )}
+          </div>
+
+          {/* Guess action button */}
+          {token && !isReadonly && (
+            <button
+              id={`btn-save-palpite-${jogo.id}`}
+              onClick={() => handleSaveClick(jogo.id)}
+              disabled={isSaving}
+              className="group flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-slate-950 font-bold rounded-lg transition transform active:scale-95 text-[11px] w-full xs:w-auto justify-center"
+            >
+              <Save className="h-3 w-3" />
+              {isSaving ? "Salvando..." : "Salvar"}
+            </button>
+          )}
+
+          {/* Guess badge points feedback if completed or live matches */}
+          {['ENCERRADO', 'AO_VIVO'].includes(jogo.status) && userBet && (
+            <div className="flex items-center gap-1.5 font-sans">
+              <span className="text-[11px] text-slate-400">
+                {jogo.status === 'AO_VIVO' ? 'Pontos parciais:' : 'Pontuação:'}
+              </span>
+              <span className={`px-2.5 py-0.5 rounded font-mono font-extrabold text-[11px] ${
+                pointsWon && pointsWon > 5 
+                  ? 'bg-yellow-950/80 border border-yellow-700/40 text-yellow-500 shadow-md animate-pulse' 
+                  : pointsWon && pointsWon > 0
+                    ? 'bg-emerald-950/80 border border-emerald-800/40 text-emerald-400'
+                    : 'bg-slate-950/80 border border-slate-800/60 text-slate-500'
+              }`}>
+                +{pointsWon || 0} Pts {jogo.status === 'AO_VIVO' ? '🔴' : ''}
+              </span>
+            </div>
+          )}
+
+          {jogo.status === 'ENCERRADO' && !userBet && (
+            <span className="text-[10px] text-red-500/80 font-bold bg-red-950/10 border border-red-950/30 px-1.5 py-0.5 rounded">
+              Sem palpite (-0 Pts)
+            </span>
+          )}
+          {jogo.status === 'AO_VIVO' && !userBet && (
+            <span className="text-[10px] text-yellow-500/80 font-bold bg-yellow-950/10 border border-yellow-950/30 px-1.5 py-0.5 rounded animate-pulse">
+              Sem palpite (Parcial)
+            </span>
+          )}
+        </div>
+
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6 text-left">
       
@@ -176,7 +376,7 @@ export default function MatchesSection({
             <Unlock className="h-4 w-4 text-emerald-400" />
           </div>
           <div>
-            <b>Mecânica Automatizada das Rodadas:</b> Atualmente estamos na <span className="text-emerald-400 font-black">Rodada {currentRound} (Atual)</span>. Palpites estão autorizados unicamente para esta rodada. As partidas das próximas rodadas serão liberadas para palpite de forma 100% dinâmica assim que findar o último confronto da rodada vigente!
+            <b>Mecânica Automatizada das Rodadas:</b> Atualmente estamos na <span className="text-emerald-400 font-black">{getFriendlyRoundName(currentRound)} (Atual)</span>. Palpites estão autorizados unicamente para esta rodada. As partidas das próximas rodadas serão liberadas para palpite de forma 100% dinâmica assim que findar o último confronto da rodada vigente!
           </div>
         </div>
       )}
@@ -208,7 +408,7 @@ export default function MatchesSection({
                     : 'bg-slate-900/40 text-slate-400 hover:text-slate-200'
                 }`}
               >
-                Rodada {rd}{suffix}
+                {getFriendlyRoundName(rd)}{suffix}
               </button>
             );
           })}
@@ -250,188 +450,38 @@ export default function MatchesSection({
 
       </div>
 
-      {/* Main Fixtures Deck */}
+      {/* Main Fixtures Deck - Safely Split Finished and Available Games as requested */}
       {filteredGames.length > 0 ? (
-        <div className="grid gap-5 md:grid-cols-2">
-          {filteredGames.map((jogo) => {
-            const isReadonly = isMatchLocked(jogo);
-            const userBet = palpites.find(p => p.jogo_id === jogo.id);
-            const inputVal = inputs[jogo.id] || { casa: "", fora: "" };
-            const isSaving = savingKeys[jogo.id] || false;
-            
-            // Check points won if completed
-            const pointsWon = userBet ? userBet.pontos : null;
-
-            return (
-              <div 
-                key={jogo.id} 
-                className={`bg-slate-900/70 border rounded-2xl p-5 flex flex-col justify-between space-y-4 hover:shadow-lg transition duration-200 ${
-                  jogo.status === 'AO_VIVO' 
-                    ? 'border-red-900/40 shadow-red-950/5' 
-                    : isReadonly 
-                      ? 'border-slate-800/80 hover:border-slate-800' 
-                      : 'border-emerald-950/40 hover:border-emerald-900/60 shadow-emerald-950/5'
-                }`}
-              >
-                
-                {/* Game Top info bar */}
-                <div className="flex justify-between items-center text-[10px] font-bold uppercase">
-                  <div className="flex items-center gap-1 text-slate-400">
-                    <span className="bg-slate-950 border border-slate-800 px-2 py-0.5 rounded font-mono">
-                      Rodada {jogo.rodada}
-                    </span>
-                    <span>•</span>
-                    <span className="font-mono">
-                      {new Date(jogo.data_jogo).toLocaleDateString('pt-BR')} às {new Date(jogo.data_jogo).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  </div>
-
-                  {jogo.status === 'AO_VIVO' ? (
-                    <span className="flex items-center gap-1 bg-red-950/80 border border-red-800/40 text-red-400 px-2.5 py-0.5 rounded animate-pulse">
-                      <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
-                      Ao Vivo ({jogo.placar_casa}x{jogo.placar_fora})
-                    </span>
-                  ) : jogo.status === 'ENCERRADO' ? (
-                    <span className="bg-slate-950 border border-slate-800 text-slate-400 px-2 py-0.5 rounded font-bold">
-                      Encerrado ({jogo.placar_casa}x{jogo.placar_fora})
-                    </span>
-                  ) : isReadonly ? (
-                    <span className="text-yellow-500 bg-yellow-950/30 border border-yellow-950/60 px-2 py-0.5 rounded flex items-center gap-1">
-                      <Lock className="h-3 w-3" /> {getLockTimeLeftStr(jogo)}
-                    </span>
-                  ) : (
-                    <span className="text-emerald-400 bg-emerald-950/40 border border-emerald-900/40 px-2 py-0.5 rounded flex items-center gap-1">
-                      <Unlock className="h-3 w-3" /> Aberto • <Clock className="h-3 w-3 inline" /> {getLockTimeLeftStr(jogo)}
-                    </span>
-                  )}
-                </div>
-
-                {/* Main Matchup Arena */}
-                <div className="flex items-center justify-between gap-2 py-2">
-                  
-                  {/* Home Team */}
-                  <div className="flex flex-col items-center flex-1 space-y-2 text-center">
-                    <div className="w-10 h-10 flex items-center justify-center">
-                      {renderBandeira(jogo.time_casa_bandeira, "w-10 h-10 shadow-sm", "text-3xl")}
-                    </div>
-                    <span className="text-xs font-bold text-slate-200 mt-1 max-w-[120px] truncate">
-                      {jogo.time_casa}
-                    </span>
-                  </div>
-
-                  {/* Guess Input grid */}
-                  <div className="flex items-center gap-2">
-                    
-                    <input
-                      type="text"
-                      maxLength={2}
-                      disabled={!token || isReadonly}
-                      placeholder="-"
-                      value={inputVal.casa}
-                      onChange={(e) => handleInputChange(jogo.id, 'casa', e.target.value)}
-                      className={`w-12 h-12 text-center text-xl font-black font-mono rounded-xl border transition ${
-                        !token 
-                          ? 'bg-slate-950 border-slate-800/60 text-slate-600 cursor-not-allowed'
-                          : isReadonly
-                            ? 'bg-slate-950 border-slate-900 text-slate-400'
-                            : 'bg-slate-950 border-emerald-900 text-emerald-400 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500'
-                      }`}
-                    />
-
-                    <span className="text-slate-600 font-mono text-sm">x</span>
-
-                    <input
-                      type="text"
-                      maxLength={2}
-                      disabled={!token || isReadonly}
-                      placeholder="-"
-                      value={inputVal.fora}
-                      onChange={(e) => handleInputChange(jogo.id, 'fora', e.target.value)}
-                      className={`w-12 h-12 text-center text-xl font-black font-mono rounded-xl border transition ${
-                        !token 
-                          ? 'bg-slate-950 border-slate-800/60 text-slate-600 cursor-not-allowed'
-                          : isReadonly
-                            ? 'bg-slate-950 border-slate-900 text-slate-400'
-                            : 'bg-slate-950 border-emerald-900 text-emerald-400 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500'
-                      }`}
-                    />
-
-                  </div>
-
-                  {/* Away Team */}
-                  <div className="flex flex-col items-center flex-1 space-y-2 text-center">
-                    <div className="w-10 h-10 flex items-center justify-center">
-                      {renderBandeira(jogo.time_fora_bandeira, "w-10 h-10 shadow-sm", "text-3xl")}
-                    </div>
-                    <span className="text-xs font-bold text-slate-200 mt-1 max-w-[120px] truncate font-sans">
-                      {jogo.time_fora}
-                    </span>
-                  </div>
-
-                </div>
-
-                {/* Input action panels */}
-                <div className="pt-2 border-t border-slate-900 flex justify-between items-center text-xs">
-                  <div>
-                    {token ? (
-                      userBet ? (
-                        <div className="text-[11px] text-emerald-400/90 font-semibold flex items-center gap-1">
-                          <CheckCircle className="h-3 w-3 inline text-emerald-500" /> Palpitado: {userBet.placar_casa}x{userBet.placar_fora}
-                        </div>
-                      ) : (
-                        <span className="text-[10px] text-slate-500 font-medium">Você ainda não palpitou</span>
-                      )
-                    ) : (
-                      <span className="text-[10px] text-slate-500 font-medium">Faça login para apostar</span>
-                    )}
-                  </div>
-
-                  {/* Guess action button */}
-                  {token && !isReadonly && (
-                    <button
-                      id={`btn-save-palpite-${jogo.id}`}
-                      onClick={() => handleSaveClick(jogo.id)}
-                      disabled={isSaving}
-                      className="group flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-slate-950 font-bold rounded-lg transition transform active:scale-95 text-[11px]"
-                    >
-                      <Save className="h-3 w-3" />
-                      {isSaving ? "Salvando..." : "Salvar"}
-                    </button>
-                  )}
-
-                  {/* Guess badge points feedback if completed or live matches */}
-                  {['ENCERRADO', 'AO_VIVO'].includes(jogo.status) && userBet && (
-                    <div className="flex items-center gap-1.5 font-sans">
-                      <span className="text-[11px] text-slate-400">
-                        {jogo.status === 'AO_VIVO' ? 'Pontos parciais:' : 'Pontuação:'}
-                      </span>
-                      <span className={`px-2.5 py-0.5 rounded font-mono font-extrabold text-[11px] ${
-                        pointsWon && pointsWon > 5 
-                          ? 'bg-yellow-950/80 border border-yellow-700/40 text-yellow-500 shadow-md animate-pulse' 
-                          : pointsWon && pointsWon > 0
-                            ? 'bg-emerald-950/80 border border-emerald-800/40 text-emerald-400'
-                            : 'bg-slate-950/80 border border-slate-800/60 text-slate-500'
-                      }`}>
-                        +{pointsWon || 0} Pts {jogo.status === 'AO_VIVO' ? '🔴' : ''}
-                      </span>
-                    </div>
-                  )}
-
-                  {jogo.status === 'ENCERRADO' && !userBet && (
-                    <span className="text-[10px] text-red-500/80 font-bold bg-red-950/10 border border-red-950/30 px-1.5 py-0.5 rounded">
-                      Sem palpite (-0 Pts)
-                    </span>
-                  )}
-                  {jogo.status === 'AO_VIVO' && !userBet && (
-                    <span className="text-[10px] text-yellow-500/80 font-bold bg-yellow-950/10 border border-yellow-950/30 px-1.5 py-0.5 rounded animate-pulse">
-                      Sem palpite (Parcial)
-                    </span>
-                  )}
-                </div>
-
+        <div className="space-y-8">
+          
+          {/* Section: Pending & Live Games */}
+          {pendingOrLiveGames.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-xs font-black uppercase text-slate-400 tracking-wider">
+                <Unlock className="h-3.5 w-3.5 text-emerald-400" />
+                <span>Disponíveis & Em Andamento</span>
+                <span className="flex-1 h-px bg-slate-800/70 ml-2" />
               </div>
-            );
-          })}
+              <div className="grid gap-5 md:grid-cols-2">
+                {pendingOrLiveGames.map((jogo) => renderMatchCard(jogo))}
+              </div>
+            </div>
+          )}
+
+          {/* Section: Completed Games */}
+          {concludedGames.length > 0 && (
+            <div className="space-y-4 pt-2">
+              <div className="flex items-center gap-2 text-xs font-black uppercase text-slate-400 tracking-wider">
+                <CheckCircle className="h-3.5 w-3.5 text-slate-500" />
+                <span>Resultados Consolidados (Encerrados)</span>
+                <span className="flex-1 h-px bg-slate-800/70 ml-2" />
+              </div>
+              <div className="grid gap-5 md:grid-cols-2 opacity-90 hover:opacity-100 transition duration-150">
+                {concludedGames.map((jogo) => renderMatchCard(jogo))}
+              </div>
+            </div>
+          )}
+
         </div>
       ) : (
         <div className="bg-slate-900/30 border border-dashed border-slate-800 py-16 text-center space-y-2 rounded-2xl">

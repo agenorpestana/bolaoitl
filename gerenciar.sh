@@ -318,6 +318,7 @@ DB_PASSWORD="${DB_PASSWORD}"
 DB_NAME=${DB_NAME}
 NODE_ENV=production
 JWT_SECRET="${SECRET_KEY}"
+DATABASE_URL="mysql://${DB_USER}:${DB_PASSWORD}@localhost:3306/${DB_NAME}"
 EOL
     npm install && npm run build
     PM2_START_DIR="$APP_DIR"
