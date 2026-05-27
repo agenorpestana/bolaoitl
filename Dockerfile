@@ -20,13 +20,10 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Copy built artifacts from stage 1
-COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/database.json* ./
-
-# Install only production dependencies to save storage space
-RUN npm ci --only=production
+# Copy all built assets, configurations, and dependencies from the builder stage
+# This preserves the entire node_modules structure (including the pre-built Prisma client engine)
+# and the crucial schema definitions in /prisma
+COPY --from=builder /app ./
 
 # Expose reverse-proxy routed port
 EXPOSE 3000

@@ -976,8 +976,8 @@ async function initializeDatabase() {
       const mysqlDb = await loadDatabaseFromMySqlWithRetry(5, 3000);
       const fileDb = loadDatabaseFromFile();
 
-      const hasLocalData = fileDb.usuarios.length > 0 || fileDb.palpites.length > 0;
-      const hasMySqlData = mysqlDb.usuarios.length > 0 || mysqlDb.palpites.length > 0;
+      const hasLocalData = fileDb.usuarios.length > 0 || fileDb.palpites.length > 0 || fileDb.jogos.length > 0;
+      const hasMySqlData = mysqlDb.usuarios.length > 0 || mysqlDb.palpites.length > 0 || mysqlDb.jogos.length > 0;
 
       if (hasLocalData && !hasMySqlData) {
         console.log("[MySql Sync] MySQL database is empty, but local JSON file has active data. Seeding MySQL from local database.json...");
@@ -985,7 +985,7 @@ async function initializeDatabase() {
         // Asynchronously sync the file cache into MySQL
         saveDatabase(cachedDb);
       } else {
-        console.log(`[MySql Sync] Cache successfully filled from MySQL: ${mysqlDb.usuarios.length} users, ${mysqlDb.palpites.length} bets.`);
+        console.log(`[MySql Sync] Cache successfully filled from MySQL: ${mysqlDb.usuarios.length} users, ${mysqlDb.palpites.length} bets, ${mysqlDb.jogos.length} games.`);
         cachedDb = mysqlDb;
         // Keep the local file synchronized
         saveDatabaseToFile(cachedDb);
