@@ -15,8 +15,8 @@ interface AdminPanelProps {
 
 export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelProps) {
   const [activeSubTab, setActiveSubTab] = React.useState<'METRICAS' | 'IXC' | 'REGRAS' | 'SOCCER_API' | 'JOGADORES' | 'JOGOS' | 'RELATORIOS' | 'LOGS'>('METRICAS');
-  const [calendarioMode, setCalendarioMode] = React.useState<'COPA_2026' | 'LIBERTADORES' | 'FUTURAS'>('COPA_2026');
-  const [apiFutebolMode, setApiFutebolMode] = React.useState<'COPA_2026' | 'LIBERTADORES' | 'FUTURAS'>('COPA_2026');
+  const [calendarioMode, setCalendarioMode] = React.useState<'COPA_2026' | 'LIBERTADORES' | 'BRASILEIRAO' | 'FUTURAS'>('COPA_2026');
+  const [apiFutebolMode, setApiFutebolMode] = React.useState<'COPA_2026' | 'LIBERTADORES' | 'BRASILEIRAO' | 'FUTURAS'>('COPA_2026');
 
   // Server state caches
   const [metrics, setMetrics] = React.useState<any | null>(null);
@@ -24,10 +24,12 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
   const [jogos, setJogos] = React.useState<Jogo[]>([]);
   const [logs, setLogs] = React.useState<AuditLog[]>([]);
 
-  // Libertadores and Copa do Mundo config and sync states
+  // Libertadores, Copa do Mundo and Brasileirao config and sync states
   const [libertadoresAtivo, setLibertadoresAtivo] = React.useState(false);
   const [copaMundoAtivo, setCopaMundoAtivo] = React.useState(true);
+  const [brasileiraoAtivo, setBrasileiraoAtivo] = React.useState(false);
   const [syncingLibertadores, setSyncingLibertadores] = React.useState(false);
+  const [syncingBrasileirao, setSyncingBrasileirao] = React.useState(false);
   
   // Configurations states
   const [ixcUrl, setIxcUrl] = React.useState("");
@@ -157,6 +159,10 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
 
         if (data.configs_copa_mundo) {
           setCopaMundoAtivo(data.configs_copa_mundo.ativo);
+        }
+
+        if (data.configs_brasileirao) {
+          setBrasileiraoAtivo(data.configs_brasileirao.ativo);
         }
       }
     } catch (err) {}
@@ -584,6 +590,47 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
       showFeedback("Erro ao acessar servidor para sincronização", true);
     } finally {
       setSyncingLibertadores(false);
+    }
+  };
+
+  const handleToggleBrasileirao = async () => {
+    try {
+      const response = await fetch("/api/admin/configs/brasileirao", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ ativo: !brasileiraoAtivo })
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setBrasileiraoAtivo(data.configs_brasileirao.ativo);
+        showFeedback(`Brasileirão Série A para clientes: ${data.configs_brasileirao.ativo ? 'LIBERADO/ATIVO' : 'OCULTO/INATIVO'}`);
+      }
+    } catch (err) {
+      showFeedback("Erro ao alterar ativação do Brasileirão", true);
+    }
+  };
+
+  const handleSyncBrasileirao = async () => {
+    setSyncingBrasileirao(true);
+    try {
+      const response = await fetch("/api/admin/brasileirao/sync", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const data = await response.json();
+      if (response.ok) {
+        showFeedback(data.mensagem || "Sincronização concluída com sucesso!");
+        loadMatches();
+      } else {
+        showFeedback(data.error || "Houve um erro durante a chamada da API.", true);
+      }
+    } catch (err) {
+      showFeedback("Erro ao acessar servidor para sincronização", true);
+    } finally {
+      setSyncingBrasileirao(false);
     }
   };
 
@@ -1098,6 +1145,7 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
             {[
               { id: 'COPA_2026', label: 'Copa do Mundo 2026', icon: Play },
               { id: 'LIBERTADORES', label: 'Copa Libertadores', icon: Trophy },
+              { id: 'BRASILEIRAO', label: 'Brasileirão Série A (ID 71)', icon: Play },
               { id: 'FUTURAS', label: '+ Próximas Competições', icon: Sliders }
             ].map((sub) => {
               const Icon = sub.icon;
@@ -1266,6 +1314,74 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
                   >
                     <RefreshCw className={`h-4 w-4 ${syncingLibertadores ? 'animate-spin' : ''}`} />
                     {syncingLibertadores ? 'Sincronizando Libertadores...' : 'Forçar Sincronização Libertadores'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Subtab Content: BRASILEIRAO */}
+          {apiFutebolMode === 'BRASILEIRAO' && (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-slate-200">Sincronizador Brasileirão Série A 2026</h3>
+                <p className="text-xs text-slate-400">
+                  Configure credenciais de API para carregar partidas e resultados em tempo real para o Brasileirão Série A (ID 71) Season 2026.
+                </p>
+              </div>
+
+              {/* Status Alert Segment */}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="bg-slate-950/60 p-5 rounded-2xl border border-slate-900 flex flex-col justify-between space-y-4">
+                  <div className="space-y-1">
+                    <span className="text-[10px] uppercase font-black tracking-widest text-[#5bc0be]">STATUS SÉRIE A PARA CLIENTES</span>
+                    <h4 className="text-sm font-bold text-slate-200">% Visibilidade do Campeonato</h4>
+                    <p className="text-xs text-slate-405 leading-relaxed pt-1">
+                      Por padrão, o Brasileirão Série A vem desativado para clientes. Acione o botão abaixo para ativar/inibir a visibilidade das rodadas e permitir palpites.
+                    </p>
+                  </div>
+                  <div className="pt-2">
+                    <button
+                      onClick={handleToggleBrasileirao}
+                      className={`px-4 py-2 font-black text-xs rounded-lg transition duration-200 flex items-center gap-1.5 cursor-pointer border ${
+                        brasileiraoAtivo
+                          ? 'bg-emerald-500 text-slate-950 border-emerald-400 hover:bg-emerald-400'
+                          : 'bg-red-950/40 text-red-400 border-red-900/60 hover:bg-red-950 hover:text-red-350'
+                      }`}
+                    >
+                      <Power className="h-4 w-4" />
+                      {brasileiraoAtivo ? 'ATIVADO PARA CLIENTES (Clique para Desativar)' : 'DESATIVADO PARA CLIENTES (Clique para Ativar)'}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-slate-950/60 p-5 rounded-2xl border border-slate-900 space-y-4">
+                  <div>
+                    <span className="text-[10px] uppercase font-black tracking-widest text-indigo-400 font-mono">DADOS DE CONEXÃO DA LIGA</span>
+                    <h4 className="text-sm font-bold text-slate-200 pt-0.5">Parâmetros das Requisições</h4>
+                    <p className="text-xs text-slate-405 leading-relaxed pt-1.5">
+                      • Campeonato ID: <span className="font-mono font-bold text-slate-200">71</span><br />
+                      • Temporada / Season: <span className="font-mono font-bold text-slate-200">2026</span><br />
+                      • Provedor Oficial: <span className="font-bold text-slate-200">API Football (v3.football.api-sports.io)</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Synchronize Match Segment */}
+              <div className="bg-slate-950/40 p-5 rounded-2xl border border-slate-900 space-y-4">
+                <h3 className="text-xs font-black uppercase text-slate-300">Puxar Partidas Brasileirão</h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Puxar os confrontos e scores atualizados do Brasileirão Série A em tempo real. Caso as suas credenciais estejam usando o plano gratuito ou estejam vazias, o sistema utilizará a base fallback com os maiores clássicos brasileiros para que seu teste funcione perfeitamente!
+                </p>
+                <div className="pt-2">
+                  <button
+                    onClick={handleSyncBrasileirao}
+                    disabled={syncingBrasileirao}
+                    className="px-5 py-2.5 bg-yellow-500 hover:bg-yellow-400 disabled:bg-slate-800 disabled:text-slate-500 font-black text-xs text-slate-950 rounded-lg transition flex items-center gap-2 cursor-pointer shadow"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${syncingBrasileirao ? 'animate-spin' : ''}`} />
+                    {syncingBrasileirao ? 'Sincronizando Brasileirão...' : 'Forçar Sincronização Brasileirão Série A'}
                   </button>
                 </div>
               </div>
@@ -1506,6 +1622,7 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
             {[
               { id: 'COPA_2026', label: 'Copa do Mundo 2026', icon: Play },
               { id: 'LIBERTADORES', label: 'Copa Libertadores', icon: Trophy },
+              { id: 'BRASILEIRAO', label: 'Brasileirão Série A (ID 71)', icon: Play },
               { id: 'FUTURAS', label: '+ Próximas Competições', icon: Sliders }
             ].map((sub) => {
               const Icon = sub.icon;
@@ -2011,6 +2128,237 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
                         <Trophy className="h-10 w-10 text-slate-700 mx-auto" />
                         <p className="text-xs">
                           Nenhuma partida da Libertadores foi encontrada na base de dados. Sincronize usando o painel na aba <b>API Futebol</b>!
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Subtab Content: BRASILEIRAO */}
+          {calendarioMode === 'BRASILEIRAO' && (
+            <div className="space-y-6 animate-fadeIn">
+              {/* Header Control Segment */}
+              <div className="bg-slate-950/65 p-4 rounded-xl border border-slate-900 select-none flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Trophy className="h-5 w-5 text-yellow-500" />
+                    <span className="text-sm font-black uppercase text-yellow-500">Varreduras do Calendário - Brasileirão Série A</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    Visualize o calendário do Brasileirão Série A, configure palpites de teste e oficialize os placares reais da rodada.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-bold text-slate-400 shrink-0">Brasileirão ativo para Clientes:</span>
+                  <button
+                    type="button"
+                    onClick={handleToggleBrasileirao}
+                    className={`px-4 py-2 rounded-xl text-xs font-black select-none transition flex items-center gap-2 cursor-pointer ${
+                      brasileiraoAtivo
+                        ? 'bg-emerald-950 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-900/60'
+                        : 'bg-red-950 border border-red-500/40 text-red-400 hover:bg-red-900/60'
+                    }`}
+                  >
+                    <Power className="h-4 w-4" />
+                    {brasileiraoAtivo ? 'ATIVADO' : 'BLOQUEADO'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Instructions and tips box */}
+              <div className="bg-slate-900/30 border border-slate-800/80 p-5 rounded-2xl space-y-3">
+                <h3 className="text-xs font-black uppercase text-slate-300">Testagem do Fluxo de Pontos do Brasileirão</h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Como administrador, use o formulário de <b>Palpites de Teste</b> abaixo para simular apostas sob o seu perfil de administrador. Em seguida, altere e grave o placar real de qualquer jogo para simular o recálculo imediato do ranking!
+                </p>
+                <div className="p-3 bg-slate-950/80 border border-slate-900 rounded-xl flex items-center gap-3">
+                  <ShieldCheck className="h-5 w-5 text-emerald-400 shrink-0" />
+                  <div className="text-[11px] text-slate-450">
+                    O Sincronizador de jogos do Brasileirão Série A e chaves de API estão localizados na aba <b>API Futebol</b> &gt; <b>Brasileirão Série A (ID 71)</b>.
+                  </div>
+                </div>
+              </div>
+
+              {/* Matches list for Brasileirao */}
+              <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden overflow-x-auto shadow">
+                <div className="min-w-[950px]">
+                  <div className="bg-slate-950 text-xs font-black uppercase text-slate-400 px-4 py-3.5 border-b border-slate-900 grid grid-cols-12 gap-2 select-none">
+                    <span className="col-span-2">Data / Hora</span>
+                    <span className="col-span-4 text-center">Partida / Clubes</span>
+                    <span className="col-span-1 text-center font-bold">Placar</span>
+                    <span className="col-span-2 text-center">Status</span>
+                    <span className="col-span-3 text-right">Ações Administrador / Palpite de Teste</span>
+                  </div>
+
+                  <div className="divide-y divide-slate-900/70">
+                    {jogos.filter(j => j.api_id && j.api_id.startsWith("brasileirao_")).length > 0 ? (
+                      jogos
+                        .filter(j => j.api_id && j.api_id.startsWith("brasileirao_"))
+                        .map(jogo => {
+                          const hasTestBet = adminPalpites.find(p => p.jogo_id === jogo.id);
+                          const isEditing = editingMatchId === jogo.id;
+
+                          return (
+                            <div key={jogo.id} className="px-4 py-4 hover:bg-slate-905/35 transition grid grid-cols-12 gap-2 items-center text-xs">
+                              <div className="col-span-2 font-mono text-slate-450">
+                                {new Date(jogo.data_jogo).toLocaleString('pt-BR')}
+                              </div>
+
+                              <div className="col-span-4 flex items-center justify-between px-3">
+                                <div className="flex items-center gap-2 w-[45%] justify-end">
+                                  <span className="font-semibold text-slate-200 truncate">{jogo.time_casa}</span>
+                                  <span className="text-base select-none">{renderBandeira(jogo.time_casa_bandeira)}</span>
+                                </div>
+                                <span className="text-[10px] font-black text-slate-500 uppercase shrink-0">vs</span>
+                                <div className="flex items-center gap-2 w-[45%]">
+                                  <span className="text-base select-none">{renderBandeira(jogo.time_fora_bandeira)}</span>
+                                  <span className="font-semibold text-slate-200 truncate">{jogo.time_fora}</span>
+                                </div>
+                              </div>
+
+                              <div className="col-span-1 text-center font-mono font-bold text-yellow-500">
+                                {jogo.status === 'PENDENTE' ? (
+                                  <span className="text-slate-550">- x -</span>
+                                ) : (
+                                  <span>{jogo.placar_casa} x {jogo.placar_fora}</span>
+                                )}
+                              </div>
+
+                              <div className="col-span-2 text-center select-none">
+                                <span className={`inline-block px-2 py-0.5 text-[9px] font-black rounded ${
+                                  jogo.status === 'PENDENTE' 
+                                    ? 'bg-slate-950 border border-slate-800 text-slate-450' 
+                                    : jogo.status === 'AO_VIVO' 
+                                      ? 'bg-red-950 border border-red-500/50 text-red-400 font-extrabold shadow shadow-red-950' 
+                                      : 'bg-emerald-950 border border-emerald-500/40 text-emerald-450'
+                                }`}>
+                                  {jogo.status === 'PENDENTE' ? '⚽ PENDENTE' : jogo.status === 'AO_VIVO' ? '🚨 AO VIVO' : '🏆 ENCERRADO'}
+                                </span>
+                              </div>
+
+                              <div className="col-span-3">
+                                {isEditing ? (
+                                  <div className="bg-slate-950 p-2 border border-slate-800 rounded-xl space-y-2 text-left">
+                                    <div className="flex items-center justify-center gap-2 font-mono">
+                                      <input
+                                        type="number"
+                                        maxLength={2}
+                                        value={editMatchCasaPlacar}
+                                        onChange={(e) => setEditMatchCasaPlacar(e.target.value)}
+                                        className="w-10 text-center bg-slate-900 border border-slate-700 text-yellow-500 text-xs py-1 rounded-md"
+                                      />
+                                      <span className="text-slate-500">x</span>
+                                      <input
+                                        type="number"
+                                        maxLength={2}
+                                        value={editMatchForaPlacar}
+                                        onChange={(e) => setEditMatchForaPlacar(e.target.value)}
+                                        className="w-10 text-center bg-slate-900 border border-slate-700 text-yellow-500 text-xs py-1 rounded-md"
+                                      />
+                                    </div>
+                                    <select
+                                      value={editMatchStatus}
+                                      onChange={(e: any) => setEditMatchStatus(e.target.value)}
+                                      className="w-full bg-slate-900 border border-slate-700 text-[10px] text-slate-300 rounded px-1.5 py-1"
+                                    >
+                                      <option value="PENDENTE">PENDENTE</option>
+                                      <option value="AO_VIVO">AO_VIVO</option>
+                                      <option value="ENCERRADO">ENCERRADO</option>
+                                    </select>
+                                    <div className="flex gap-1.5 justify-end">
+                                      <button
+                                        onClick={() => setEditingMatchId(null)}
+                                        className="px-2 py-1 bg-slate-800 rounded text-[9px] text-slate-400 hover:text-slate-200"
+                                      >
+                                        Cancelar
+                                      </button>
+                                      <button
+                                        onClick={() => handleSaveMatchScore(jogo.id)}
+                                        className="px-2.5 py-1 bg-yellow-500 rounded text-[9px] font-black text-slate-950 hover:bg-yellow-400"
+                                      >
+                                        Salvar
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-2 text-right">
+                                    <div className="flex gap-1.5 justify-end">
+                                      <button
+                                        onClick={() => {
+                                          setEditingMatchId(jogo.id);
+                                          setEditMatchCasaPlacar(jogo.placar_casa !== null ? String(jogo.placar_casa) : "");
+                                          setEditMatchForaPlacar(jogo.placar_fora !== null ? String(jogo.placar_fora) : "");
+                                          setEditMatchStatus(jogo.status);
+                                        }}
+                                        className="px-2 py-1 bg-slate-900 border border-slate-850 hover:border-slate-700 hover:text-yellow-500 rounded text-[10px] font-semibold text-slate-400 transition cursor-pointer"
+                                      >
+                                        Oficializar Placar
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteMatch(jogo.id)}
+                                        className="p-1 px-2 border border-red-950/60 bg-red-950/20 text-red-400 hover:text-white hover:bg-red-950 rounded font-bold text-[10px] transition cursor-pointer"
+                                        title="Excluir partida do calendário"
+                                      >
+                                        EXCLUIR
+                                      </button>
+                                    </div>
+
+                                    {jogo.status === 'PENDENTE' && (
+                                      <div className="flex items-center justify-end gap-1.5 font-mono">
+                                        <span className="text-[10px] text-slate-450 font-sans mr-1">Palpite Teste:</span>
+                                        <input
+                                          type="number"
+                                          placeholder="C"
+                                          value={testPlacares[jogo.id]?.casa || ""}
+                                          onChange={(e) => setTestPlacares(prev => ({
+                                            ...prev,
+                                            [jogo.id]: { casa: e.target.value, fora: prev[jogo.id]?.fora || "" }
+                                          }))}
+                                          className="w-7 text-center bg-slate-950 border border-slate-850 focus:border-slate-700 text-yellow-500 font-bold text-xs h-6 rounded"
+                                        />
+                                        <span className="text-slate-650 text-[10px]">x</span>
+                                        <input
+                                          type="number"
+                                          placeholder="F"
+                                          value={testPlacares[jogo.id]?.fora || ""}
+                                          onChange={(e) => setTestPlacares(prev => ({
+                                            ...prev,
+                                            [jogo.id]: { casa: prev[jogo.id]?.casa || "", fora: e.target.value }
+                                          }))}
+                                          className="w-7 text-center bg-slate-950 border border-slate-850 focus:border-slate-700 text-yellow-500 font-bold text-xs h-6 rounded"
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => submitTestPrediction(jogo.id)}
+                                          className="p-1 px-2 bg-indigo-600 hover:bg-indigo-500 text-white transition font-bold rounded text-[10px] cursor-pointer"
+                                        >
+                                          SALVAR
+                                        </button>
+                                      </div>
+                                    )}
+
+                                    {hasTestBet && (
+                                      <div className="text-[10px] text-slate-450 flex items-center gap-1.5 justify-end uppercase tracking-tight select-none mt-1">
+                                        <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                        Palpitado de Teste ({hasTestBet.placar_casa} x {hasTestBet.placar_fora})
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })
+                    ) : (
+                      <div className="py-20 text-center text-slate-500 space-y-2">
+                        <Trophy className="h-10 w-10 text-slate-700 mx-auto" />
+                        <p className="text-xs">
+                          Nenhuma partida do Brasileirão Série A foi encontrada na base de dados. Sincronize usando o painel na aba <b>API Futebol</b>!
                         </p>
                       </div>
                     )}

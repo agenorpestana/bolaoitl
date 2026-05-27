@@ -4,9 +4,12 @@ import { Jogo, Palpite } from '../types';
 import { renderBandeira } from './HomePublic';
 
 
-export function getFriendlyRoundName(rdNum: number | string): string {
+export function getFriendlyRoundName(rdNum: number | string, campeonato?: 'COPA_MUNDO' | 'LIBERTADORES' | 'BRASILEIRAO'): string {
   const num = Number(rdNum);
   if (isNaN(num)) return String(rdNum);
+  if (campeonato === 'BRASILEIRAO') {
+    return `Rodada ${num}`;
+  }
   switch (num) {
     case 1: return "Fase de Grupos - Rodada 1";
     case 2: return "Fase de Grupos - Rodada 2";
@@ -20,11 +23,14 @@ export function getFriendlyRoundName(rdNum: number | string): string {
   }
 }
 
-export function getGameCampeonato(jogo: Jogo): 'COPA_MUNDO' | 'LIBERTADORES' {
+export function getGameCampeonato(jogo: Jogo): 'COPA_MUNDO' | 'LIBERTADORES' | 'BRASILEIRAO' {
   if (jogo.api_id) {
     const idLower = jogo.api_id.toLowerCase();
     if (idLower.includes("libertadores")) {
       return 'LIBERTADORES';
+    }
+    if (idLower.includes("brasileirao")) {
+      return 'BRASILEIRAO';
     }
   }
   return 'COPA_MUNDO';
@@ -50,10 +56,12 @@ export default function MatchesSection({
   
   const hasCopaGames = React.useMemo(() => jogos.some(j => getGameCampeonato(j) === 'COPA_MUNDO'), [jogos]);
   const hasLibertadoresGames = React.useMemo(() => jogos.some(j => getGameCampeonato(j) === 'LIBERTADORES'), [jogos]);
+  const hasBrasileiraoGames = React.useMemo(() => jogos.some(j => getGameCampeonato(j) === 'BRASILEIRAO'), [jogos]);
 
-  const [selectedCampeonato, setSelectedCampeonato] = React.useState<'COPA_MUNDO' | 'LIBERTADORES'>(() => {
+  const [selectedCampeonato, setSelectedCampeonato] = React.useState<'COPA_MUNDO' | 'LIBERTADORES' | 'BRASILEIRAO'>(() => {
     if (jogos.some(j => getGameCampeonato(j) === 'COPA_MUNDO')) return 'COPA_MUNDO';
     if (jogos.some(j => getGameCampeonato(j) === 'LIBERTADORES')) return 'LIBERTADORES';
+    if (jogos.some(j => getGameCampeonato(j) === 'BRASILEIRAO')) return 'BRASILEIRAO';
     return 'COPA_MUNDO';
   });
 
@@ -251,7 +259,7 @@ export default function MatchesSection({
         <div className="flex flex-col sm:flex-row gap-1.5 sm:gap-0 sm:items-center justify-between text-[10px] font-bold uppercase">
           <div className="flex items-center gap-1 text-slate-400">
             <span className="bg-slate-950 border border-slate-800 px-2 py-0.5 rounded font-mono">
-              {getFriendlyRoundName(jogo.rodada)}
+              {getFriendlyRoundName(jogo.rodada, getGameCampeonato(jogo))}
             </span>
             <span>•</span>
             <span className="font-mono">
@@ -436,7 +444,7 @@ export default function MatchesSection({
             <Unlock className="h-4 w-4 text-emerald-400" />
           </div>
           <div>
-            <b>Mecânica Automatizada das Rodadas:</b> Atualmente estamos na <span className="text-emerald-400 font-black">{getFriendlyRoundName(currentRound)} (Atual)</span>. Palpites estão autorizados unicamente para esta rodada. As partidas das próximas rodadas serão liberadas para palpite de forma 100% dinâmica assim que findar o último confronto da rodada vigente!
+            <b>Mecânica Automatizada das Rodadas:</b> Atualmente estamos na <span className="text-emerald-400 font-black">{getFriendlyRoundName(currentRound, selectedCampeonato)} (Atual)</span>. Palpites estão autorizados unicamente para esta rodada. As partidas das próximas rodadas serão liberadas para palpite de forma 100% dinâmica assim que findar o último confronto da rodada vigente!
           </div>
         </div>
       )}
@@ -463,6 +471,18 @@ export default function MatchesSection({
         >
           🛰️ Copa Libertadores
         </button>
+        {hasBrasileiraoGames && (
+          <button
+            onClick={() => setSelectedCampeonato('BRASILEIRAO')}
+            className={`flex-1 md:flex-initial px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-wider transition duration-200 ${
+              selectedCampeonato === 'BRASILEIRAO'
+                ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-slate-950 font-black shadow-md shadow-emerald-500/10'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/30'
+            }`}
+          >
+            🇧🇷 Brasileirão Série A
+          </button>
+        )}
       </div>
 
       {/* Filter Options */}
@@ -492,7 +512,7 @@ export default function MatchesSection({
                     : 'bg-slate-900/40 text-slate-400 hover:text-slate-200'
                 }`}
               >
-                {getFriendlyRoundName(rd)}{suffix}
+                {getFriendlyRoundName(rd, selectedCampeonato)}{suffix}
               </button>
             );
           })}

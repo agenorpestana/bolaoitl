@@ -44,6 +44,9 @@ interface LocalDatabase {
   configs_copa_mundo?: {
     ativo: boolean;
   };
+  configs_brasileirao?: {
+    ativo: boolean;
+  };
 }
 
 // ==========================================
@@ -383,6 +386,10 @@ function loadDatabase(): LocalDatabase {
     cachedDb.configs_copa_mundo = { ativo: true };
   }
 
+  if (!cachedDb.configs_brasileirao) {
+    cachedDb.configs_brasileirao = { ativo: false };
+  }
+
   // If we have real Football API games, we automatically hide/purge any initial dummy wc2026_ games that don't have predictions on them
   const hasRealApiGames = cachedDb.jogos.some(j => j.api_id && j.api_id.startsWith("football_api_"));
   if (hasRealApiGames) {
@@ -465,6 +472,9 @@ function loadDatabaseFromFile(): LocalDatabase {
     },
     configs_copa_mundo: {
       ativo: true
+    },
+    configs_brasileirao: {
+      ativo: false
     }
   };
 
@@ -629,7 +639,8 @@ async function saveDatabaseToMySqlIncremental(db: LocalDatabase | null) {
     // 4. Sync Configs (Configuracoes)
     const isLibAtivoStr = db.configs_libertadores?.ativo ? "true" : "false";
     const isCopaAtivoStr = db.configs_copa_mundo?.ativo !== false ? "true" : "false";
-    const ixcChaveCompound = `${db.configs_ixc.chave || ""}|libertadores:${isLibAtivoStr}|copa:${isCopaAtivoStr}`;
+    const isBrasileiraoAtivoStr = db.configs_brasileirao?.ativo ? "true" : "false";
+    const ixcChaveCompound = `${db.configs_ixc.chave || ""}|libertadores:${isLibAtivoStr}|copa:${isCopaAtivoStr}|brasileirao:${isBrasileiraoAtivoStr}`;
 
     await prisma.configuracoes.upsert({
       where: { id: 1 },
@@ -828,6 +839,15 @@ async function loadDatabaseFromMySql(): Promise<LocalDatabase> {
     ixcChaveOriginal = ixcChaveOriginal.replace("|copa:false", "");
   }
 
+  let isBrasileiraoAtivo = false;
+  if (ixcChaveOriginal.includes("|brasileirao:true")) {
+    isBrasileiraoAtivo = true;
+    ixcChaveOriginal = ixcChaveOriginal.replace("|brasileirao:true", "");
+  } else if (ixcChaveOriginal.includes("|brasileirao:false")) {
+    isBrasileiraoAtivo = false;
+    ixcChaveOriginal = ixcChaveOriginal.replace("|brasileirao:false", "");
+  }
+
   return {
     usuarios: dbUsuarios.map(u => ({
       id: u.id,
@@ -905,6 +925,9 @@ async function loadDatabaseFromMySql(): Promise<LocalDatabase> {
     },
     configs_copa_mundo: {
       ativo: isCopaAtivo
+    },
+    configs_brasileirao: {
+      ativo: isBrasileiraoAtivo
     }
   };
 }
@@ -1653,13 +1676,17 @@ async function startServer() {
 
     const isLibActive = db.configs_libertadores?.ativo === true;
     const isCopaActive = db.configs_copa_mundo?.ativo !== false;
+    const isBrasileiraoActive = db.configs_brasileirao?.ativo === true;
     let filteredGames = sortedGames;
     if (!isAdmin) {
       if (!isLibActive) {
         filteredGames = filteredGames.filter(j => !j.api_id || !j.api_id.startsWith("libertadores_"));
       }
+      if (!isBrasileiraoActive) {
+        filteredGames = filteredGames.filter(j => !j.api_id || !j.api_id.startsWith("brasileirao_"));
+      }
       if (!isCopaActive) {
-        filteredGames = filteredGames.filter(j => j.api_id && j.api_id.startsWith("libertadores_"));
+        filteredGames = filteredGames.filter(j => j.api_id && (j.api_id.startsWith("libertadores_") || j.api_id.startsWith("brasileirao_")));
       }
     }
 
@@ -2104,7 +2131,8 @@ async function startServer() {
       configs_points: db.configs_points,
       configs_football: db.configs_football,
       configs_libertadores: db.configs_libertadores || { ativo: false },
-      configs_copa_mundo: db.configs_copa_mundo || { ativo: true }
+      configs_copa_mundo: db.configs_copa_mundo || { ativo: true },
+      configs_brasileirao: db.configs_brasileirao || { ativo: false }
     });
   });
 
@@ -2196,6 +2224,21 @@ async function startServer() {
     saveDatabase(db);
     addLog("Admin (Suporte)", "TOGGLE_COPA_MUNDO", `Alterou ativação da Copa do Mundo para clientes para: ${db.configs_copa_mundo.ativo}`, req);
     res.json({ success: true, configs_copa_mundo: db.configs_copa_mundo });
+  });
+
+  // Save Brasileirão configurations
+  app.post("/api/admin/configs/brasileirao", verifyAdminToken, (req: any, res) => {
+    const db = loadDatabase();
+    const { ativo } = req.body;
+    if (ativo !== undefined) {
+      if (!db.configs_brasileirao) {
+        db.configs_brasileirao = { ativo: false };
+      }
+      db.configs_brasileirao.ativo = Boolean(ativo);
+    }
+    saveDatabase(db);
+    addLog("Admin (Suporte)", "TOGGLE_BRASILEIRAO", `Alterou ativação do Brasileirão para clientes para: ${db.configs_brasileirao.ativo}`, req);
+    res.json({ success: true, configs_brasileirao: db.configs_brasileirao });
   });
 
   // Sync today's Libertadores games from Football API with high quality fallback
@@ -2403,6 +2446,216 @@ async function startServer() {
       mensagem: isFallback
         ? `Sincronização executada com sucesso através de dados fallback dos jogos de hoje e desta semana da Libertadores! Adicionados: ${addedCount}, Atualizados: ${updatedCount}.`
         : `Sincronização efetuada diretamente via API Football! ${fixtures.length} confrontos da Copa Libertadores obtidos da API.`
+    });
+  });
+
+  // Sync today's Brasileirão games from Football API with high quality fallback
+  app.post("/api/admin/brasileirao/sync", verifyAdminToken, async (req: any, res) => {
+    const db = loadDatabase();
+    const apiKey = db.configs_football.key;
+    const apiUrl = db.configs_football.url || "https://v3.football.api-sports.io";
+    const isRealApi = apiKey && apiKey.trim() !== "" && !apiKey.toLowerCase().includes("dummy") && apiKey.length > 10;
+
+    let fixtures: any[] = [];
+    let isFallback = true;
+
+    if (isRealApi) {
+      try {
+        console.log(`[Brasileirão API] Fetching fixtures for League 71 (Brasileirão Série A) Season 2026...`);
+        const response = await axios.get(`${apiUrl}/fixtures`, {
+          params: {
+            league: "71",
+            season: "2026"
+          },
+          headers: {
+            "x-apisports-key": apiKey
+          },
+          timeout: 12000
+        });
+
+        if (response.data && response.data.response && response.data.response.length > 0) {
+          fixtures = response.data.response;
+          isFallback = false;
+        }
+      } catch (err: any) {
+        console.error("[Brasileirão API] Failed real sync, falling back...", err.message);
+      }
+    }
+
+    let addedCount = 0;
+    let updatedCount = 0;
+
+    const FALLBACK_BRASILEIRAO = [
+      {
+        api_id: "brasileirao_fallback_301",
+        time_casa: "Palmeiras",
+        time_fora: "Flamengo",
+        time_casa_bandeira: "🐷",
+        time_fora_bandeira: "🦅",
+        data_jogo: "2026-05-30T16:00:00Z",
+        status: "PENDENTE",
+        rodada: 1
+      },
+      {
+        api_id: "brasileirao_fallback_302",
+        time_casa: "Corinthians",
+        time_fora: "São Paulo",
+        time_casa_bandeira: "🦅",
+        time_fora_bandeira: "🇾🇪",
+        data_jogo: "2026-05-30T18:30:00Z",
+        status: "PENDENTE",
+        rodada: 1
+      },
+      {
+        api_id: "brasileirao_fallback_303",
+        time_casa: "Atlético-MG",
+        time_fora: "Cruzeiro",
+        time_casa_bandeira: "🐔",
+        time_fora_bandeira: "🦊",
+        data_jogo: "2026-05-31T16:00:00Z",
+        status: "PENDENTE",
+        rodada: 1
+      },
+      {
+        api_id: "brasileirao_fallback_304",
+        time_casa: "Grêmio",
+        time_fora: "Internacional",
+        time_casa_bandeira: "🇪🇪",
+        time_fora_bandeira: "🇦🇹",
+        data_jogo: "2026-05-31T18:00:00Z",
+        status: "PENDENTE",
+        rodada: 1
+      },
+      {
+        api_id: "brasileirao_fallback_305",
+        time_casa: "Fluminense",
+        time_fora: "Botafogo",
+        time_casa_bandeira: "🇭🇺",
+        time_fora_bandeira: "⭐️",
+        data_jogo: "2026-06-01T20:00:00Z",
+        status: "PENDENTE",
+        rodada: 1
+      },
+      {
+        api_id: "brasileirao_fallback_306",
+        time_casa: "Vasco",
+        time_fora: "Bahia",
+        time_casa_bandeira: "💢",
+        time_fora_bandeira: "🔵",
+        data_jogo: "2026-06-02T21:00:00Z",
+        status: "PENDENTE",
+        rodada: 1
+      }
+    ];
+
+    if (isFallback) {
+      for (const item of FALLBACK_BRASILEIRAO) {
+        let existing = db.jogos.find(j => j.api_id === item.api_id);
+        if (!existing) {
+          existing = db.jogos.find(j => 
+            (normalizeTeamName(j.time_casa) === normalizeTeamName(item.time_casa) && normalizeTeamName(j.time_fora) === normalizeTeamName(item.time_fora)) ||
+            (normalizeTeamName(j.time_casa) === normalizeTeamName(item.time_fora) && normalizeTeamName(j.time_fora) === normalizeTeamName(item.time_casa))
+          );
+        }
+        if (!existing) {
+          const newId = db.jogos.length > 0 ? Math.max(...db.jogos.map(j => j.id)) + 1 : 1;
+          db.jogos.push({
+            id: newId,
+            api_id: item.api_id,
+            time_casa: item.time_casa,
+            time_fora: item.time_fora,
+            time_casa_bandeira: item.time_casa_bandeira,
+            time_fora_bandeira: item.time_fora_bandeira,
+            data_jogo: item.data_jogo,
+            placar_casa: null,
+            placar_fora: null,
+            status: item.status as any,
+            rodada: item.rodada
+          });
+          addedCount++;
+        } else {
+          existing.time_casa = item.time_casa;
+          existing.time_fora = item.time_fora;
+          existing.time_casa_bandeira = item.time_casa_bandeira;
+          existing.time_fora_bandeira = item.time_fora_bandeira;
+          existing.data_jogo = item.data_jogo;
+          updatedCount++;
+        }
+      }
+    } else {
+      for (const item of fixtures) {
+        const apiId = `brasileirao_soccer_${item.fixture.id}`;
+        const timeCasa = item.teams.home.name;
+        const timeFora = item.teams.away.name;
+        const timeCasaBandeira = item.teams.home.logo || "🏳️";
+        const timeForaBandeira = item.teams.away.logo || "🏳️";
+
+        const dataJogoStr = item.fixture.date;
+        let placarCasa: number | null = null;
+        let placarFora: number | null = null;
+        if (item.goals.home !== null && item.goals.home !== undefined) {
+          placarCasa = Number(item.goals.home);
+        }
+        if (item.goals.away !== null && item.goals.away !== undefined) {
+          placarFora = Number(item.goals.away);
+        }
+
+        const shortStatus = item.fixture.status.short;
+        let mappedStatus = "PENDENTE";
+        if (["FT", "AET", "PEN"].includes(shortStatus)) {
+          mappedStatus = "ENCERRADO";
+        } else if (["1H", "HT", "2H", "ET", "P", "BT", "LIVE"].includes(shortStatus)) {
+          mappedStatus = "AO_VIVO";
+        }
+
+        let existing = db.jogos.find(j => j.api_id === apiId);
+        if (!existing) {
+          existing = db.jogos.find(j => 
+            (normalizeTeamName(j.time_casa) === normalizeTeamName(timeCasa) && normalizeTeamName(j.time_fora) === normalizeTeamName(timeFora)) ||
+            (normalizeTeamName(j.time_casa) === normalizeTeamName(timeFora) && normalizeTeamName(j.time_fora) === normalizeTeamName(timeCasa))
+          );
+        }
+        if (!existing) {
+          const newId = db.jogos.length > 0 ? Math.max(...db.jogos.map(j => j.id)) + 1 : 1;
+          db.jogos.push({
+            id: newId,
+            api_id: apiId,
+            time_casa: timeCasa,
+            time_fora: timeFora,
+            time_casa_bandeira: timeCasaBandeira,
+            time_fora_bandeira: timeForaBandeira,
+            data_jogo: dataJogoStr,
+            placar_casa: placarCasa,
+            placar_fora: placarFora,
+            status: mappedStatus as any,
+            rodada: item.league?.round ? (parseInt(item.league.round.replace(/\D/g, "")) || 1) : 1
+          });
+          addedCount++;
+        } else {
+          existing.time_casa = timeCasa;
+          existing.time_fora = timeFora;
+          existing.time_casa_bandeira = timeCasaBandeira;
+          existing.time_fora_bandeira = timeForaBandeira;
+          existing.data_jogo = dataJogoStr;
+          existing.placar_casa = placarCasa;
+          existing.placar_fora = placarFora;
+          existing.status = mappedStatus as any;
+          if (item.league?.round) {
+            existing.rodada = parseInt(item.league.round.replace(/\D/g, "")) || 1;
+          }
+          updatedCount++;
+        }
+      }
+    }
+
+    saveDatabase(db);
+    addLog("Admin (Suporte)", "SYNC_BRASILEIRAO", `Sincronizou jogos Brasileirão Série A: ${addedCount} adicionados, ${updatedCount} atualizados`, req);
+
+    res.json({
+      success: true,
+      mensagem: isFallback
+        ? `Sincronização executada com sucesso através de dados fallback dos clássicos da rodada do Brasileirão Série A! Adicionados: ${addedCount}, Atualizados: ${updatedCount}.`
+        : `Sincronização efetuada diretamente via API Football! ${fixtures.length} confrontos do Brasileirão Série A obtidos da API.`
     });
   });
 
