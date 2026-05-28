@@ -96,7 +96,12 @@ export default function MatchesSection({
   const [gameLoading, setGameLoading] = React.useState<{ [gameId: number]: { stats: boolean; lineups: boolean; events: boolean } }>({});
   const [gameError, setGameError] = React.useState<{ [gameId: number]: { stats: string | null; lineups: string | null; events: string | null } }>({});
 
+  const lastStatsFetchRef = React.useRef<{ [gameId: number]: number }>({});
+  const lastLineupsFetchRef = React.useRef<{ [gameId: number]: number }>({});
+  const lastEventsFetchRef = React.useRef<{ [gameId: number]: number }>({});
+
   const fetchStatsForGame = React.useCallback(async (gameId: number) => {
+    lastStatsFetchRef.current[gameId] = Date.now();
     setGameLoading(prev => ({ 
       ...prev, 
       [gameId]: { 
@@ -140,6 +145,7 @@ export default function MatchesSection({
   }, []);
 
   const fetchLineupsForGame = React.useCallback(async (gameId: number) => {
+    lastLineupsFetchRef.current[gameId] = Date.now();
     setGameLoading(prev => ({ 
       ...prev, 
       [gameId]: { 
@@ -183,6 +189,7 @@ export default function MatchesSection({
   }, []);
 
   const fetchEventsForGame = React.useCallback(async (gameId: number) => {
+    lastEventsFetchRef.current[gameId] = Date.now();
     setGameLoading(prev => ({ 
       ...prev, 
       [gameId]: { 
@@ -228,7 +235,6 @@ export default function MatchesSection({
   // Use refs to avoid reconstructing intervals on re-render
   const expandedRef = React.useRef(expandedGameIds);
   const jogosRef = React.useRef(jogos);
-  const lastLineupsFetchRef = React.useRef<{ [gameId: number]: number }>({});
 
   React.useEffect(() => {
     expandedRef.current = expandedGameIds;
@@ -244,26 +250,42 @@ export default function MatchesSection({
       const allGames = jogosRef.current;
       if (!activeIds || activeIds.size === 0) return;
 
+      const now = Date.now();
+
       activeIds.forEach(gameId => {
         const game = allGames.find(g => g.id === gameId);
         if (!game) return;
 
-        const isLive = game.status === 'AO_VIVO' || ["1H", "HT", "2H", "ET", "P", "BT", "LIVE", "SUSP", "INT"].includes(game.status_detalhado || '');
-        if (isLive) {
-          console.log(`[Live Match Active Refresh] Fetching stats and events for game: ${gameId}`);
-          fetchStatsForGame(gameId);
-          fetchEventsForGame(gameId);
+        // Check if game is in progress (live) or if kickoff is in the past and not yet finished
+        const isLive = game.status === 'AO_VIVO' || 
+                       ["1H", "HT", "2H", "ET", "P", "BT", "LIVE", "SUSP", "INT"].includes((game.status_detalhado || '').toUpperCase()) ||
+                       (new Date(game.data_jogo).getTime() <= now && game.status !== 'ENCERRADO');
 
-          const now = Date.now();
-          const lastLineupFetchTime = lastLineupsFetchRef.current[gameId] || 0;
-          if (now - lastLineupFetchTime >= 15 * 60 * 1000) {
-            console.log(`[Live Match Active Refresh] Fetching lineups for game: ${gameId}`);
-            fetchLineupsForGame(gameId);
-            lastLineupsFetchRef.current[gameId] = now;
-          }
+        // Stats interval: 1 minute for live matches, 24 hours otherwise
+        const statsInterval = isLive ? 60 * 1000 : 24 * 60 * 60 * 1000;
+        const lastStats = lastStatsFetchRef.current[gameId] || 0;
+        if (now - lastStats >= statsInterval) {
+          console.log(`[Auto-Poll] Running stats fetch for game ${gameId} (isLive: ${isLive})`);
+          fetchStatsForGame(gameId);
+        }
+
+        // Events interval: 1 minute for live matches, 24 hours otherwise
+        const eventsInterval = isLive ? 60 * 1000 : 24 * 60 * 60 * 1000;
+        const lastEvents = lastEventsFetchRef.current[gameId] || 0;
+        if (now - lastEvents >= eventsInterval) {
+          console.log(`[Auto-Poll] Running events fetch for game ${gameId} (isLive: ${isLive})`);
+          fetchEventsForGame(gameId);
+        }
+
+        // Lineups interval: 15 minutes for live matches, 1 hour otherwise
+        const lineupsInterval = isLive ? 15 * 60 * 1000 : 60 * 60 * 1000;
+        const lastLineups = lastLineupsFetchRef.current[gameId] || 0;
+        if (now - lastLineups >= lineupsInterval) {
+          console.log(`[Auto-Poll] Running lineups fetch for game ${gameId} (isLive: ${isLive})`);
+          fetchLineupsForGame(gameId);
         }
       });
-    }, 60000);
+    }, 10000); // Check every 10 seconds for precise time window evaluations
 
     return () => clearInterval(interval);
   }, [fetchStatsForGame, fetchEventsForGame, fetchLineupsForGame]);
@@ -275,9 +297,15 @@ export default function MatchesSection({
         next.delete(jogoId);
       } else {
         next.add(jogoId);
+        
+        // Record immediate fetch timestamps to avoid instant repoll on the 10s interval tick
+        const now = Date.now();
+        lastStatsFetchRef.current[jogoId] = now;
+        lastLineupsFetchRef.current[jogoId] = now;
+        lastEventsFetchRef.current[jogoId] = now;
+
         fetchStatsForGame(jogoId);
         fetchLineupsForGame(jogoId);
-        lastLineupsFetchRef.current[jogoId] = Date.now();
         fetchEventsForGame(jogoId);
         setGameActiveTab(tabPrev => ({ ...tabPrev, [jogoId]: 'stats' }));
       }
