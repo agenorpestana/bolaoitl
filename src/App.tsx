@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
   Trophy, Award, Calendar, Users, Sliders, Play, PlusCircle, FileSpreadsheet, Shield, 
-  Dribbble, LogOut, CheckCircle, Info, Heart
+  Dribbble, LogOut, CheckCircle, Info, Heart, Smartphone, Download, Share2, X
 } from 'lucide-react';
 
 import Header from './components/Header';
@@ -50,6 +50,49 @@ export default function App() {
   const showAlert = (msg: string, isErr = false) => {
     setAlertInfo({ msg, isErr });
     setTimeout(() => setAlertInfo(null), 4000);
+  };
+
+  // PWA states and install hooks
+  const [deferredPrompt, setDeferredPrompt] = React.useState<any>(null);
+  const [showInstallBanner, setShowInstallBanner] = React.useState<boolean>(false);
+  const [isIOS, setIsIOS] = React.useState<boolean>(false);
+
+  React.useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallBanner(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    // Detect standalone mode or iOS platform
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+    const userAgent = window.navigator.userAgent.toLowerCase();
+    const isIosDevice = /iphone|ipad|ipod/.test(userAgent);
+    
+    if (isIosDevice && !isStandalone) {
+      setIsIOS(true);
+      setShowInstallBanner(true);
+    }
+
+    // If already launched in standalone (PWA app mode), make sure banner remains hidden
+    if (isStandalone) {
+      setShowInstallBanner(false);
+    }
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallPWA = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log(`PWA installation choice: ${outcome}`);
+    setDeferredPrompt(null);
+    setShowInstallBanner(false);
   };
 
   // Sync caches from Express API
@@ -223,6 +266,46 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
       />
+
+      {/* PWA Installation Assist Banner */}
+      {showInstallBanner && (
+        <div className="bg-gradient-to-r from-slate-900 via-brand-blue-dark/20 to-slate-900 border-y border-brand-blue-light/20 py-3.5 px-4 shadow-xl flex flex-col md:flex-row gap-3 md:gap-0 items-start md:items-center justify-between text-xs font-sans relative z-40">
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-8 rounded-full bg-slate-950 border border-brand-blue/35 flex items-center justify-center shrink-0">
+              <Smartphone className="h-4 w-4 text-brand-blue-vibrant animate-pulse" />
+            </div>
+            <div>
+              <p className="font-black text-slate-100 flex items-center gap-1.5 leading-none uppercase tracking-wide">
+                Baixar Aplicativo <span className="bg-brand-blue-vibrant/20 text-[9px] font-mono px-1.5 py-0.5 rounded text-brand-blue-vibrant font-black">PWA</span>
+              </p>
+              <p className="text-[11px] text-slate-400 mt-1 font-semibold">
+                Instale o Cartola ITL na tela inicial para palpitar muito mais rápido e prático no seu celular!
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 w-full md:w-auto self-end md:self-auto justify-end">
+            {deferredPrompt ? (
+              <button
+                onClick={handleInstallPWA}
+                className="bg-brand-blue-vibrant hover:bg-brand-blue-accent text-slate-950 font-black px-4 py-2 rounded-lg text-xs tracking-wider uppercase transition duration-150 flex items-center gap-1.5 shrink-0 cursor-pointer shadow-md shadow-brand-blue-vibrant/20"
+              >
+                <Download className="h-3.5 w-3.5" /> Instalar Aplicativo 📲
+              </button>
+            ) : isIOS ? (
+              <span className="text-[10px] sm:text-xs bg-slate-950/80 border border-slate-800 text-yellow-500 font-extrabold px-3 py-2 rounded-lg flex items-center gap-1.5">
+                <Share2 className="h-3.5 w-3.5 shrink-0 text-yellow-500" /> No iPhone: toque em "Compartilhar" 📤 e escolha "Adicionar à Tela de Início"
+              </span>
+            ) : null}
+            <button
+              onClick={() => setShowInstallBanner(false)}
+              className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-200 transition shrink-0 ml-1"
+              title="Ignorar aviso"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Content Canvas */}
       <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative">
