@@ -96,7 +96,7 @@ export default function MatchesSection({
   const [gameLoading, setGameLoading] = React.useState<{ [gameId: number]: { stats: boolean; lineups: boolean; events: boolean } }>({});
   const [gameError, setGameError] = React.useState<{ [gameId: number]: { stats: string | null; lineups: string | null; events: string | null } }>({});
 
-  const fetchStatsForGame = async (gameId: number) => {
+  const fetchStatsForGame = React.useCallback(async (gameId: number) => {
     setGameLoading(prev => ({ 
       ...prev, 
       [gameId]: { 
@@ -137,9 +137,9 @@ export default function MatchesSection({
         } 
       }));
     }
-  };
+  }, []);
 
-  const fetchLineupsForGame = async (gameId: number) => {
+  const fetchLineupsForGame = React.useCallback(async (gameId: number) => {
     setGameLoading(prev => ({ 
       ...prev, 
       [gameId]: { 
@@ -180,9 +180,9 @@ export default function MatchesSection({
         } 
       }));
     }
-  };
+  }, []);
 
-  const fetchEventsForGame = async (gameId: number) => {
+  const fetchEventsForGame = React.useCallback(async (gameId: number) => {
     setGameLoading(prev => ({ 
       ...prev, 
       [gameId]: { 
@@ -223,7 +223,50 @@ export default function MatchesSection({
         } 
       }));
     }
-  };
+  }, []);
+
+  // Use refs to avoid reconstructing intervals on re-render
+  const expandedRef = React.useRef(expandedGameIds);
+  const jogosRef = React.useRef(jogos);
+  const lastLineupsFetchRef = React.useRef<{ [gameId: number]: number }>({});
+
+  React.useEffect(() => {
+    expandedRef.current = expandedGameIds;
+  }, [expandedGameIds]);
+
+  React.useEffect(() => {
+    jogosRef.current = jogos;
+  }, [jogos]);
+
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      const activeIds = expandedRef.current;
+      const allGames = jogosRef.current;
+      if (!activeIds || activeIds.size === 0) return;
+
+      activeIds.forEach(gameId => {
+        const game = allGames.find(g => g.id === gameId);
+        if (!game) return;
+
+        const isLive = game.status === 'AO_VIVO' || ["1H", "HT", "2H", "ET", "P", "BT", "LIVE", "SUSP", "INT"].includes(game.status_detalhado || '');
+        if (isLive) {
+          console.log(`[Live Match Active Refresh] Fetching stats and events for game: ${gameId}`);
+          fetchStatsForGame(gameId);
+          fetchEventsForGame(gameId);
+
+          const now = Date.now();
+          const lastLineupFetchTime = lastLineupsFetchRef.current[gameId] || 0;
+          if (now - lastLineupFetchTime >= 15 * 60 * 1000) {
+            console.log(`[Live Match Active Refresh] Fetching lineups for game: ${gameId}`);
+            fetchLineupsForGame(gameId);
+            lastLineupsFetchRef.current[gameId] = now;
+          }
+        }
+      });
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, [fetchStatsForGame, fetchEventsForGame, fetchLineupsForGame]);
 
   const toggleGameExpanded = (jogoId: number) => {
     setExpandedGameIds(prev => {
@@ -234,6 +277,7 @@ export default function MatchesSection({
         next.add(jogoId);
         fetchStatsForGame(jogoId);
         fetchLineupsForGame(jogoId);
+        lastLineupsFetchRef.current[jogoId] = Date.now();
         fetchEventsForGame(jogoId);
         setGameActiveTab(tabPrev => ({ ...tabPrev, [jogoId]: 'stats' }));
       }
