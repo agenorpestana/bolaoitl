@@ -707,8 +707,12 @@ export default function MatchesSection({
                     })}
                   </div>
                 ) : (
-                  <div className="text-center py-6 text-slate-500 text-[10px]">
-                    Nenhuma estatística disponível para esta partida.
+                  <div className="text-center py-7 px-4 text-slate-550 space-y-1.5">
+                    <Clock className="h-5 w-5 text-slate-600 mx-auto animate-pulse" />
+                    <div className="font-black text-[10px] text-slate-400 uppercase tracking-wider">Aguardando início do jogo</div>
+                    <p className="text-[9px] text-slate-500 max-w-[260px] mx-auto leading-relaxed font-medium">
+                      As estatísticas ao vivo de posse, chutes e cartões estarão disponíveis assim que a bola começar a rolar!
+                    </p>
                   </div>
                 )}
               </div>
@@ -848,8 +852,12 @@ export default function MatchesSection({
                     )}
                   </div>
                 ) : (
-                  <div className="text-center py-6 text-slate-500 text-[10px]">
-                    Nenhuma escalação disponível para esta partida.
+                  <div className="text-center py-7 px-4 text-slate-550 space-y-1.5">
+                    <Users className="h-5 w-5 text-slate-600 mx-auto animate-pulse" />
+                    <div className="font-black text-[10px] text-slate-400 uppercase tracking-wider">Aguardando escalação oficial</div>
+                    <p className="text-[9px] text-slate-500 max-w-[260px] mx-auto leading-relaxed font-medium">
+                      As escalações oficiais (titulares, reservas e técnicos) são publicadas por volta de 1 hora antes da partida. 
+                    </p>
                   </div>
                 )}
               </div>

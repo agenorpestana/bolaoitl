@@ -2296,6 +2296,17 @@ async function startServer() {
         return res.status(404).json({ error: "Partida não encontrada." });
       }
 
+      // Check if the game has started or is concluded
+      const nowMs = Date.now();
+      const kickoffMs = new Date(jogo.data_jogo).getTime();
+      const isConcluded = jogo.status === 'ENCERRADO' || ['FT', 'AET', 'PEN', 'CANC', 'ABD', 'AWD', 'WO', 'PST', 'CANX'].includes((jogo.status_detalhado || '').toUpperCase());
+      const isLive = jogo.status === 'AO_VIVO' || ['1H', 'HT', '2H', 'ET', 'P', 'BT', 'LIVE', 'SUSP', 'INT'].includes((jogo.status_detalhado || '').toUpperCase());
+      const hasStarted = isLive || isConcluded || nowMs >= kickoffMs;
+
+      if (!hasStarted) {
+        return res.json({ source: "awaiting", data: [] });
+      }
+
       const apiKey = db.configs_football?.key;
       const apiUrl = db.configs_football?.url || "https://v3.football.api-sports.io";
       const isRealApi = apiKey && apiKey.trim() !== "" && !apiKey.toLowerCase().includes("dummy") && apiKey.length > 10;
@@ -2343,6 +2354,18 @@ async function startServer() {
         return res.status(404).json({ error: "Partida não encontrada." });
       }
 
+      const nowMs = Date.now();
+      const kickoffMs = new Date(jogo.data_jogo).getTime();
+      const timeToKickoffMin = (kickoffMs - nowMs) / (60 * 1000);
+      const isConcluded = jogo.status === 'ENCERRADO' || ['FT', 'AET', 'PEN', 'CANC', 'ABD', 'AWD', 'WO', 'PST', 'CANX'].includes((jogo.status_detalhado || '').toUpperCase());
+      const isLive = jogo.status === 'AO_VIVO' || ['1H', 'HT', '2H', 'ET', 'P', 'BT', 'LIVE', 'SUSP', 'INT'].includes((jogo.status_detalhado || '').toUpperCase());
+      const hasStarted = isLive || isConcluded || nowMs >= kickoffMs;
+
+      // If the match is in the future and kickoff is more than 60 minutes away:
+      if (!hasStarted && timeToKickoffMin > 60) {
+        return res.json({ source: "awaiting", data: null });
+      }
+
       const apiKey = db.configs_football?.key;
       const apiUrl = db.configs_football?.url || "https://v3.football.api-sports.io";
       const isRealApi = apiKey && apiKey.trim() !== "" && !apiKey.toLowerCase().includes("dummy") && apiKey.length > 10;
@@ -2352,18 +2375,6 @@ async function startServer() {
         const match = jogo.api_id?.match(/^(?:football_api_|libertadores_soccer_|brasileirao_soccer_|soccer_)?(\d+)$/);
         if (match) fixtureId = parseInt(match[1]);
       }
-
-      // Load deterministic mock lineup from our gameEnricher module
-      const { enrichGameDetails } = require("./src/utils/gameEnricher");
-      const enrichedJogo = enrichGameDetails(jogo);
-      const fallbackLineup = enrichedJogo.escalacao || {
-        titular_casa: [],
-        titular_fora: [],
-        reservas_casa: [],
-        reservas_fora: [],
-        tecnico_casa: "",
-        tecnico_fora: ""
-      };
 
       if (isRealApi && fixtureId) {
         try {
@@ -2377,12 +2388,38 @@ async function startServer() {
           if (response.data && response.data.response && response.data.response.length > 0) {
             const apiLineups = response.data.response;
             const parsedLineup = parseApiLineup(apiLineups, jogo);
-            return res.json({ source: "api", data: parsedLineup });
+            const hasPlayers = (parsedLineup.titular_casa && parsedLineup.titular_casa.length > 0) || 
+                              (parsedLineup.titular_fora && parsedLineup.titular_fora.length > 0);
+            if (hasPlayers) {
+              return res.json({ source: "api", data: parsedLineup });
+            }
           }
         } catch (err: any) {
           console.error("[API Proxy Error] Error fetching lineups from API-Sports:", err.message);
         }
+
+        // If it is a future match and the real API is enabled but has not returned actual lineups yet, return empty/awaiting
+        if (!hasStarted) {
+          return res.json({ source: "awaiting", data: null });
+        }
       }
+
+      // If it is a future match, do not return fictitious mock rosters
+      if (!hasStarted) {
+        return res.json({ source: "awaiting", data: null });
+      }
+
+      // Load deterministic mock lineup from our gameEnricher module only for active or completed games
+      const { enrichGameDetails } = require("./src/utils/gameEnricher");
+      const enrichedJogo = enrichGameDetails(jogo);
+      const fallbackLineup = enrichedJogo.escalacao || {
+        titular_casa: [],
+        titular_fora: [],
+        reservas_casa: [],
+        reservas_fora: [],
+        tecnico_casa: "",
+        tecnico_fora: ""
+      };
 
       return res.json({ source: "fallback", data: fallbackLineup });
     } catch (err: any) {
