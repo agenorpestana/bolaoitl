@@ -95,20 +95,60 @@ export function calculateStandings(jogos: Jogo[]): StandingRow[] {
   });
 }
 
+function cleanTeamName(name: string): string {
+  if (!name) return "";
+  return name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // remove accents
+    .replace(/\b(fc|sc|sd|cd|de|del|la|atletico|esporte|sporting|deportivo|club|clube|independiente|independ|riva|mvd|uru|lp|de quito|quito|barranquilla)\b/g, "")
+    .replace(/[^a-z0-9]/g, "") // remove special characters & spaces
+    .trim();
+}
+
+export function guessGroupForTeam(teamName: string): string {
+  const cleanedInput = cleanTeamName(teamName);
+  if (!cleanedInput) return "Grupo A";
+
+  // 1. Try exact cleaned match
+  for (const [tName, group] of Object.entries(TEAM_GROUPS)) {
+    if (cleanTeamName(tName) === cleanedInput) {
+      return group;
+    }
+  }
+
+  // 2. Try substring match (if input is a substring of mapped team, or vice versa)
+  for (const [tName, group] of Object.entries(TEAM_GROUPS)) {
+    const cleanedMapped = cleanTeamName(tName);
+    if (cleanedMapped.includes(cleanedInput) || cleanedInput.includes(cleanedMapped)) {
+      return group;
+    }
+  }
+
+  // 3. Fallback: Distribute deterministically based on character code sum to avoid "Grupo Geral"
+  // and keep exactly 8 groups (A to H) nicely distributed
+  const sum = Array.from(teamName).reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const groups = ["Grupo A", "Grupo B", "Grupo C", "Grupo D", "Grupo E", "Grupo F", "Grupo G", "Grupo H"];
+  return groups[sum % groups.length];
+}
+
 export function groupStandings(standings: StandingRow[]): { [groupName: string]: StandingRow[] } {
   const groups: { [groupName: string]: StandingRow[] } = {};
 
   standings.forEach(row => {
-    const group = TEAM_GROUPS[row.time] || "Grupo Geral";
+    const group = guessGroupForTeam(row.time);
     if (!groups[group]) {
       groups[group] = [];
     }
     groups[group].push(row);
   });
 
-  // Limit each group view to 4 teams typical of FIFA setup
-  Object.keys(groups).forEach(gName => {
-    groups[gName] = groups[gName].sort((a, b) => {
+  // Sort the keys so they appear A, B, C, D, E, F, G, H
+  const sortedGroups: { [groupName: string]: StandingRow[] } = {};
+  const sortedKeys = Object.keys(groups).sort();
+  
+  sortedKeys.forEach(gName => {
+    sortedGroups[gName] = groups[gName].sort((a, b) => {
       if (b.pontos !== a.pontos) return b.pontos - a.pontos;
       if (b.vitorias !== a.vitorias) return b.vitorias - a.vitorias;
       if (b.saldo !== a.saldo) return b.saldo - a.saldo;
@@ -116,9 +156,5 @@ export function groupStandings(standings: StandingRow[]): { [groupName: string]:
     });
   });
 
-  return groups;
-}
-
-export function guessGroupForTeam(teamName: string): string {
-  return TEAM_GROUPS[teamName] || "Grupo A";
+  return sortedGroups;
 }
