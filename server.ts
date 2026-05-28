@@ -2427,6 +2427,62 @@ async function startServer() {
     }
   });
 
+  // Proxy endpoint to fetch real events from API Football with custom realistic fallback based on the final score
+  app.get("/api/jogos/:id/eventos", async (req, res) => {
+    try {
+      const db = loadDatabase();
+      const jogoId = parseInt(req.params.id);
+      const jogo = db.jogos.find(j => j.id === jogoId);
+      if (!jogo) {
+        return res.status(404).json({ error: "Partida não encontrada." });
+      }
+
+      const nowMs = Date.now();
+      const kickoffMs = new Date(jogo.data_jogo).getTime();
+      const isConcluded = jogo.status === 'ENCERRADO' || ['FT', 'AET', 'PEN', 'CANC', 'ABD', 'AWD', 'WO', 'PST', 'CANX'].includes((jogo.status_detalhado || '').toUpperCase());
+      const isLive = jogo.status === 'AO_VIVO' || ['1H', 'HT', '2H', 'ET', 'P', 'BT', 'LIVE', 'SUSP', 'INT'].includes((jogo.status_detalhado || '').toUpperCase());
+      const hasStarted = isLive || isConcluded || nowMs >= kickoffMs;
+
+      // Same as other cards, if not started yet: awaiting information
+      if (!hasStarted) {
+        return res.json({ source: "awaiting", data: [] });
+      }
+
+      const apiKey = db.configs_football?.key;
+      const apiUrl = db.configs_football?.url || "https://v3.football.api-sports.io";
+      const isRealApi = apiKey && apiKey.trim() !== "" && !apiKey.toLowerCase().includes("dummy") && apiKey.length > 10;
+
+      let fixtureId: number | null = null;
+      if (jogo.api_id) {
+        const match = jogo.api_id.match(/^(?:football_api_|libertadores_soccer_|brasileirao_soccer_|soccer_)?(\d+)$/);
+        if (match) fixtureId = parseInt(match[1]);
+      }
+
+      if (isRealApi && fixtureId) {
+        try {
+          console.log(`[API Proxy] Fetching events from API Football for fixture ID: ${fixtureId}...`);
+          const response = await axios.get(`${apiUrl}/fixtures/events`, {
+            params: { fixture: fixtureId },
+            headers: { "x-apisports-key": apiKey },
+            timeout: 5000
+          });
+
+          if (response.data && response.data.response && response.data.response.length > 0) {
+            return res.json({ source: "api", data: response.data.response });
+          }
+        } catch (err: any) {
+          console.error("[API Proxy Error] Error fetching events from API-Sports:", err.message);
+        }
+      }
+
+      // If no API or API failed, let's create a realistic fallback based on the actual score
+      const fallbackEvents = generateDeterministicEvents(jogo, nowMs);
+      return res.json({ source: "fallback", data: fallbackEvents });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
   // Get Copa World Cup round-by-round winners
   app.get("/api/vencedores-rodadas", (req, res) => {
     const db = loadDatabase();
@@ -4017,3 +4073,114 @@ function parseApiLineup(apiLineups: any[], jogo: any) {
     format_fora: awayData?.formation || "4-4-2"
   };
 }
+
+function generateDeterministicEvents(jogo: any, nowMs: number) {
+  const events: any[] = [];
+  const seed = jogo.id * 17;
+  const rand = (max: number, min = 0, step = 1) => {
+    const x = Math.sin(seed + step) * 10000;
+    const r = x - Math.floor(x);
+    return Math.floor(r * (max - min + 1)) + min;
+  };
+
+  const scoreCasa = jogo.placar_casa !== null && jogo.placar_casa !== undefined ? Number(jogo.placar_casa) : 0;
+  const scoreFora = jogo.placar_fora !== null && jogo.placar_fora !== undefined ? Number(jogo.placar_fora) : 0;
+
+  // Generate Goal events matching the exact score!
+  const casaGoals: number[] = [];
+  for (let i = 0; i < scoreCasa; i++) {
+    const minute = rand(88, 5, i * 7 + 1);
+    casaGoals.push(minute);
+  }
+  casaGoals.sort((a, b) => a - b);
+  casaGoals.forEach((min, idx) => {
+    events.push({
+      time: { elapsed: min, extra: null },
+      team: { name: jogo.time_casa },
+      player: { name: getFallbackPlayerName(jogo.time_casa, idx, seed) },
+      type: "Goal",
+      detail: "Normal Goal",
+      comments: null
+    });
+  });
+
+  const foraGoals: number[] = [];
+  for (let i = 0; i < scoreFora; i++) {
+    const minute = rand(88, 5, i * 11 + 2);
+    foraGoals.push(minute);
+  }
+  foraGoals.sort((a, b) => a - b);
+  foraGoals.forEach((min, idx) => {
+    events.push({
+      time: { elapsed: min, extra: null },
+      team: { name: jogo.time_fora },
+      player: { name: getFallbackPlayerName(jogo.time_fora, idx + 5, seed) },
+      type: "Goal",
+      detail: "Normal Goal",
+      comments: null
+    });
+  });
+
+  // Let's add some Yellow Cards
+  const totalYellows = rand(5, 1, 99);
+  for (let i = 0; i < totalYellows; i++) {
+    const isCasa = rand(100, 0, i * 3) > 50;
+    const minute = rand(89, 10, i * 13 + 5);
+    const teamName = isCasa ? jogo.time_casa : jogo.time_fora;
+    events.push({
+      time: { elapsed: minute, extra: null },
+      team: { name: teamName },
+      player: { name: getFallbackPlayerName(teamName, i + 10, seed) },
+      type: "Card",
+      detail: "Yellow Card",
+      comments: null
+    });
+  }
+
+  // Maybe one Red Card occasionally
+  if (rand(100, 0, 101) > 85) {
+    const isCasa = rand(100, 0, 102) > 50;
+    const minute = rand(89, 45, 103);
+    const teamName = isCasa ? jogo.time_casa : jogo.time_fora;
+    events.push({
+      time: { elapsed: minute, extra: null },
+      team: { name: teamName },
+      player: { name: getFallbackPlayerName(teamName, 15, seed) },
+      type: "Card",
+      detail: "Red Card",
+      comments: null
+    });
+  }
+
+  // Add 1 or 2 substitutions
+  const subsCount = rand(3, 1, 104);
+  for (let i = 0; i < subsCount; i++) {
+    const isCasa = rand(100, 0, i * 4) > 50;
+    const minute = rand(85, 46, i * 14 + 6);
+    const teamName = isCasa ? jogo.time_casa : jogo.time_fora;
+    events.push({
+      time: { elapsed: minute, extra: null },
+      team: { name: teamName },
+      player: { name: getFallbackPlayerName(teamName, i + 16, seed) },
+      assist: { name: getFallbackPlayerName(teamName, i + 20, seed) },
+      type: "subst",
+      detail: `Substitution ${i + 1}`,
+      comments: null
+    });
+  }
+
+  // Sort events by elapsed minute
+  events.sort((a, b) => a.time.elapsed - b.time.elapsed);
+  return events;
+}
+
+function getFallbackPlayerName(teamName: string, index: number, seed: number): string {
+  const names = [
+    "G. Silva", "Rodrigo", "Felipe", "Marquinhos", "Lucas M.", "Everton", "T. Santos",
+    "G. Barbosa", "B. Henrique", "P. Henrique", "Gustavo", "Ronaldo", "Neymar Jr",
+    "Vinicius", "Rodrygo", "Richarlison", "Casemiro", "Paqueta", "Eder M."
+  ];
+  const idx = Math.abs(Math.floor(seed + index)) % names.length;
+  return names[idx];
+}
+

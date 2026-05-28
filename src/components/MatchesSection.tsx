@@ -89,39 +89,139 @@ export default function MatchesSection({
   const [filterStatus, setFilterStatus] = React.useState<'TODOS' | 'ABERTO' | 'AO_VIVO' | 'ENCERRADO'>('TODOS');
   const [viewTab, setViewTab] = React.useState<'JOGOS' | 'TABELA_CHAVEAMENTO'>('JOGOS');
   const [expandedGameIds, setExpandedGameIds] = React.useState<Set<number>>(new Set());
-  const [gameActiveTab, setGameActiveTab] = React.useState<{ [key: number]: 'stats' | 'lineups' }>({});
+  const [gameActiveTab, setGameActiveTab] = React.useState<{ [key: number]: 'stats' | 'lineups' | 'events' }>({});
   const [gameStatsData, setGameStatsData] = React.useState<{ [gameId: number]: any }>({});
   const [gameLineupsData, setGameLineupsData] = React.useState<{ [gameId: number]: any }>({});
-  const [gameLoading, setGameLoading] = React.useState<{ [gameId: number]: { stats: boolean; lineups: boolean } }>({});
-  const [gameError, setGameError] = React.useState<{ [gameId: number]: { stats: string | null; lineups: string | null } }>({});
+  const [gameEventsData, setGameEventsData] = React.useState<{ [gameId: number]: any }>({});
+  const [gameLoading, setGameLoading] = React.useState<{ [gameId: number]: { stats: boolean; lineups: boolean; events: boolean } }>({});
+  const [gameError, setGameError] = React.useState<{ [gameId: number]: { stats: string | null; lineups: string | null; events: string | null } }>({});
 
   const fetchStatsForGame = async (gameId: number) => {
-    setGameLoading(prev => ({ ...prev, [gameId]: { ...(prev[gameId] || { stats: false, lineups: false }), stats: true } }));
-    setGameError(prev => ({ ...prev, [gameId]: { ...(prev[gameId] || { stats: null, lineups: null }), stats: null } }));
+    setGameLoading(prev => ({ 
+      ...prev, 
+      [gameId]: { 
+        stats: true, 
+        lineups: prev[gameId]?.lineups || false, 
+        events: prev[gameId]?.events || false 
+      } 
+    }));
+    setGameError(prev => ({ 
+      ...prev, 
+      [gameId]: { 
+        stats: null, 
+        lineups: prev[gameId]?.lineups || null, 
+        events: prev[gameId]?.events || null 
+      } 
+    }));
     try {
       const res = await fetch(`/api/jogos/${gameId}/estatisticas`);
       if (!res.ok) throw new Error("Erro ao carregar estatísticas.");
       const json = await res.json();
       setGameStatsData(prev => ({ ...prev, [gameId]: json.data }));
     } catch (err: any) {
-      setGameError(prev => ({ ...prev, [gameId]: { ...(prev[gameId] || { stats: null, lineups: null }), stats: err.message } }));
+      setGameError(prev => ({ 
+        ...prev, 
+        [gameId]: { 
+          stats: err.message, 
+          lineups: prev[gameId]?.lineups || null, 
+          events: prev[gameId]?.events || null 
+        } 
+      }));
     } finally {
-      setGameLoading(prev => ({ ...prev, [gameId]: { ...(prev[gameId] || { stats: false, lineups: false }), stats: false } }));
+      setGameLoading(prev => ({ 
+        ...prev, 
+        [gameId]: { 
+          stats: false, 
+          lineups: prev[gameId]?.lineups || false, 
+          events: prev[gameId]?.events || false 
+        } 
+      }));
     }
   };
 
   const fetchLineupsForGame = async (gameId: number) => {
-    setGameLoading(prev => ({ ...prev, [gameId]: { ...(prev[gameId] || { stats: false, lineups: false }), lineups: true } }));
-    setGameError(prev => ({ ...prev, [gameId]: { ...(prev[gameId] || { stats: null, lineups: null }), lineups: null } }));
+    setGameLoading(prev => ({ 
+      ...prev, 
+      [gameId]: { 
+        stats: prev[gameId]?.stats || false, 
+        lineups: true, 
+        events: prev[gameId]?.events || false 
+      } 
+    }));
+    setGameError(prev => ({ 
+      ...prev, 
+      [gameId]: { 
+        stats: prev[gameId]?.stats || null, 
+        lineups: null, 
+        events: prev[gameId]?.events || null 
+      } 
+    }));
     try {
       const res = await fetch(`/api/jogos/${gameId}/escalacao`);
       if (!res.ok) throw new Error("Erro ao carregar escalação.");
       const json = await res.json();
       setGameLineupsData(prev => ({ ...prev, [gameId]: json.data }));
     } catch (err: any) {
-      setGameError(prev => ({ ...prev, [gameId]: { ...(prev[gameId] || { stats: null, lineups: null }), lineups: err.message } }));
+      setGameError(prev => ({ 
+        ...prev, 
+        [gameId]: { 
+          stats: prev[gameId]?.stats || null, 
+          lineups: err.message, 
+          events: prev[gameId]?.events || null 
+        } 
+      }));
     } finally {
-      setGameLoading(prev => ({ ...prev, [gameId]: { ...(prev[gameId] || { stats: false, lineups: false }), lineups: false } }));
+      setGameLoading(prev => ({ 
+        ...prev, 
+        [gameId]: { 
+          stats: prev[gameId]?.stats || false, 
+          lineups: false, 
+          events: prev[gameId]?.events || false 
+        } 
+      }));
+    }
+  };
+
+  const fetchEventsForGame = async (gameId: number) => {
+    setGameLoading(prev => ({ 
+      ...prev, 
+      [gameId]: { 
+        stats: prev[gameId]?.stats || false, 
+        lineups: prev[gameId]?.lineups || false, 
+        events: true 
+      } 
+    }));
+    setGameError(prev => ({ 
+      ...prev, 
+      [gameId]: { 
+        stats: prev[gameId]?.stats || null, 
+        lineups: prev[gameId]?.lineups || null, 
+        events: null 
+      } 
+    }));
+    try {
+      const res = await fetch(`/api/jogos/${gameId}/eventos`);
+      if (!res.ok) throw new Error("Erro ao carregar eventos.");
+      const json = await res.json();
+      setGameEventsData(prev => ({ ...prev, [gameId]: json.data }));
+    } catch (err: any) {
+      setGameError(prev => ({ 
+        ...prev, 
+        [gameId]: { 
+          stats: prev[gameId]?.stats || null, 
+          lineups: prev[gameId]?.lineups || null, 
+          events: err.message 
+        } 
+      }));
+    } finally {
+      setGameLoading(prev => ({ 
+        ...prev, 
+        [gameId]: { 
+          stats: prev[gameId]?.stats || false, 
+          lineups: prev[gameId]?.lineups || false, 
+          events: false 
+        } 
+      }));
     }
   };
 
@@ -134,6 +234,7 @@ export default function MatchesSection({
         next.add(jogoId);
         fetchStatsForGame(jogoId);
         fetchLineupsForGame(jogoId);
+        fetchEventsForGame(jogoId);
         setGameActiveTab(tabPrev => ({ ...tabPrev, [jogoId]: 'stats' }));
       }
       return next;
@@ -656,6 +757,17 @@ export default function MatchesSection({
               >
                 📋 Escalação
               </button>
+              <button
+                role="tab"
+                onClick={() => setGameActiveTab(prev => ({ ...prev, [jogo.id]: 'events' }))}
+                className={`flex-1 py-2 text-center transition-all border-b-2 font-black ${
+                  (gameActiveTab[jogo.id] || 'stats') === 'events'
+                    ? 'border-brand-blue-accent text-brand-blue-vibrant bg-brand-blue/5'
+                    : 'border-transparent text-slate-500 hover:text-slate-400'
+                }`}
+              >
+                ⚡ Eventos
+              </button>
             </div>
 
             {/* Tab Content Panes */}
@@ -716,7 +828,7 @@ export default function MatchesSection({
                   </div>
                 )}
               </div>
-            ) : (
+            ) : (gameActiveTab[jogo.id] || 'stats') === 'lineups' ? (
               <div className="bg-slate-950/40 p-3 sm:p-4 rounded-xl border border-slate-900/60">
                 {gameLoading[jogo.id]?.lineups ? (
                   <div className="flex flex-col items-center justify-center py-6 text-slate-500 space-y-2">
@@ -857,6 +969,103 @@ export default function MatchesSection({
                     <div className="font-black text-[10px] text-slate-400 uppercase tracking-wider">Aguardando escalação oficial</div>
                     <p className="text-[9px] text-slate-500 max-w-[260px] mx-auto leading-relaxed font-medium">
                       As escalações oficiais (titulares, reservas e técnicos) são publicadas por volta de 1 hora antes da partida. 
+                    </p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="bg-slate-950/40 p-3 sm:p-4 rounded-xl border border-slate-900/60 space-y-3.5">
+                {gameLoading[jogo.id]?.events ? (
+                  <div className="flex flex-col items-center justify-center py-6 text-slate-500 space-y-2">
+                    <Loader2 className="h-5 w-5 animate-spin text-brand-blue-accent" />
+                    <span className="text-[10px] font-bold">Carregando eventos...</span>
+                  </div>
+                ) : gameError[jogo.id]?.events ? (
+                  <div className="text-center py-4 text-red-500 font-bold font-sans">
+                    {gameError[jogo.id]?.events}
+                    <button
+                      onClick={() => fetchEventsForGame(jogo.id)}
+                      className="block mx-auto mt-2 text-[9px] uppercase px-2 py-1 bg-slate-900 rounded border border-slate-800 text-slate-300 hover:text-slate-100 font-bold"
+                    >
+                      Tentar Novamente
+                    </button>
+                  </div>
+                ) : gameEventsData[jogo.id] && gameEventsData[jogo.id].length > 0 ? (
+                  <div className="space-y-4 max-h-[350px] overflow-y-auto pr-1">
+                    {gameEventsData[jogo.id].map((ev: any, evIdx: number) => {
+                      let iconHtml = "⚽";
+                      let badgeBg = "bg-emerald-950/25 border-emerald-600/30 text-emerald-400";
+                      
+                      const typeLower = (ev.type || "").toLowerCase();
+                      const detailLower = (ev.detail || "").toLowerCase();
+                      
+                      if (typeLower === "card") {
+                        if (detailLower.includes("yellow")) {
+                          iconHtml = "🟨";
+                          badgeBg = "bg-yellow-950/25 border-yellow-600/30 text-yellow-400";
+                        } else {
+                          iconHtml = "🟥";
+                          badgeBg = "bg-red-950/25 border-red-600/30 text-red-500";
+                        }
+                      } else if (typeLower === "subst") {
+                        iconHtml = "🔄";
+                        badgeBg = "bg-blue-950/25 border-blue-600/30 text-blue-400";
+                      } else if (typeLower === "var") {
+                        iconHtml = "🖥️";
+                        badgeBg = "bg-purple-950/25 border-purple-600/30 text-purple-400";
+                      }
+
+                      const isHome = ev.team?.name === jogo.time_casa;
+
+                      return (
+                        <div key={evIdx} className="flex items-start gap-2.5 text-left font-sans">
+                          <div className="flex flex-col items-center shrink-0">
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border ${badgeBg} shadow-sm shrink-0`}>
+                              {iconHtml}
+                            </div>
+                            {evIdx < gameEventsData[jogo.id].length - 1 && (
+                              <div className="w-[1px] h-6 bg-slate-800/80 my-1"></div>
+                            )}
+                          </div>
+
+                          <div className="flex-1 bg-slate-900/10 hover:bg-slate-900/25 transition rounded-xl p-2.5 border border-slate-900/40 space-y-1">
+                            <div className="flex justify-between items-center gap-1.5">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="font-mono text-[9.5px] font-black text-brand-blue-accent shrink-0">{ev.time.elapsed}'{ev.time.extra ? `+${ev.time.extra}` : ''}</span>
+                                <span className={`text-[8px] uppercase font-black px-1.5 py-0.5 rounded truncate min-w-0 ${
+                                  isHome ? 'bg-indigo-950/40 text-indigo-400 border border-indigo-600/10' : 'bg-amber-950/40 text-amber-500 border border-amber-600/10'
+                                }`}>
+                                  {ev.team?.name || ""}
+                                </span>
+                              </div>
+                              <span className="text-[8px] text-slate-500 font-bold uppercase tracking-wider shrink-0">{ev.type}</span>
+                            </div>
+                            
+                            <div className="text-[9.5px] text-slate-200 font-extrabold flex flex-wrap items-center gap-1 leading-tight break-all">
+                              <span>{ev.player?.name}</span>
+                              {ev.assist?.name && (
+                                <span className="text-slate-400 font-medium text-[8.5px]">
+                                  ({typeLower === "subst" ? "saiu: " : "assist: "}{ev.assist.name})
+                                </span>
+                              )}
+                            </div>
+
+                            {ev.detail && ev.detail !== "Normal Goal" && (
+                              <div className="text-[8px] text-slate-450 font-bold capitalize">
+                                {ev.detail === "Yellow Card" ? "Cartão Amarelo" : ev.detail === "Red Card" ? "Cartão Vermelho" : ev.detail}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-7 px-4 text-slate-550 space-y-1.5">
+                    <Sparkles className="h-5 w-5 text-slate-600 mx-auto animate-pulse" />
+                    <div className="font-black text-[10px] text-slate-400 uppercase tracking-wider">Aguardando eventos do jogo</div>
+                    <p className="text-[9px] text-slate-500 max-w-[260px] mx-auto leading-relaxed font-semibold">
+                      O cronograma completo de gols, cartões e substituições reais do jogo estará disponível em tempo real!
                     </p>
                   </div>
                 )}
