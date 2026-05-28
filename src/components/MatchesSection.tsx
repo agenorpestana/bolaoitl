@@ -15,6 +15,21 @@ export function getFriendlyRoundName(rdNum: number | string, campeonato?: 'COPA_
   if (campeonato === 'BRASILEIRAO') {
     return `Rodada ${num}`;
   }
+  if (campeonato === 'LIBERTADORES') {
+    switch (num) {
+      case 1: return "Fase de Grupos - Rodada 1";
+      case 2: return "Fase de Grupos - Rodada 2";
+      case 3: return "Fase de Grupos - Rodada 3";
+      case 4: return "Fase de Grupos - Rodada 4";
+      case 5: return "Fase de Grupos - Rodada 5";
+      case 6: return "Fase de Grupos - Rodada 6";
+      case 7: return "Oitavas de Final";
+      case 8: return "Quartas de Final";
+      case 9: return "Semifinal";
+      case 10: return "Grande Final";
+      default: return `Rodada ${num}`;
+    }
+  }
   switch (num) {
     case 1: return "Fase de Grupos - Rodada 1";
     case 2: return "Fase de Grupos - Rodada 2";
@@ -175,22 +190,32 @@ export default function MatchesSection({
 
   const isAvailableOrLive = React.useCallback((jogo: Jogo): boolean => {
     if (jogo.status === 'AO_VIVO') return true;
+    if (["1H", "HT", "2H", "ET", "P", "BT", "LIVE", "SUSP", "INT"].includes(jogo.status_detalhado || '')) return true;
     if (jogo.status === 'PENDENTE' && isPastGame(jogo)) {
       const kickoff = new Date(jogo.data_jogo).getTime();
       const now = new Date(dataServidor || new Date().toISOString()).getTime();
       const elapsedMins = (now - kickoff) / (1000 * 60);
-      return elapsedMins < 105;
+      return elapsedMins < 135;
     }
     return jogo.status === 'PENDENTE' && !isPastGame(jogo);
   }, [isPastGame, dataServidor]);
 
   const isConcludedOrExpired = React.useCallback((jogo: Jogo): boolean => {
     if (jogo.status === 'ENCERRADO') return true;
-    if (jogo.status === 'PENDENTE' && isPastGame(jogo)) {
+    if (["FT", "AET", "PEN", "CANC", "ABD", "AWD", "WO"].includes(jogo.status_detalhado || '')) return true;
+    
+    if (isPastGame(jogo)) {
       const kickoff = new Date(jogo.data_jogo).getTime();
       const now = new Date(dataServidor || new Date().toISOString()).getTime();
       const elapsedMins = (now - kickoff) / (1000 * 60);
-      return elapsedMins >= 105;
+      
+      // If past 135 minutes (2 hours 15 mins), and is not explicitly formatted live, treat as concluded/expired
+      if (elapsedMins >= 135) {
+        const isExplicitLive = ["1H", "HT", "2H", "ET", "P", "BT", "LIVE", "SUSP", "INT"].includes(jogo.status_detalhado || '');
+        if (!isExplicitLive) {
+          return true;
+        }
+      }
     }
     return false;
   }, [isPastGame, dataServidor]);
@@ -259,6 +284,17 @@ export default function MatchesSection({
     return `${hours}h ${mins}m restantes`;
   };
 
+  const isGameActuallyLive = React.useCallback((jogo: Jogo): boolean => {
+    if (jogo.status === 'AO_VIVO') {
+      return !isConcludedOrExpired(jogo);
+    }
+    if (["1H", "HT", "2H", "ET", "P", "BT", "LIVE", "SUSP", "INT"].includes(jogo.status_detalhado || '')) return true;
+    if (jogo.status === 'PENDENTE' && isPastGame(jogo)) {
+      return !isConcludedOrExpired(jogo);
+    }
+    return false;
+  }, [isPastGame, isConcludedOrExpired]);
+
   // Filtered games list calculation
   const filteredGames = React.useMemo(() => {
     return championshipJogos.filter(jogo => {
@@ -268,25 +304,30 @@ export default function MatchesSection({
       if (filterStatus === 'ABERTO') {
         matchesStatus = jogo.status === 'PENDENTE' && !isMatchLocked(jogo);
       } else if (filterStatus === 'AO_VIVO') {
-        matchesStatus = isAvailableOrLive(jogo) && isPastGame(jogo);
+        matchesStatus = isGameActuallyLive(jogo);
       } else if (filterStatus === 'ENCERRADO') {
         matchesStatus = isConcludedOrExpired(jogo);
       } else if (filterStatus === 'TODOS') {
-        // If we are looking at the current/active round, hide older/expired games by default
-        // so they do not clutter the betting deck and move entirely to the "Encerrados" filter status.
-        if (activeRodada === currentRound) {
-          matchesStatus = !isConcludedOrExpired(jogo);
-        }
+        // Show everything: live games, upcoming, and finished ones of active round
+        matchesStatus = true;
       }
 
       return matchesRound && matchesStatus;
     });
-  }, [championshipJogos, activeRodada, filterStatus, dataServidor, currentRound, isConcludedOrExpired, isAvailableOrLive, isPastGame]);
+  }, [championshipJogos, activeRodada, filterStatus, dataServidor, currentRound, isConcludedOrExpired, isGameActuallyLive]);
 
-  // Split into active/pending matches versus finished matches as requested
-  const pendingOrLiveGames = React.useMemo(() => {
-    return filteredGames.filter(jogo => isAvailableOrLive(jogo));
-  }, [filteredGames, isAvailableOrLive]);
+  // Split into live matches, upcoming matches, and finished matches
+  const liveGamesList = React.useMemo(() => {
+    return filteredGames.filter(jogo => isGameActuallyLive(jogo));
+  }, [filteredGames, isGameActuallyLive]);
+
+  const upcomingGamesList = React.useMemo(() => {
+    return filteredGames.filter(jogo => 
+      jogo.status === 'PENDENTE' && 
+      !isPastGame(jogo) && 
+      !isGameActuallyLive(jogo)
+    );
+  }, [filteredGames, isPastGame, isGameActuallyLive]);
 
   const concludedGames = React.useMemo(() => {
     return filteredGames.filter(jogo => isConcludedOrExpired(jogo));
@@ -306,7 +347,7 @@ export default function MatchesSection({
     const isSuspended = jogo.status_detalhado === 'SUSP';
     const isPostponed = jogo.status_detalhado === 'PST';
 
-    const isGameLive = jogo.status === 'AO_VIVO' || (jogo.status === 'PENDENTE' && isPastGame(jogo) && !isConcludedOrExpired(jogo));
+    const isGameLive = isGameActuallyLive(jogo);
 
     return (
       <div 
@@ -333,25 +374,28 @@ export default function MatchesSection({
           </div>
 
           {isGameLive ? (
-            <span className="self-start sm:self-auto flex items-center gap-1 bg-red-950/80 border border-red-800/40 text-red-500 px-2.5 py-0.5 rounded animate-pulse font-sans">
-              <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
-              Ao Vivo • {STATUS_LABELS[jogo.status_detalhado || "1H"] || jogo.status_detalhado || "Em Andamento"} ({jogo.placar_casa ?? 0}x{jogo.placar_fora ?? 0})
+            <span className="self-start sm:self-auto flex items-center gap-1.5 bg-red-600 border border-red-500 text-white px-3 py-1 rounded-full text-[10px] sm:text-[11px] font-black tracking-wide shadow-md shadow-red-900/30 font-sans">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-100 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+              </span>
+              AO VIVO • {STATUS_LABELS[jogo.status_detalhado || "1H"] || jogo.status_detalhado || "EM ANDAMENTO"}
             </span>
           ) : isCanceled ? (
-            <span className="self-start sm:self-auto bg-red-950/40 border border-red-500/40 text-red-400 px-2.5 py-0.5 rounded font-sans">
+            <span className="self-start sm:self-auto bg-red-950/40 border border-red-550/40 text-red-400 px-2.5 py-1 rounded text-[10px] font-bold font-sans">
               Partida Cancelada
             </span>
           ) : isSuspended ? (
-            <span className="self-start sm:self-auto bg-yellow-950/40 border border-yellow-500/40 text-yellow-400 px-2.5 py-0.5 rounded font-sans">
+            <span className="self-start sm:self-auto bg-yellow-950/40 border border-yellow-500/40 text-yellow-400 px-2.5 py-1 rounded text-[10px] font-bold font-sans">
               Partida Suspensa
             </span>
           ) : isPostponed ? (
-            <span className="self-start sm:self-auto bg-slate-950 border border-slate-805 text-slate-400 px-2.5 py-0.5 rounded font-sans">
+            <span className="self-start sm:self-auto bg-slate-950 border border-slate-800 text-slate-400 px-2.5 py-1 rounded text-[10px] font-bold font-sans">
               Partida Adiada
             </span>
           ) : jogo.status === 'ENCERRADO' ? (
-            <span className="self-start sm:self-auto bg-slate-950 border border-slate-800 text-slate-400 px-2 py-0.5 rounded font-bold font-sans">
-              {STATUS_LABELS[jogo.status_detalhado || "FT"] || jogo.status_detalhado || "Encerrado"} ({jogo.placar_casa}x{jogo.placar_fora})
+            <span className="self-start sm:self-auto bg-slate-800/80 border border-slate-700 text-slate-200 px-2.5 py-1 rounded text-[10px] font-black tracking-wide font-sans">
+              {STATUS_LABELS[jogo.status_detalhado || "FT"] || jogo.status_detalhado || "FINALIZADO"}
             </span>
           ) : isReadonly ? (
             <span className="self-start sm:self-auto text-yellow-500 bg-yellow-950/30 border border-yellow-950/60 px-2 py-0.5 rounded flex items-center gap-1 font-sans">
@@ -377,44 +421,61 @@ export default function MatchesSection({
             </span>
           </div>
 
-          {/* Guess Input grid */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            
-            <input
-              type="text"
-              maxLength={2}
-              disabled={!token || isReadonly || isBlocked || isCanceled}
-              placeholder="-"
-              value={inputVal.casa}
-              onChange={(e) => handleInputChange(jogo.id, 'casa', e.target.value)}
-              className={`w-9 h-9 sm:w-11 sm:h-11 md:w-12 md:h-12 text-center text-base sm:text-lg md:text-xl font-black font-mono rounded-xl border transition ${
-                !token 
-                  ? 'bg-slate-950 border-slate-800/60 text-slate-600 cursor-not-allowed'
-                  : (isReadonly || isBlocked || isCanceled)
-                    ? 'bg-slate-950 border-slate-900 text-slate-500 cursor-not-allowed'
-                    : 'bg-slate-950 border-brand-blue-light text-brand-blue-vibrant focus:border-brand-blue-accent focus:ring-1 focus:ring-brand-blue-accent'
-              }`}
-            />
+          {/* Real Scoreboard (for Live/Ended games) or Prediction Input fields */}
+          {(isGameLive || jogo.status === 'ENCERRADO') ? (
+            <div className="flex items-center gap-3 sm:gap-4 bg-slate-950/90 px-5 sm:px-6 py-2.5 rounded-2xl border border-slate-800/80 shadow-inner select-none">
+              <span className="text-3xl sm:text-4xl md:text-5xl font-black font-mono text-white tracking-tight leading-none min-w-[1.2ch] text-center drop-shadow-[0_0_12px_rgba(255,255,255,0.25)]">
+                {jogo.placar_casa ?? 0}
+              </span>
+              <span className={`text-[10px] font-black font-sans uppercase px-2 py-0.5 rounded-md tracking-wider ${
+                isGameLive 
+                  ? 'bg-red-600 text-white animate-pulse border border-red-500' 
+                  : 'bg-slate-800 text-slate-300 border border-slate-700'
+              }`}>
+                {isGameLive ? 'AO VIVO' : 'FIM'}
+              </span>
+              <span className="text-3xl sm:text-4xl md:text-5xl font-black font-mono text-white tracking-tight leading-none min-w-[1.2ch] text-center drop-shadow-[0_0_12px_rgba(255,255,255,0.25)]">
+                {jogo.placar_fora ?? 0}
+              </span>
+            </div>
+          ) : (
+            /* Guess Input grid */
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <input
+                type="text"
+                maxLength={2}
+                disabled={!token || isReadonly || isBlocked || isCanceled}
+                placeholder="-"
+                value={inputVal.casa}
+                onChange={(e) => handleInputChange(jogo.id, 'casa', e.target.value)}
+                className={`w-9 h-9 sm:w-11 sm:h-11 md:w-12 md:h-12 text-center text-base sm:text-lg md:text-xl font-black font-mono rounded-xl border transition ${
+                  !token 
+                    ? 'bg-slate-950 border-slate-800/60 text-slate-600 cursor-not-allowed'
+                    : (isReadonly || isBlocked || isCanceled)
+                      ? 'bg-slate-950 border-slate-900 text-slate-500 cursor-not-allowed'
+                      : 'bg-slate-950 border-brand-blue-light text-brand-blue-vibrant focus:border-brand-blue-accent focus:ring-1 focus:ring-brand-blue-accent'
+                }`}
+              />
 
-            <span className="text-slate-600 font-mono text-xs sm:text-sm">x</span>
+              <span className="text-slate-600 font-mono text-xs sm:text-sm">x</span>
 
-            <input
-              type="text"
-              maxLength={2}
-              disabled={!token || isReadonly || isBlocked || isCanceled}
-              placeholder="-"
-              value={inputVal.fora}
-              onChange={(e) => handleInputChange(jogo.id, 'fora', e.target.value)}
-              className={`w-9 h-9 sm:w-11 sm:h-11 md:w-12 md:h-12 text-center text-base sm:text-lg md:text-xl font-black font-mono rounded-xl border transition ${
-                !token 
-                  ? 'bg-slate-950 border-slate-800/60 text-slate-600 cursor-not-allowed'
-                  : (isReadonly || isBlocked || isCanceled)
-                    ? 'bg-slate-950 border-slate-900 text-slate-500 cursor-not-allowed'
-                    : 'bg-slate-950 border-brand-blue-light text-brand-blue-vibrant focus:border-brand-blue-accent focus:ring-1 focus:ring-brand-blue-accent'
-              }`}
-            />
-
-          </div>
+              <input
+                type="text"
+                maxLength={2}
+                disabled={!token || isReadonly || isBlocked || isCanceled}
+                placeholder="-"
+                value={inputVal.fora}
+                onChange={(e) => handleInputChange(jogo.id, 'fora', e.target.value)}
+                className={`w-9 h-9 sm:w-11 sm:h-11 md:w-12 md:h-12 text-center text-base sm:text-lg md:text-xl font-black font-mono rounded-xl border transition ${
+                  !token 
+                    ? 'bg-slate-950 border-slate-800/60 text-slate-600 cursor-not-allowed'
+                    : (isReadonly || isBlocked || isCanceled)
+                      ? 'bg-slate-950 border-slate-900 text-slate-500 cursor-not-allowed'
+                      : 'bg-slate-950 border-brand-blue-light text-brand-blue-vibrant focus:border-brand-blue-accent focus:ring-1 focus:ring-brand-blue-accent'
+                }`}
+              />
+            </div>
+          )}
 
           {/* Away Team */}
           <div className="flex flex-col items-center flex-1 space-y-2 text-center min-w-[70px]">
@@ -728,13 +789,21 @@ export default function MatchesSection({
   }, [standings]);
 
   const playOffsByRound = React.useMemo(() => {
+    if (selectedCampeonato === 'LIBERTADORES') {
+      return {
+        7: currentChampionshipGames.filter(j => j.rodada === 7).sort((a,b) => a.id - b.id), // Oitavas (8 games)
+        8: currentChampionshipGames.filter(j => j.rodada === 8).sort((a,b) => a.id - b.id), // Quartas (4 games)
+        9: currentChampionshipGames.filter(j => j.rodada === 9).sort((a,b) => a.id - b.id), // Semifinais (2 games)
+        10: currentChampionshipGames.filter(j => j.rodada === 10).sort((a,b) => a.id - b.id), // Finals (1 game)
+      };
+    }
     return {
       5: currentChampionshipGames.filter(j => j.rodada === 5).sort((a,b) => a.id - b.id), // Oitavas (8 games)
       6: currentChampionshipGames.filter(j => j.rodada === 6).sort((a,b) => a.id - b.id), // Quartas (4 games)
       7: currentChampionshipGames.filter(j => j.rodada === 7).sort((a,b) => a.id - b.id), // Semifinais (2 games)
       8: currentChampionshipGames.filter(j => j.rodada === 8).sort((a,b) => a.id - b.id), // Finals (1 game)
     };
-  }, [currentChampionshipGames]);
+  }, [currentChampionshipGames, selectedCampeonato]);
 
   const renderBracketMatchBox = (jogo: Jogo | undefined, label: string) => {
     if (!jogo) {
@@ -975,16 +1044,33 @@ export default function MatchesSection({
           {filteredGames.length > 0 ? (
             <div className="space-y-8 animate-fadeIn">
               
-              {/* Section: Pending & Live Games */}
-              {pendingOrLiveGames.length > 0 && (
+              {/* Section: Live Games */}
+              {liveGamesList.length > 0 && (
+                <div className="space-y-4 animate-fadeIn">
+                  <div className="flex items-center gap-2 text-xs font-black uppercase text-red-500 tracking-wider">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-450 opacity-75 animate-duration-1000"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                    </span>
+                    <span>Partidas Ao Vivo (Em Andamento)</span>
+                    <span className="flex-1 h-px bg-red-950/35 ml-2" />
+                  </div>
+                  <div className="grid gap-5 md:grid-cols-2">
+                    {liveGamesList.map((jogo) => renderMatchCard(jogo))}
+                  </div>
+                </div>
+              )}
+
+              {/* Section: Open & Upcoming Games */}
+              {upcomingGamesList.length > 0 && (
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 text-xs font-black uppercase text-slate-400 tracking-wider">
                     <Unlock className="h-3.5 w-3.5 text-brand-blue-accent" />
-                    <span>Disponíveis & Em Andamento</span>
+                    <span>Abertos para Palpites e Próximos Jogos</span>
                     <span className="flex-1 h-px bg-slate-800/70 ml-2" />
                   </div>
                   <div className="grid gap-5 md:grid-cols-2">
-                    {pendingOrLiveGames.map((jogo) => renderMatchCard(jogo))}
+                    {upcomingGamesList.map((jogo) => renderMatchCard(jogo))}
                   </div>
                 </div>
               )}
@@ -1149,7 +1235,7 @@ export default function MatchesSection({
                       </div>
                       <div className="space-y-3">
                         {Array.from({ length: 8 }).map((_, idx) => {
-                          const game = playOffsByRound[5]?.[idx];
+                          const game = playOffsByRound[selectedCampeonato === 'LIBERTADORES' ? 7 : 5]?.[idx];
                           return (
                             <React.Fragment key={idx}>
                               {renderBracketMatchBox(game, `Confronto #${idx + 1}`)}
@@ -1168,7 +1254,7 @@ export default function MatchesSection({
                       </div>
                       <div className="space-y-16">
                         {Array.from({ length: 4 }).map((_, idx) => {
-                          const game = playOffsByRound[6]?.[idx];
+                          const game = playOffsByRound[selectedCampeonato === 'LIBERTADORES' ? 8 : 6]?.[idx];
                           return (
                             <React.Fragment key={idx}>
                               {renderBracketMatchBox(game, `Quartas #${idx + 1}`)}
@@ -1187,7 +1273,7 @@ export default function MatchesSection({
                       </div>
                       <div className="space-y-32">
                         {Array.from({ length: 2 }).map((_, idx) => {
-                          const game = playOffsByRound[7]?.[idx];
+                          const game = playOffsByRound[selectedCampeonato === 'LIBERTADORES' ? 9 : 7]?.[idx];
                           return (
                             <React.Fragment key={idx}>
                               {renderBracketMatchBox(game, `Semifinal #${idx + 1}`)}
@@ -1205,7 +1291,7 @@ export default function MatchesSection({
                         </div>
                       </div>
                       <div className="space-y-2">
-                        {renderBracketMatchBox(playOffsByRound[8]?.[0], "Grande Final")}
+                        {renderBracketMatchBox(playOffsByRound[selectedCampeonato === 'LIBERTADORES' ? 10 : 8]?.[0], "Grande Final")}
                       </div>
                     </div>
 

@@ -201,6 +201,24 @@ export default function HomePublic({
     return (jogos || []).filter(j => j.status === 'PENDENTE').slice(0, 3);
   }, [jogos]);
 
+  const liveMatches = React.useMemo(() => {
+    const dataServidor = metrics?.data_servidor || new Date().toISOString();
+    return (jogos || []).filter(jogo => {
+      if (jogo.status === 'AO_VIVO') return true;
+      if (["1H", "HT", "2H", "ET", "P", "BT", "LIVE", "SUSP", "INT"].includes(jogo.status_detalhado || '')) return true;
+      
+      const nowMs = new Date(dataServidor).getTime();
+      const gameMs = new Date(jogo.data_jogo).getTime();
+      const isPastGame = gameMs <= nowMs;
+      
+      if (jogo.status === 'PENDENTE' && isPastGame) {
+        const elapsedMins = (nowMs - gameMs) / (1000 * 60);
+        return elapsedMins < 135; // Keep live for 2h 15m from kickoff
+      }
+      return false;
+    });
+  }, [jogos, metrics]);
+
   // Find rounds where this user won (was the 1st place)
   const rodadasGanhas = React.useMemo(() => {
     if (!usuarioLogado || !vencedoresRodadas) return [];
@@ -337,6 +355,88 @@ export default function HomePublic({
 
         </div>
       </section>
+
+      {/* Live Matches Panel */}
+      {liveMatches.length > 0 && (
+        <section className="space-y-4 animate-fadeIn">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+              <span className="relative flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+              </span>
+              Partidas em Andamento (Ao Vivo)
+            </h2>
+            <button 
+              onClick={onParticipateCta} 
+              className="text-xs font-bold text-red-400 hover:underline flex items-center gap-1"
+            >
+              Ver palpites & estatísticas
+            </button>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {liveMatches.map((jogo) => {
+              const friendlyStatus = jogo.status_detalhado === "1H" ? "1º Tempo" 
+                : jogo.status_detalhado === "2H" ? "2º Tempo" 
+                : jogo.status_detalhado === "HT" ? "Intervalo" 
+                : jogo.status_detalhado === "ET" ? "Prorrogação" 
+                : jogo.status_detalhado === "P" ? "Pênaltis" 
+                : "Em Andamento";
+
+              return (
+                <div 
+                  key={jogo.id} 
+                  className="bg-slate-900 border border-red-900/60 rounded-2xl p-5 flex flex-col justify-between space-y-4 shadow-lg shadow-red-950/10 cursor-pointer hover:border-red-500/50 transition-all duration-200"
+                  onClick={onParticipateCta}
+                >
+                  <div className="flex justify-between items-center text-[10px] font-bold uppercase">
+                    <span className="flex items-center gap-1.5 bg-red-600 border border-red-500 text-white px-2.5 py-0.5 rounded font-sans font-black tracking-wide shadow-sm shadow-red-950/20">
+                      <span className="relative flex h-1.5 w-1.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-100 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white"></span>
+                      </span>
+                      AO VIVO • {friendlyStatus}
+                    </span>
+                    <span className="bg-red-950/60 text-red-400 px-2.5 py-0.5 rounded border border-red-900/40 font-mono">
+                      Pontuação em Tempo Real
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between py-2">
+                    {/* Home Team */}
+                    <div className="flex flex-col items-center flex-1 text-center space-y-1.5 min-w-[70px]">
+                      {renderBandeira(jogo.time_casa_bandeira, "w-10 h-10 shadow", "text-3xl")}
+                      <span className="text-xs font-bold text-slate-150 truncate max-w-[90px]">
+                        {jogo.time_casa}
+                      </span>
+                    </div>
+
+                    {/* Scores display */}
+                    <div className="flex items-center gap-3 bg-slate-950/90 px-4 sm:px-5 py-2 rounded-xl border border-slate-800/80 shadow-inner">
+                      <span className="text-3xl sm:text-4xl font-black font-mono text-white tracking-tight leading-none drop-shadow-[0_0_12px_rgba(255,255,255,0.25)]">{jogo.placar_casa ?? 0}</span>
+                      <span className="text-red-500 font-bold text-xs sm:text-sm animate-pulse px-1">X</span>
+                      <span className="text-3xl sm:text-4xl font-black font-mono text-white tracking-tight leading-none drop-shadow-[0_0_12px_rgba(255,255,255,0.25)]">{jogo.placar_fora ?? 0}</span>
+                    </div>
+
+                    {/* Away Team */}
+                    <div className="flex flex-col items-center flex-1 text-center space-y-1.5 min-w-[70px]">
+                      {renderBandeira(jogo.time_fora_bandeira, "w-10 h-10 shadow", "text-3xl")}
+                      <span className="text-xs font-bold text-slate-150 truncate max-w-[90px]">
+                        {jogo.time_fora}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="text-center font-mono text-[9px] text-slate-500 bg-slate-950/40 py-1.5 rounded tracking-wide border border-slate-950/20">
+                    Rodada {jogo.rodada} • {new Date(jogo.data_jogo).toLocaleDateString('pt-BR')} às {new Date(jogo.data_jogo).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Highlights: Próximos Jogos */}
       {matchHighlights.length > 0 && (

@@ -45,6 +45,7 @@ model Jogo {
   placar_casa       Int?
   placar_fora       Int?
   status            String     @default("PENDENTE") @db.VarChar(20) // PENDENTE, AO_VIVO, ENCERRADO
+  status_detalhado  String?    @default("NS") @db.VarChar(10)      // Detailed API status (1H, HT, 2H, FT, etc.)
   rodada            Int        @default(1)
 
   palpites          Palpite[]
