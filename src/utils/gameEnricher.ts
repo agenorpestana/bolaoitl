@@ -310,8 +310,8 @@ function generateGenericRoster(teamName: string, id: number): { starter: string[
   };
 }
 
-export function lookupRoster(teamName: string, id: number): { starter: string[]; subs: string[]; coach: string } {
-  if (!teamName) return generateGenericRoster("Time Desconhecido", id);
+export function lookupRoster(teamName: string, id: number): { starter: string[]; subs: string[]; coach: string } | null {
+  if (!teamName) return null;
   const n = teamName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
   
   for (const k of Object.keys(ROSTERS)) {
@@ -320,7 +320,7 @@ export function lookupRoster(teamName: string, id: number): { starter: string[];
       return ROSTERS[k];
     }
   }
-  return generateGenericRoster(teamName, id);
+  return null;
 }
 
 // Dynamically generate all stats, predictions, and lineups deterministically based on match values
@@ -339,74 +339,28 @@ export function enrichGameDetails(jogo: Jogo): Jogo {
     }
   }
 
-  // 2. Pre-match predictions and metrics (preview) if PENDENTE
-  // In the original type Jogo we add them directly or as properties.
-  // To avoid Prisma TS issues, we can return them as enriched components in the JSON.
-  const preview: GamePreview = {
-    vitoria_casa: rand.range(25, 60),
-    vitoria_fora: 0,
-    empate: 0,
-    placar_estimado_casa: rand.range(0, 3),
-    placar_estimado_fora: rand.range(0, 2)
-  };
-  preview.vitoria_fora = rand.range(20, 100 - preview.vitoria_casa - 10);
-  preview.empate = 100 - preview.vitoria_casa - preview.vitoria_fora;
-
   // 3. Squad and lineups
   const homeRoster = lookupRoster(jogo.time_casa, jogo.id * 2);
   const awayRoster = lookupRoster(jogo.time_fora, jogo.id * 3);
 
-  const lineup: GameLineup = {
-    titular_casa: homeRoster.starter,
-    titular_fora: awayRoster.starter,
-    reservas_casa: homeRoster.subs,
-    reservas_fora: awayRoster.subs,
-    tecnico_casa: homeRoster.coach,
-    tecnico_fora: awayRoster.coach
-  };
-
-  // 4. Statistics based on score
-  const scoreCasa = jogo.placar_casa !== null ? jogo.placar_casa : 0;
-  const scoreFora = jogo.placar_fora !== null ? jogo.placar_fora : 0;
-
-  // Derive possession logically from score & a bit of seeding
-  let possessionCasa = 50 + rand.range(-15, 15);
-  if (scoreCasa > scoreFora) {
-    possessionCasa -= rand.range(2, 6); // leading team tends to defend more, lower possession
-  } else if (scoreFora > scoreCasa) {
-    possessionCasa += rand.range(2, 6);
+  let lineup: GameLineup | undefined = undefined;
+  if (homeRoster && awayRoster) {
+    lineup = {
+      titular_casa: homeRoster.starter,
+      titular_fora: awayRoster.starter,
+      reservas_casa: homeRoster.subs,
+      reservas_fora: awayRoster.subs,
+      tecnico_casa: homeRoster.coach,
+      tecnico_fora: awayRoster.coach
+    };
   }
-  possessionCasa = Math.max(25, Math.min(75, possessionCasa));
-  const possessionAway = 100 - possessionCasa;
-
-  const totalShotsCode = 10 + scoreCasa + scoreFora + rand.range(1, 10);
-  const shotsCasa = Math.floor(totalShotsCode * (possessionCasa / 100)) + rand.range(-2, 2);
-  const shotsFora = totalShotsCode - shotsCasa;
-
-  const targetCasa = scoreCasa + rand.range(1, 4);
-  const targetFora = scoreFora + rand.range(1, 4);
-
-  const stats: GameStats = {
-    posse_casa: possessionCasa,
-    posse_fora: possessionAway,
-    chutes_casa: Math.max(targetCasa + 1, shotsCasa),
-    chutes_fora: Math.max(targetFora + 1, shotsFora),
-    faltas_casa: rand.range(8, 18),
-    faltas_fora: rand.range(8, 18),
-    cartoes_amarelos_casa: rand.range(1, 4),
-    cartoes_amarelos_fora: rand.range(1, 4),
-    cartoes_vermelhos_casa: rand.next() > 0.90 ? 1 : 0,
-    cartoes_vermelhos_fora: rand.next() > 0.90 ? 1 : 0,
-    escanteios_casa: rand.range(2, 8),
-    escanteios_fora: rand.range(2, 8)
-  };
 
   // Returns fully hydrated game object structure
   return {
     ...jogo,
     status_detalhado: jogo.status_detalhado,
-    estatisticas: stats as any,
+    estatisticas: undefined, // Removed fictitious/synthetic statistics
     escalacao: lineup as any,
-    preview: preview as any
+    preview: undefined // Removed fictitious/predicted preview
   };
 }

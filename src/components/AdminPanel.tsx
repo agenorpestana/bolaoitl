@@ -1,11 +1,12 @@
 import React from 'react';
 import { 
   Sliders, Users, Shield, Database, Activity, FileSpreadsheet, PlusCircle, Trash2, 
-  Save, RefreshCw, Check, Search, Download, Trash, Edit2, Play, Power, AlertTriangle, ShieldCheck, Trophy, Key
+  Save, RefreshCw, Check, Search, Download, Trash, Edit2, Play, Power, AlertTriangle, ShieldCheck, Trophy, Key, Eye
 } from 'lucide-react';
 import { Usuario, Jogo, ConfigPoints, ConfigIXC, ConfigFootballApi, AuditLog } from '../types';
 import { CIDADES_ATENDIDAS } from '../data';
 import { renderBandeira } from './HomePublic';
+import GuessesHistory from './GuessesHistory';
 
 
 interface AdminPanelProps {
@@ -67,6 +68,30 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
   const [editUserTelefone, setEditUserTelefone] = React.useState("");
   const [editUserEmail, setEditUserEmail] = React.useState("");
   const [editUserPontos, setEditUserPontos] = React.useState(0);
+
+  // Participant betting history state variables
+  const [selectedUserForHistory, setSelectedUserForHistory] = React.useState<any | null>(null);
+  const [selectedUserGuesses, setSelectedUserGuesses] = React.useState<any[]>([]);
+  const [isLoadingUserGuesses, setIsLoadingUserGuesses] = React.useState(false);
+
+  const handleViewUserHistory = async (user: any) => {
+    setSelectedUserForHistory(user);
+    setSelectedUserGuesses([]);
+    setIsLoadingUserGuesses(true);
+    try {
+      const response = await fetch(`/api/admin/usuarios/${user.id}/palpites`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSelectedUserGuesses(data.palpites || []);
+      }
+    } catch (err) {
+      console.error("Error loading user bets:", err);
+    } finally {
+      setIsLoadingUserGuesses(false);
+    }
+  };
 
   // Match addition / editing states
   const [creatingMatch, setCreatingMatch] = React.useState(false);
@@ -1675,6 +1700,14 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
                           </button>
                           
                           <button
+                            onClick={() => handleViewUserHistory(user)}
+                            className="p-1.5 bg-slate-950 border border-slate-800 hover:text-brand-blue-vibrant text-slate-400 rounded"
+                            title="Ver histórico de palpites"
+                          >
+                            <Eye className="h-3 w-3" />
+                          </button>
+
+                          <button
                             onClick={() => handleEditUserClick(user)}
                             className="p-1 bg-slate-950 border border-slate-800 hover:text-yellow-500 p-1.5 rounded"
                             title="Ajustes rápidos"
@@ -1703,6 +1736,48 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
               </table>
             </div>
           </div>
+
+          {/* User History Modal Overlay popup */}
+          {selectedUserForHistory !== null && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
+              <div className="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden">
+                {/* Header */}
+                <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+                  <div className="text-left">
+                    <h3 className="text-sm font-black uppercase text-slate-100 font-sans">
+                      Histórico de Palpites de {selectedUserForHistory.nome}
+                    </h3>
+                    <p className="text-[10px] text-slate-500 font-bold font-sans">
+                      Visualizando {selectedUserGuesses.length} palpites salvos no sistema.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setSelectedUserForHistory(null)}
+                    className="p-1 px-2.5 rounded bg-slate-950 hover:bg-slate-800 text-slate-450 hover:text-slate-200 transition text-xs font-bold font-sans"
+                  >
+                    Fechar ✕
+                  </button>
+                </div>
+
+                {/* Body Content */}
+                <div className="p-5 overflow-y-auto flex-1">
+                  {isLoadingUserGuesses ? (
+                    <div className="py-20 flex flex-col items-center justify-center space-y-3 font-sans">
+                      <RefreshCw className="h-6 w-6 text-yellow-500 animate-spin" />
+                      <span className="text-xs text-slate-400 font-bold">Carregando palpites...</span>
+                    </div>
+                  ) : (
+                    <GuessesHistory 
+                      jogos={jogos}
+                      palpites={selectedUserGuesses}
+                      usuarioNome={selectedUserForHistory.nome}
+                      isCompact={true}
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
         </div>
       )}

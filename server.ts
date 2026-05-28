@@ -2561,6 +2561,21 @@ async function startServer() {
     res.json(db.usuarios);
   });
 
+  // Get detailed palpites of a specific user for administrative audit/view
+  app.get("/api/admin/usuarios/:id/palpites", verifyAdminToken, (req, res) => {
+    const db = loadDatabase();
+    const id = Number(req.params.id);
+    const user = db.usuarios.find(u => u.id === id);
+    if (!user) {
+      return res.status(404).json({ error: "Participante não localizado." });
+    }
+    const userPalpites = db.palpites.filter(p => p.usuario_id === id);
+    res.json({
+      usuario: user,
+      palpites: userPalpites
+    });
+  });
+
   // Update client data or points
   app.post("/api/admin/usuarios/:id", verifyAdminToken, (req: any, res) => {
     if (!req.admin.permissions.podeEditar) {

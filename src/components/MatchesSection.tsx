@@ -1148,7 +1148,7 @@ export default function MatchesSection({
                         {renderBandeira(row.bandeira, "w-4 h-4 rounded shadow-xs", "text-sm")}
                         <span className="truncate">{row.time}</span>
                       </td>
-                      <td className="py-3 px-1.5 text-center font-black text-brand-blue-vibrant font-mono">{row.pontos}</td>
+                      <td className="py-3 px-1.5 text-center font-black text-slate-100 font-mono">{row.pontos}</td>
                       <td className="py-3 px-1.5 text-center font-mono">{row.jogos}</td>
                       <td className="py-3 px-1.5 text-center font-mono">{row.vitorias}</td>
                       <td className="py-3 px-1.5 text-center font-mono">{row.empates}</td>

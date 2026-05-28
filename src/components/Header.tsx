@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trophy, LogOut, Menu, X, Shield, Calendar, Award } from 'lucide-react';
+import { Trophy, LogOut, Menu, X, Shield, Calendar, Award, ClipboardList } from 'lucide-react';
 import { Usuario } from '../types';
 
 interface HeaderProps {
@@ -18,6 +18,10 @@ export default function Header({ usuario, adminLogado, onLogout, activeTab, setA
     { id: 'jogos', label: 'Efetuar Palpites', icon: Award },
     { id: 'ranking', label: 'Ranking Geral', icon: Trophy },
   ];
+
+  if (usuario) {
+    menuItems.push({ id: 'historico', label: 'Histórico de Palpites', icon: ClipboardList });
+  }
 
   const handleNav = (tabId: string) => {
     setActiveTab(tabId);

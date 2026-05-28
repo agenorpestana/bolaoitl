@@ -10,6 +10,7 @@ import MatchesSection from './components/MatchesSection';
 import RankingSection from './components/RankingSection';
 import ParticipantLogin from './components/ParticipantLogin';
 import AdminPanel from './components/AdminPanel';
+import GuessesHistory from './components/GuessesHistory';
 import { Usuario, Jogo, Palpite } from './types';
 
 export default function App() {
@@ -256,6 +257,14 @@ export default function App() {
 
             {activeTab === 'ranking' && (
               <RankingSection ranking={ranking} />
+            )}
+
+            {activeTab === 'historico' && usuario && (
+              <GuessesHistory 
+                jogos={jogos}
+                palpites={palpites}
+                usuarioNome={usuario.nome}
+              />
             )}
 
             {activeTab === 'login' && (

@@ -25,15 +25,15 @@ const TEAM_GROUPS: { [key: string]: string } = {
   "Portugal": "Grupo G", "Holanda": "Grupo G", "Suíça": "Grupo G", "Chile": "Grupo G",
   "Itália": "Grupo H", "Croácia": "Grupo H", "Paraguai": "Grupo H", "Senegal": "Grupo H",
 
-  // Libertadores Groups
-  "Flamengo": "Grupo A", "Peñarol": "Grupo A", "Millonarios": "Grupo A", "Bolívar": "Grupo A",
-  "Palmeiras": "Grupo B", "San Lorenzo": "Grupo B", "Ind. del Valle": "Grupo B", "Independiente del Valle": "Grupo B", "Liverpool URU": "Grupo B", "Liverpool M.": "Grupo B", "Liverpool Montevideo": "Grupo B",
-  "São Paulo": "Grupo C", "Talleres": "Grupo C", "Barcelona SC": "Grupo C", "Cobresal": "Grupo C",
-  "Fluminense": "Grupo D", "Colo-Colo": "Grupo D", "Cerro Porteño": "Grupo D", "Cerro Porteno": "Grupo D", "Alianza Lima": "Grupo D",
-  "Botafogo": "Grupo E", "Junior Barranquilla": "Grupo E", "Junior": "Grupo E", "LDU Quito": "Grupo E", "LDU de Quito": "Grupo E", "Universitario": "Grupo E",
-  "River Plate": "Grupo F", "Nacional URU": "Grupo F", "Club Nacional": "Grupo F", "Libertad": "Grupo F", "Libertad Asuncion": "Grupo F", "Deportivo Táchira": "Grupo F", "Deportivo Tachira": "Grupo F",
-  "Atlético-MG": "Grupo G", "Rosario Central": "Grupo G", "Caracas": "Grupo G", "Peñarol MVD": "Grupo G",
-  "Grêmio": "Grupo H", "The Strongest": "Grupo H", "Huachipato": "Grupo H", "Estudiantes": "Grupo H", "Estudiantes L.P.": "Grupo H", "Estudiantes LP": "Grupo H"
+  // Libertadores Groups (True Real 2024 Alignment)
+  "Fluminense": "Grupo A", "Colo-Colo": "Grupo A", "Colo Colo": "Grupo A", "Cerro Porteño": "Grupo A", "Cerro Porteno": "Grupo A", "Alianza Lima": "Grupo A",
+  "São Paulo": "Grupo B", "Talleres": "Grupo B", "Barcelona SC": "Grupo B", "Barcelona Guayaquil": "Grupo B", "Barcelona S.C.": "Grupo B", "Cobresal": "Grupo B",
+  "Grêmio": "Grupo C", "Gremio": "Grupo C", "The Strongest": "Grupo C", "Huachipato": "Grupo C", "Estudiantes": "Grupo C", "Estudiantes L.P.": "Grupo C", "Estudiantes LP": "Grupo C",
+  "LDU Quito": "Grupo D", "LDU de Quito": "Grupo D", "L.D.U. Quito": "Grupo D", "Junior Barranquilla": "Grupo D", "Junior": "Grupo D", "Universitario": "Grupo D", "Botafogo": "Grupo D",
+  "Flamengo": "Grupo E", "Bolívar": "Grupo E", "Bolivar": "Grupo E", "Millonarios": "Grupo E", "Palestino": "Grupo E", "Palestino CHI": "Grupo E",
+  "Palmeiras": "Grupo F", "Ind. del Valle": "Grupo F", "Independiente del Valle": "Grupo F", "San Lorenzo": "Grupo F", "Liverpool URU": "Grupo F", "Liverpool M.": "Grupo F", "Liverpool Montevideo": "Grupo F",
+  "Peñarol": "Grupo G", "Penarol": "Grupo G", "Peñarol MVD": "Grupo G", "Atlético-MG": "Grupo G", "Atletico-MG": "Grupo G", "Atletico MG": "Grupo G", "Atlético Mineiro": "Grupo G", "Rosario Central": "Grupo G", "Caracas": "Grupo G",
+  "River Plate": "Grupo H", "Libertad": "Grupo H", "Libertad Asuncion": "Grupo H", "Nacional URU": "Grupo H", "Nacional Montevideo": "Grupo H", "Club Nacional": "Grupo H", "Nacional": "Grupo H", "Deportivo Táchira": "Grupo H", "Deportivo Tachira": "Grupo H"
 };
 
 export function calculateStandings(jogos: Jogo[]): StandingRow[] {
