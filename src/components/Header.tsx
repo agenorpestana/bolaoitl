@@ -8,9 +8,13 @@ interface HeaderProps {
   onLogout: () => void;
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  configsLogo?: {
+    has_custom_logo: boolean;
+    timestamp: number;
+  };
 }
 
-export default function Header({ usuario, adminLogado, onLogout, activeTab, setActiveTab }: HeaderProps) {
+export default function Header({ usuario, adminLogado, onLogout, activeTab, setActiveTab, configsLogo }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
 
   const menuItems = [
@@ -34,9 +38,20 @@ export default function Header({ usuario, adminLogado, onLogout, activeTab, setA
         
         {/* Logo / Title */}
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-blue-vibrant to-brand-blue shadow-lg shadow-brand-blue-dark/40">
-            <Trophy className="h-5 w-5 text-white animate-pulse" />
-          </div>
+          {configsLogo?.has_custom_logo ? (
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 border border-slate-800/80 shadow-lg shrink-0">
+              <img 
+                src={`/custom-logo.png?v=${configsLogo.timestamp}`} 
+                alt="Logo" 
+                className="h-9 w-9 object-contain rounded-xl"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+          ) : (
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-blue-vibrant to-brand-blue shadow-lg shadow-brand-blue-dark/40 shrink-0">
+              <Trophy className="h-5 w-5 text-white animate-pulse" />
+            </div>
+          )}
           <div>
             <span className="bg-gradient-to-r from-brand-blue-vibrant via-slate-100 to-brand-blue-accent bg-clip-text text-lg font-extrabold tracking-tight text-transparent">
               CARTOLA ITL

@@ -265,6 +265,7 @@ export default function App() {
         onLogout={handleLogout}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
+        configsLogo={publicMetrics?.configs_logo}
       />
 
       {/* PWA Installation Assist Banner */}

@@ -1204,7 +1204,7 @@ export default function MatchesSection({
       )}
 
       {/* Championship Selector Tabs */}
-      <div className="flex bg-slate-900/40 p-1.5 rounded-xl border border-slate-900 w-full md:w-fit gap-1 font-sans">
+      <div className="flex flex-wrap bg-slate-900/40 p-1.5 rounded-xl border border-slate-900 w-full md:w-fit gap-1.5 sm:gap-1 font-sans">
         {hasCopaGames && (
           <button
             onClick={() => setSelectedCampeonato('COPA_MUNDO')}

@@ -11,6 +11,7 @@ import bcryptjs from "bcryptjs";
 import jwt from "jsonwebtoken";
 import axios from "axios";
 import { PrismaClient } from "@prisma/client";
+import sharp from "sharp";
 
 import { 
   Usuario, 
@@ -47,6 +48,10 @@ interface LocalDatabase {
   };
   configs_brasileirao?: {
     ativo: boolean;
+  };
+  configs_logo?: {
+    has_custom_logo: boolean;
+    timestamp: number;
   };
 }
 
@@ -1471,7 +1476,7 @@ async function startServer() {
   const PORT = Number(process.env.PORT) || 3000;
 
   // Middleware setups
-  app.use(express.json());
+  app.use(express.json({ limit: "20mb" }));
   
   // Custom simple Helmet header layer for compliance
   app.use((req, res, next) => {
@@ -2696,7 +2701,8 @@ async function startServer() {
       total_palpites: countBets,
       top_15: topUsers,
       data_servidor: new Date().toISOString(),
-      ixc_offline_mode: db.configs_ixc.offline_mode
+      ixc_offline_mode: db.configs_ixc.offline_mode,
+      configs_logo: db.configs_logo || { has_custom_logo: false, timestamp: 0 }
     });
   });
 
@@ -3847,6 +3853,113 @@ async function startServer() {
         status: "OFFLINE",
         mensagem: `Conexão falhou: ${err.message}. A rede do IXC deve aceitar requisições de origem HTTPS externas.`
       });
+    }
+  });
+
+  // Dynamic Logo Serving to bypass any frontend cache issues
+  app.get("/custom-logo.png", (req, res) => {
+    const filePath = path.join(process.cwd(), "public", "custom-logo.png");
+    if (fs.existsSync(filePath)) {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+      return res.sendFile(filePath);
+    }
+    return res.status(404).send("Logo not found");
+  });
+
+  app.get("/icon-192.png", (req, res) => {
+    const filePath = path.join(process.cwd(), "public", "icon-192.png");
+    if (fs.existsSync(filePath)) {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+      return res.sendFile(filePath);
+    }
+    return res.status(404).send("PWA Icon 192 not found");
+  });
+
+  app.get("/icon-512.png", (req, res) => {
+    const filePath = path.join(process.cwd(), "public", "icon-512.png");
+    if (fs.existsSync(filePath)) {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+      return res.sendFile(filePath);
+    }
+    return res.status(404).send("PWA Icon 512 not found");
+  });
+
+  // Logo upload API route
+  app.post("/api/admin/upload-logo", verifyAdminToken, async (req: any, res) => {
+    try {
+      if (!req.admin.permissions.podeEditar) {
+        return res.status(403).json({ error: "Sua conta de administrador não possui permissão para alterar a logo do sistema." });
+      }
+
+      const { base64Data } = req.body;
+      if (!base64Data) {
+        return res.status(400).json({ error: "Nenhum arquivo de imagem recebido." });
+      }
+
+      const matches = base64Data.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      if (!matches || matches.length !== 3) {
+        return res.status(400).json({ error: "Formato de imagem inválido. Use JPG, PNG ou SVG." });
+      }
+
+      const buffer = Buffer.from(matches[2], "base64");
+
+      const publicDir = path.join(process.cwd(), "public");
+      if (!fs.existsSync(publicDir)) {
+        fs.mkdirSync(publicDir, { recursive: true });
+      }
+
+      const customLogoPath = path.join(publicDir, "custom-logo.png");
+      const icon192Path = path.join(publicDir, "icon-192.png");
+      const icon512Path = path.join(publicDir, "icon-512.png");
+
+      // Save custom logo
+      await sharp(buffer)
+        .resize({ width: 256, height: 256, fit: "inside" })
+        .png()
+        .toFile(customLogoPath);
+
+      // Save PWA 192x192
+      await sharp(buffer)
+        .resize(192, 192, { fit: "cover" })
+        .png()
+        .toFile(icon192Path);
+
+      // Save PWA 512x512
+      await sharp(buffer)
+        .resize(512, 512, { fit: "cover" })
+        .png()
+        .toFile(icon512Path);
+
+      const distPath = path.join(process.cwd(), "dist");
+      if (fs.existsSync(distPath)) {
+        try {
+          fs.copyFileSync(customLogoPath, path.join(distPath, "custom-logo.png"));
+          fs.copyFileSync(icon192Path, path.join(distPath, "icon-192.png"));
+          fs.copyFileSync(icon512Path, path.join(distPath, "icon-512.png"));
+        } catch (copyErr) {
+          console.error("Error copying logos to dist directory", copyErr);
+        }
+      }
+
+      const db = loadDatabase();
+      db.configs_logo = {
+        has_custom_logo: true,
+        timestamp: Date.now()
+      };
+      saveDatabase(db);
+
+      addLog("Logo System Update", "LOGO_ATUALIZACAO_SUCESSO", "Nova logo do sistema foi carregada e configurada com sucesso para o header e PWA.", req);
+
+      return res.json({ success: true, configs_logo: db.configs_logo });
+    } catch (err: any) {
+      console.error("Erro interno no upload de logo:", err);
+      return res.status(500).json({ error: "Erro ao processar imagem: " + err.message });
     }
   });
 

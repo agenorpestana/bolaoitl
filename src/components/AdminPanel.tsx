@@ -19,6 +19,62 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
   const [calendarioMode, setCalendarioMode] = React.useState<'COPA_2026' | 'LIBERTADORES' | 'BRASILEIRAO' | 'FUTURAS'>('COPA_2026');
   const [apiFutebolMode, setApiFutebolMode] = React.useState<'COPA_2026' | 'LIBERTADORES' | 'BRASILEIRAO' | 'FUTURAS'>('COPA_2026');
 
+  // Custom System Logo upload state hooks
+  const [isDragging, setIsDragging] = React.useState(false);
+  const [logoPreview, setLogoPreview] = React.useState<string | null>(null);
+  const [logoFileBase64, setLogoFileBase64] = React.useState<string | null>(null);
+  const [isSavingLogo, setIsSavingLogo] = React.useState(false);
+  const [logoUploadStatus, setLogoUploadStatus] = React.useState<{ msg: string; isErr: boolean } | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const handleFileSelection = (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setLogoUploadStatus({ msg: "Por favor escolha uma imagem válida (PNG, JPG, SVG).", isErr: true });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const base64 = e.target?.result as string;
+      setLogoFileBase64(base64);
+      setLogoPreview(base64);
+      setLogoUploadStatus(null);
+    };
+    reader.onerror = () => {
+      setLogoUploadStatus({ msg: "Falha ao ler o arquivo selecionado.", isErr: true });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleUploadLogo = async () => {
+    if (!logoFileBase64) return;
+    setIsSavingLogo(true);
+    setLogoUploadStatus(null);
+    try {
+      const response = await fetch("/api/admin/upload-logo", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ base64Data: logoFileBase64 })
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setLogoUploadStatus({ msg: "A logo do sistema foi salva com sucesso e atualizada no painel e PWA!", isErr: false });
+        // Call the refresh function so parent refreshes configs (which updates publicMetrics.configs_logo)
+        setTimeout(() => {
+          onRefreshLeaderboard();
+        }, 1200);
+      } else {
+        setLogoUploadStatus({ msg: data.error || "Ocorreu um erro ao atualizar a logo.", isErr: true });
+      }
+    } catch (err: any) {
+      setLogoUploadStatus({ msg: "Erro ao conectar com o servidor: " + err.message, isErr: true });
+    } finally {
+      setIsSavingLogo(false);
+    }
+  };
+
   // Server state caches
   const [metrics, setMetrics] = React.useState<any | null>(null);
   const [usuarios, setUsuarios] = React.useState<Usuario[]>([]);
@@ -2945,6 +3001,135 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
                   Nenhum sub-administrador secundário cadastrado de momento.
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* LOGO SYSTEM UPLOAD */}
+          <div className="bg-slate-950 border border-slate-900 rounded-2xl p-6">
+            <h3 className="text-sm font-black uppercase text-yellow-500 mb-2 font-extrabold tracking-wider">
+              Logo do Sistema & PWA
+            </h3>
+            <p className="text-xs text-slate-400 mb-6 font-medium leading-relaxed">
+              Faça upload de uma nova imagem para substituir a logo do sistema. Esta logo será atualizada e exibida no canto superior esquerdo (header), e configurada automaticamente nos tamanhos corretos do ícone PWA (192x192 e 512x512).
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+              {/* Image Input Selection */}
+              <div className="space-y-4">
+                <div 
+                  className={`border-2 border-dashed rounded-2xl p-6 text-center transition cursor-pointer ${
+                    isDragging ? 'border-yellow-500 bg-yellow-500/5' : 'border-slate-800 hover:border-slate-705 bg-slate-900/40'
+                  }`}
+                  onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                  onDragLeave={() => setIsDragging(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDragging(false);
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) handleFileSelection(file);
+                  }}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    className="hidden" 
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleFileSelection(file);
+                    }}
+                  />
+                  <div className="flex flex-col items-center justify-center space-y-3">
+                    <div className="h-11 w-11 rounded-xl bg-slate-950 border border-slate-800 text-slate-400 flex items-center justify-center">
+                      <Save className="h-5 w-5 text-yellow-500" />
+                    </div>
+                    <div>
+                      <span className="block text-xs font-black text-slate-200">Arraste a logo aqui ou clique para buscar</span>
+                      <span className="block text-[10px] text-slate-500 mt-1 font-medium select-none">
+                        Formatos aceitos: PNG, JPG ou SVG.
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {logoUploadStatus && (
+                  <div className={`p-3.5 rounded-xl border text-[11px] font-sans font-extrabold flex items-center gap-1.5 ${
+                    logoUploadStatus.isErr 
+                      ? 'bg-red-950/25 border-red-900/40 text-red-400' 
+                      : 'bg-emerald-950/25 border-emerald-900/40 text-emerald-400'
+                  }`}>
+                    {logoUploadStatus.msg}
+                  </div>
+                )}
+              </div>
+
+              {/* Preview and Button Controls */}
+              <div className="bg-slate-900/25 border border-slate-900/80 rounded-2xl p-5 space-y-4">
+                <span className="block text-xs font-black uppercase text-slate-350 tracking-wider">Visualização Prévia (Preview)</span>
+                
+                <div className="flex items-center gap-5 bg-slate-950 border border-slate-900 p-4 rounded-xl">
+                  {logoPreview ? (
+                    <img 
+                      src={logoPreview} 
+                      alt="Preview Logo" 
+                      className="h-16 w-16 object-contain rounded-xl bg-slate-900 p-1 border border-slate-800" 
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div className="h-16 w-16 rounded-xl bg-slate-905 border border-slate-850 flex items-center justify-center text-slate-600 shrink-0">
+                      <Trophy className="h-7 w-7 animate-pulse text-slate-500/30" />
+                    </div>
+                  )}
+
+                  <div className="space-y-1">
+                    <span className="block text-xs font-extrabold text-slate-200">
+                      {logoPreview ? "Sua Nova Logo Carregada" : "Usando a Logo Padrão (Trophy)"}
+                    </span>
+                    <span className="block text-[10px] text-slate-500 leading-relaxed font-semibold max-w-[210px]">
+                      {logoPreview 
+                        ? "Clique em \"Salvar Logo do Sistema\" abaixo para atualizar em todas as áreas do site." 
+                        : "Nenhum arquivo de imagem foi selecionado de momento."
+                      }
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    disabled={!logoFileBase64 || isSavingLogo}
+                    onClick={handleUploadLogo}
+                    className={`flex-1 py-2.5 text-xs font-extrabold uppercase tracking-wider rounded-xl transition duration-200 flex items-center justify-center gap-1.5 ${
+                      !logoFileBase64 || isSavingLogo
+                        ? 'bg-slate-900 border border-slate-850 text-slate-600 cursor-not-allowed'
+                        : 'bg-yellow-500 hover:bg-yellow-600 text-slate-950 shadow-md shadow-yellow-500/10'
+                    }`}
+                  >
+                    {isSavingLogo ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                        Salvando...
+                      </>
+                    ) : (
+                      <>
+                        <Check className="h-4 w-4" />
+                        Salvar Logo do Sistema
+                      </>
+                    )}
+                  </button>
+                  {logoPreview && (
+                    <button
+                      onClick={() => {
+                        setLogoPreview(null);
+                        setLogoFileBase64(null);
+                      }}
+                      className="px-4 py-2.5 bg-slate-900 border border-slate-800 hover:text-slate-200 text-xs font-bold text-slate-400 rounded-xl transition"
+                    >
+                      Limpar
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>
