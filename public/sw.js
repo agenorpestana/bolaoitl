@@ -41,13 +41,14 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Cache-first strategy for static assets, network-first fallback
+  // Network-First strategy with Cache fallback:
+  // This ensures that when the app is updated (new compiled chunk hashes),
+  // the user fetches the new index.html from network rather than served from stale cache.
+  // Stale cache would request deleted chunk files and cause a blank screen on reload (F5).
+  // If the user is offline, it falls back to the cache.
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      return fetch(event.request).then((response) => {
+    fetch(event.request)
+      .then((response) => {
         // Cache valid static responses
         if (response && response.status === 200 && response.type === 'basic') {
           const responseToCache = response.clone();
@@ -56,9 +57,9 @@ self.addEventListener('fetch', (event) => {
           });
         }
         return response;
-      }).catch(() => {
-        // Offline fallback can be added if needed, otherwise just ignore
-      });
-    })
+      })
+      .catch(() => {
+        return caches.match(event.request);
+      })
   );
 });

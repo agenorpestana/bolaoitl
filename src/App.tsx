@@ -21,8 +21,15 @@ export default function App() {
   // Authentication states with localStorage sync to survive dev refreshes
   const [token, setToken] = React.useState<string | null>(() => localStorage.getItem('bolao_token'));
   const [usuario, setUsuario] = React.useState<Usuario | null>(() => {
-    const saved = localStorage.getItem('bolao_usuario');
-    return saved ? JSON.parse(saved) : null;
+    try {
+      const saved = localStorage.getItem('bolao_usuario');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      console.error("Erro ao analisar dados do usuário salvo:", e);
+      localStorage.removeItem('bolao_usuario');
+      localStorage.removeItem('bolao_token');
+      return null;
+    }
   });
 
   const [adminToken, setAdminToken] = React.useState<string | null>(() => localStorage.getItem('bolao_admin_token'));
