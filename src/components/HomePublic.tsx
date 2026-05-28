@@ -4,7 +4,7 @@ import {
 } from 'lucide-react';
 import { REGRAS_PROG, PREMIACOES } from '../data';
 import { Jogo } from '../types';
-import { getFriendlyRoundName } from './MatchesSection';
+import { getFriendlyRoundName, getGameCampeonato } from './MatchesSection';
 
 const flagEmojiToIso = (flag: string): string | null => {
   if (!flag) return null;
@@ -198,8 +198,79 @@ export default function HomePublic({
   const [timeLeft, setTimeLeft] = React.useState({ days: 0, hours: 0, mins: 0, secs: 0 });
 
   const matchHighlights = React.useMemo(() => {
-    return (jogos || []).filter(j => j.status === 'PENDENTE').slice(0, 3);
-  }, [jogos]);
+    const dataServidorStr = metrics?.data_servidor || new Date().toISOString();
+    const nowMs = new Date(dataServidorStr).getTime();
+
+    // Helper to check if a single game is concluded/expired
+    const isGameConcludedOrExpired = (j: Jogo): boolean => {
+      if (j.status === 'ENCERRADO') return true;
+      if (['FT', 'AET', 'PEN', 'CANC', 'ABD', 'AWD', 'WO'].includes(j.status_detalhado || '')) return true;
+      
+      const gameMs = new Date(j.data_jogo).getTime();
+      const idUpper = (j.status_detalhado || '').toUpperCase();
+      const isExplicitLive = ['1H', 'HT', '2H', 'ET', 'P', 'BT', 'LIVE', 'SUSP', 'INT'].includes(idUpper) || j.status === 'AO_VIVO';
+      
+      if (gameMs <= nowMs && !isExplicitLive) {
+        const elapsedMins = (nowMs - gameMs) / (1000 * 60);
+        if (elapsedMins >= 135) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    // Helper to calculate current active round for any given list of games
+    const getChampionshipCurrentRound = (championshipJogos: Jogo[]): number | null => {
+      if (championshipJogos.length === 0) return null;
+      
+      const rounds = Array.from(new Set(championshipJogos.map(g => g.rodada)))
+        .sort((a, b) => Number(a) - Number(b));
+        
+      const currentActive = rounds.find(rdNum => {
+        const matchesInRd = championshipJogos.filter(j => j.rodada === rdNum);
+        // Is this round finished? A round is finished if ALL its matches are concluded
+        const isRdFinished = matchesInRd.length > 0 && matchesInRd.every(j => isGameConcludedOrExpired(j));
+        return !isRdFinished;
+      });
+
+      return currentActive !== undefined ? currentActive : (rounds.length > 0 ? rounds[rounds.length - 1] : null);
+    };
+
+    // Group games by championship and find current round for each
+    const copaGames = (jogos || []).filter(j => getGameCampeonato(j) === 'COPA_MUNDO');
+    const libGames = (jogos || []).filter(j => getGameCampeonato(j) === 'LIBERTADORES');
+    const brasGames = (jogos || []).filter(j => getGameCampeonato(j) === 'BRASILEIRAO');
+
+    const copaCurrentRound = getChampionshipCurrentRound(copaGames);
+    const libCurrentRound = getChampionshipCurrentRound(libGames);
+    const brasCurrentRound = getChampionshipCurrentRound(brasGames);
+
+    // Now, filter pending games that are within those current rounds AND do NOT have a date in the past
+    const pendingAndValidHighlights = (jogos || []).filter(j => {
+      // Must be PENDENTE
+      if (j.status !== 'PENDENTE') return false;
+
+      // Must NOT have a date prior to the current date
+      const gameMs = new Date(j.data_jogo).getTime();
+      if (gameMs < nowMs) return false;
+
+      // Must be of the current/active round of its championship
+      const champ = getGameCampeonato(j);
+      if (champ === 'COPA_MUNDO') {
+        return j.rodada === copaCurrentRound;
+      } else if (champ === 'LIBERTADORES') {
+        return j.rodada === libCurrentRound;
+      } else if (champ === 'BRASILEIRAO') {
+        return j.rodada === brasCurrentRound;
+      }
+      return false;
+    });
+
+    // Let's sort highlights by kickoff date so that the closest games appear first!
+    return pendingAndValidHighlights
+      .sort((a, b) => new Date(a.data_jogo).getTime() - new Date(b.data_jogo).getTime())
+      .slice(0, 3);
+  }, [jogos, metrics]);
 
   const liveMatches = React.useMemo(() => {
     const dataServidor = metrics?.data_servidor || new Date().toISOString();
