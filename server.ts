@@ -2159,13 +2159,13 @@ async function startServer() {
     let filteredGames = sortedGames;
     if (!isAdmin) {
       if (!isLibActive) {
-        filteredGames = filteredGames.filter(j => !j.api_id || !j.api_id.startsWith("libertadores_"));
+        filteredGames = filteredGames.filter(j => getGameCampeonato(j) !== 'LIBERTADORES');
       }
       if (!isBrasileiraoActive) {
-        filteredGames = filteredGames.filter(j => !j.api_id || !j.api_id.startsWith("brasileirao_"));
+        filteredGames = filteredGames.filter(j => getGameCampeonato(j) !== 'BRASILEIRAO');
       }
       if (!isCopaActive) {
-        filteredGames = filteredGames.filter(j => j.api_id && (j.api_id.startsWith("libertadores_") || j.api_id.startsWith("brasileirao_")));
+        filteredGames = filteredGames.filter(j => getGameCampeonato(j) !== 'COPA_MUNDO');
       }
     }
 
@@ -2284,6 +2284,110 @@ async function startServer() {
     addLog(userName, "PARTICIPACAO_PALPITE", `Registrou palpite: ${jogo.time_casa} ${numPlacarCasa} x ${numPlacarFora} ${jogo.time_fora}`, req);
 
     res.json({ success: true, palpite: existingBet });
+  });
+
+  // Proxy endpoint to fetch real-time game statistics from API Football can fall back to deterministic mock stats
+  app.get("/api/jogos/:id/estatisticas", async (req, res) => {
+    try {
+      const db = loadDatabase();
+      const jogoId = parseInt(req.params.id);
+      const jogo = db.jogos.find(j => j.id === jogoId);
+      if (!jogo) {
+        return res.status(404).json({ error: "Partida não encontrada." });
+      }
+
+      const apiKey = db.configs_football?.key;
+      const apiUrl = db.configs_football?.url || "https://v3.football.api-sports.io";
+      const isRealApi = apiKey && apiKey.trim() !== "" && !apiKey.toLowerCase().includes("dummy") && apiKey.length > 10;
+
+      let fixtureId: number | null = null;
+      if (jogo.api_id) {
+        const match = jogo.api_id.match(/^(?:football_api_|libertadores_soccer_|brasileirao_soccer_|soccer_)?(\d+)$/);
+        if (match) fixtureId = parseInt(match[1]);
+      }
+
+      const fallbackStats = generateDeterministicStats(jogoId);
+
+      if (isRealApi && fixtureId) {
+        try {
+          console.log(`[API Proxy] Fetching statistics from API Football for fixture ID: ${fixtureId}...`);
+          const response = await axios.get(`${apiUrl}/fixtures/statistics`, {
+            params: { fixture: fixtureId },
+            headers: { "x-apisports-key": apiKey },
+            timeout: 5000
+          });
+
+          if (response.data && response.data.response && response.data.response.length > 0) {
+            const apiResponse = response.data.response;
+            const formattedStats = parseApiStats(apiResponse, jogo);
+            return res.json({ source: "api", data: formattedStats });
+          }
+        } catch (err: any) {
+          console.error("[API Proxy Error] Error fetching statistics from API-Sports:", err.message);
+        }
+      }
+
+      return res.json({ source: "fallback", data: fallbackStats });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Proxy endpoint to fetch real starting XI and coach lineups from API Football or fallback to deterministic mock rosters
+  app.get("/api/jogos/:id/escalacao", async (req, res) => {
+    try {
+      const db = loadDatabase();
+      const jogoId = parseInt(req.params.id);
+      const jogo = db.jogos.find(j => j.id === jogoId);
+      if (!jogo) {
+        return res.status(404).json({ error: "Partida não encontrada." });
+      }
+
+      const apiKey = db.configs_football?.key;
+      const apiUrl = db.configs_football?.url || "https://v3.football.api-sports.io";
+      const isRealApi = apiKey && apiKey.trim() !== "" && !apiKey.toLowerCase().includes("dummy") && apiKey.length > 10;
+
+      let fixtureId: number | null = null;
+      if (jogo.api_id) {
+        const match = jogo.api_id?.match(/^(?:football_api_|libertadores_soccer_|brasileirao_soccer_|soccer_)?(\d+)$/);
+        if (match) fixtureId = parseInt(match[1]);
+      }
+
+      // Load deterministic mock lineup from our gameEnricher module
+      const { enrichGameDetails } = require("./src/utils/gameEnricher");
+      const enrichedJogo = enrichGameDetails(jogo);
+      const fallbackLineup = enrichedJogo.escalacao || {
+        titular_casa: [],
+        titular_fora: [],
+        reservas_casa: [],
+        reservas_fora: [],
+        tecnico_casa: "",
+        tecnico_fora: ""
+      };
+
+      if (isRealApi && fixtureId) {
+        try {
+          console.log(`[API Proxy] Fetching lineups from API Football for fixture ID: ${fixtureId}...`);
+          const response = await axios.get(`${apiUrl}/fixtures/lineups`, {
+            params: { fixture: fixtureId },
+            headers: { "x-apisports-key": apiKey },
+            timeout: 5000
+          });
+
+          if (response.data && response.data.response && response.data.response.length > 0) {
+            const apiLineups = response.data.response;
+            const parsedLineup = parseApiLineup(apiLineups, jogo);
+            return res.json({ source: "api", data: parsedLineup });
+          }
+        } catch (err: any) {
+          console.error("[API Proxy Error] Error fetching lineups from API-Sports:", err.message);
+        }
+      }
+
+      return res.json({ source: "fallback", data: fallbackLineup });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
   });
 
   // Get Copa World Cup round-by-round winners
@@ -3680,3 +3784,199 @@ async function startServer() {
 startServer().catch(err => {
   console.error("Fatal startup server error", err);
 });
+
+function generateDeterministicStats(jogoId: number) {
+  const seed = jogoId * 73;
+  const rand = (max: number, min = 0) => {
+    const x = Math.sin(seed + min) * 10000;
+    const r = x - Math.floor(x);
+    return Math.floor(r * (max - min + 1)) + min;
+  };
+
+  const posseCasa = rand(65, 35);
+  const posseFora = 100 - posseCasa;
+
+  const chutesCasa = rand(22, 5);
+  const chutesFora = rand(20, 4);
+
+  const chutesNoGolCasa = Math.min(chutesCasa, rand(Math.max(1, Math.floor(chutesCasa / 2)), 1));
+  const chutesNoGolFora = Math.min(chutesFora, rand(Math.max(1, Math.floor(chutesFora / 2)), 1));
+
+  const chutesForaCasa = Math.max(0, chutesCasa - chutesNoGolCasa - rand(3, 0));
+  const chutesForaFora = Math.max(0, chutesFora - chutesNoGolFora - rand(3, 0));
+
+  const bloqueadosCasa = Math.max(0, chutesCasa - chutesNoGolCasa - chutesForaCasa);
+  const bloqueadosFora = Math.max(0, chutesFora - chutesNoGolFora - chutesForaFora);
+
+  const faltasCasa = rand(18, 6);
+  const faltasFora = rand(20, 7);
+
+  const escanteiosCasa = rand(9, 1);
+  const escanteiosFora = rand(8, 1);
+
+  const impedimentosCasa = rand(4, 0);
+  const impedimentosFora = rand(4, 0);
+
+  const amarelosCasa = rand(4, 0);
+  const amarelosFora = rand(5, 0);
+
+  const vermelhosCasa = rand(1, 0) > 0.85 ? 1 : 0;
+  const vermelhosFora = rand(1, 0) > 0.85 ? 1 : 0;
+
+  const defesasCasa = Math.max(0, chutesNoGolFora - rand(2, 0));
+  const defesasFora = Math.max(0, chutesNoGolCasa - rand(2, 0));
+
+  const passesCasa = rand(550, 280);
+  const passesFora = rand(520, 260);
+
+  const passesPrecisosCasa = Math.floor(passesCasa * (rand(87, 65) / 100));
+  const passesPrecisosFora = Math.floor(passesFora * (rand(85, 63) / 100));
+
+  const precisaoCasa = passesCasa > 0 ? `${Math.round((passesPrecisosCasa / passesCasa) * 100)}%` : "50%";
+  const precisaoFora = passesFora > 0 ? `${Math.round((passesPrecisosFora / passesFora) * 100)}%` : "50%";
+
+  return [
+    { name: "Posse de Bola", casa: `${posseCasa}%`, fora: `${posseFora}%` },
+    { name: "Total de Chutes", casa: chutesCasa, fora: chutesFora },
+    { name: "Chutes a Gol", casa: chutesNoGolCasa, fora: chutesNoGolFora },
+    { name: "Chutes para Fora", casa: chutesForaCasa, fora: chutesForaFora },
+    { name: "Chutes Bloqueados", casa: bloqueadosCasa, fora: bloqueadosFora },
+    { name: "Faltas", casa: faltasCasa, fora: faltasFora },
+    { name: "Escanteios", casa: escanteiosCasa, fora: escanteiosFora },
+    { name: "Impedimentos", casa: impedimentosCasa, fora: impedimentosFora },
+    { name: "Cartões Amarelos", casa: amarelosCasa, fora: amarelosFora },
+    { name: "Cartões Vermelhos", casa: vermelhosCasa, fora: vermelhosFora },
+    { name: "Defesas do Goleiro", casa: defesasCasa, fora: defesasFora },
+    { name: "Total de Passes", casa: passesCasa, fora: passesFora },
+    { name: "Passes Precisos", casa: passesPrecisosCasa, fora: passesPrecisosFora },
+    { name: "Precisão de Passe", casa: precisaoCasa, fora: precisaoFora }
+  ];
+}
+
+function parseApiStats(apiResponse: any[], jogo: any) {
+  let homeData = apiResponse[0];
+  let awayData = apiResponse[1];
+  
+  if (apiResponse.length >= 2) {
+    const apiTeamHomeName = apiResponse[0].team?.name?.toLowerCase() || "";
+    const dbTeamHomeName = jogo.time_casa?.toLowerCase() || "";
+    
+    if (dbTeamHomeName.includes(apiTeamHomeName) || apiTeamHomeName.includes(dbTeamHomeName)) {
+      homeData = apiResponse[0];
+      awayData = apiResponse[1];
+    } else {
+      homeData = apiResponse[1];
+      awayData = apiResponse[0];
+    }
+  }
+
+  const homeStats = homeData?.statistics || [];
+  const awayStats = awayData?.statistics || [];
+
+  const getStatVal = (statsList: any[], typeName: string): any => {
+    const item = statsList.find((s: any) => s.type?.toLowerCase() === typeName.toLowerCase());
+    return item ? (item.value !== null ? item.value : 0) : 0;
+  };
+
+  const posseCasa = getStatVal(homeStats, "Ball Possession") || "50%";
+  const posseFora = getStatVal(awayStats, "Ball Possession") || "50%";
+
+  const chutesCasa = getStatVal(homeStats, "Total Shots");
+  const chutesFora = getStatVal(awayStats, "Total Shots");
+
+  const chutesNoGolCasa = getStatVal(homeStats, "Shots on Goal");
+  const chutesNoGolFora = getStatVal(awayStats, "Shots on Goal");
+
+  const chutesForaCasa = getStatVal(homeStats, "Shots off Goal");
+  const chutesForaFora = getStatVal(awayStats, "Shots off Goal");
+
+  const bloqueadosCasa = getStatVal(homeStats, "Blocked Shots");
+  const bloqueadosFora = getStatVal(awayStats, "Blocked Shots");
+
+  const faltasCasa = getStatVal(homeStats, "Fouls");
+  const faltasFora = getStatVal(awayStats, "Fouls");
+
+  const escanteiosCasa = getStatVal(homeStats, "Corner Kicks");
+  const escanteiosFora = getStatVal(awayStats, "Corner Kicks");
+
+  const impedimentosCasa = getStatVal(homeStats, "Offsides");
+  const impedimentosFora = getStatVal(awayStats, "Offsides");
+
+  const amarelosCasa = getStatVal(homeStats, "Yellow Cards");
+  const amarelosFora = getStatVal(awayStats, "Yellow Cards");
+
+  const vermelhosCasa = getStatVal(homeStats, "Red Cards");
+  const vermelhosFora = getStatVal(awayStats, "Red Cards");
+
+  const defesasCasa = getStatVal(homeStats, "Goalkeeper Saves");
+  const defesasFora = getStatVal(awayStats, "Goalkeeper Saves");
+
+  const passesCasa = getStatVal(homeStats, "Total passes");
+  const passesFora = getStatVal(awayStats, "Total passes");
+
+  const passesPrecisosCasa = getStatVal(homeStats, "Passes accurate");
+  const passesPrecisosFora = getStatVal(awayStats, "Passes accurate");
+
+  const precisaoCasa = getStatVal(homeStats, "Passes %") !== null ? `${getStatVal(homeStats, "Passes %")}%` : "50%";
+  const precisaoFora = getStatVal(awayStats, "Passes %") !== null ? `${getStatVal(awayStats, "Passes %")}%` : "50%";
+
+  return [
+    { name: "Posse de Bola", casa: typeof posseCasa === "string" ? posseCasa : `${posseCasa}%`, fora: typeof posseFora === "string" ? posseFora : `${posseFora}%` },
+    { name: "Total de Chutes", casa: chutesCasa, fora: chutesFora },
+    { name: "Chutes a Gol", casa: chutesNoGolCasa, fora: chutesNoGolFora },
+    { name: "Chutes para Fora", casa: chutesForaCasa, fora: chutesForaFora },
+    { name: "Chutes Bloqueados", casa: bloqueadosCasa, fora: bloqueadosFora },
+    { name: "Faltas", casa: faltasCasa, fora: faltasFora },
+    { name: "Escanteios", casa: escanteiosCasa, fora: escanteiosFora },
+    { name: "Impedimentos", casa: impedimentosCasa, fora: impedimentosFora },
+    { name: "Cartões Amarelos", casa: amarelosCasa, fora: amarelosFora },
+    { name: "Cartões Vermelhos", casa: vermelhosCasa, fora: vermelhosFora },
+    { name: "Defesas do Goleiro", casa: defesasCasa, fora: defesasFora },
+    { name: "Total de Passes", casa: passesCasa, fora: passesFora },
+    { name: "Passes Precisos", casa: passesPrecisosCasa, fora: passesPrecisosFora },
+    { name: "Precisão de Passe", casa: precisaoCasa, fora: precisaoFora }
+  ];
+}
+
+function parseApiLineup(apiLineups: any[], jogo: any) {
+  let homeData = apiLineups[0];
+  let awayData = apiLineups[1];
+
+  if (apiLineups.length >= 2) {
+    const apiTeamHomeName = apiLineups[0].team?.name?.toLowerCase() || "";
+    const dbTeamHomeName = jogo.time_casa?.toLowerCase() || "";
+
+    if (dbTeamHomeName.includes(apiTeamHomeName) || apiTeamHomeName.includes(dbTeamHomeName)) {
+      homeData = apiLineups[0];
+      awayData = apiLineups[1];
+    } else {
+      homeData = apiLineups[1];
+      awayData = apiLineups[0];
+    }
+  }
+
+  const formatXI = (startXIList: any[] = []) => {
+    return startXIList.map((item: any) => {
+      const p = item.player;
+      return `${p.name} (${p.number || "-"}) - ${p.pos || ""}`;
+    });
+  };
+
+  const formatSubs = (subList: any[] = []) => {
+    return subList.map((item: any) => {
+      const p = item.player;
+      return `${p.name} (${p.number || "-"})`;
+    });
+  };
+
+  return {
+    titular_casa: formatXI(homeData?.startXI),
+    titular_fora: formatXI(awayData?.startXI),
+    reservas_casa: formatSubs(homeData?.substitutes),
+    reservas_fora: formatSubs(awayData?.substitutes),
+    tecnico_casa: homeData?.coach?.name || "",
+    tecnico_fora: awayData?.coach?.name || "",
+    format_casa: homeData?.formation || "4-4-2",
+    format_fora: awayData?.formation || "4-4-2"
+  };
+}

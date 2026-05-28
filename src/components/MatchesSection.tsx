@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
   Lock, Unlock, Save, Clock, TrendingUp, CheckCircle, AlertCircle,
-  ChevronDown, ChevronUp, BarChart2, Users, Layout, List, Sparkles, Trophy, Calendar
+  ChevronDown, ChevronUp, BarChart2, Users, Layout, List, Sparkles, Trophy, Calendar, Loader2
 } from 'lucide-react';
 import { Jogo, Palpite } from '../types';
 import { renderBandeira } from './HomePublic';
@@ -89,6 +89,41 @@ export default function MatchesSection({
   const [filterStatus, setFilterStatus] = React.useState<'TODOS' | 'ABERTO' | 'AO_VIVO' | 'ENCERRADO'>('TODOS');
   const [viewTab, setViewTab] = React.useState<'JOGOS' | 'TABELA_CHAVEAMENTO'>('JOGOS');
   const [expandedGameIds, setExpandedGameIds] = React.useState<Set<number>>(new Set());
+  const [gameActiveTab, setGameActiveTab] = React.useState<{ [key: number]: 'stats' | 'lineups' }>({});
+  const [gameStatsData, setGameStatsData] = React.useState<{ [gameId: number]: any }>({});
+  const [gameLineupsData, setGameLineupsData] = React.useState<{ [gameId: number]: any }>({});
+  const [gameLoading, setGameLoading] = React.useState<{ [gameId: number]: { stats: boolean; lineups: boolean } }>({});
+  const [gameError, setGameError] = React.useState<{ [gameId: number]: { stats: string | null; lineups: string | null } }>({});
+
+  const fetchStatsForGame = async (gameId: number) => {
+    setGameLoading(prev => ({ ...prev, [gameId]: { ...(prev[gameId] || { stats: false, lineups: false }), stats: true } }));
+    setGameError(prev => ({ ...prev, [gameId]: { ...(prev[gameId] || { stats: null, lineups: null }), stats: null } }));
+    try {
+      const res = await fetch(`/api/jogos/${gameId}/estatisticas`);
+      if (!res.ok) throw new Error("Erro ao carregar estatísticas.");
+      const json = await res.json();
+      setGameStatsData(prev => ({ ...prev, [gameId]: json.data }));
+    } catch (err: any) {
+      setGameError(prev => ({ ...prev, [gameId]: { ...(prev[gameId] || { stats: null, lineups: null }), stats: err.message } }));
+    } finally {
+      setGameLoading(prev => ({ ...prev, [gameId]: { ...(prev[gameId] || { stats: false, lineups: false }), stats: false } }));
+    }
+  };
+
+  const fetchLineupsForGame = async (gameId: number) => {
+    setGameLoading(prev => ({ ...prev, [gameId]: { ...(prev[gameId] || { stats: false, lineups: false }), lineups: true } }));
+    setGameError(prev => ({ ...prev, [gameId]: { ...(prev[gameId] || { stats: null, lineups: null }), lineups: null } }));
+    try {
+      const res = await fetch(`/api/jogos/${gameId}/escalacao`);
+      if (!res.ok) throw new Error("Erro ao carregar escalação.");
+      const json = await res.json();
+      setGameLineupsData(prev => ({ ...prev, [gameId]: json.data }));
+    } catch (err: any) {
+      setGameError(prev => ({ ...prev, [gameId]: { ...(prev[gameId] || { stats: null, lineups: null }), lineups: err.message } }));
+    } finally {
+      setGameLoading(prev => ({ ...prev, [gameId]: { ...(prev[gameId] || { stats: false, lineups: false }), lineups: false } }));
+    }
+  };
 
   const toggleGameExpanded = (jogoId: number) => {
     setExpandedGameIds(prev => {
@@ -97,6 +132,9 @@ export default function MatchesSection({
         next.delete(jogoId);
       } else {
         next.add(jogoId);
+        fetchStatsForGame(jogoId);
+        fetchLineupsForGame(jogoId);
+        setGameActiveTab(tabPrev => ({ ...tabPrev, [jogoId]: 'stats' }));
       }
       return next;
     });
@@ -204,6 +242,11 @@ export default function MatchesSection({
     if (jogo.status === 'ENCERRADO') return true;
     if (["FT", "AET", "PEN", "CANC", "ABD", "AWD", "WO"].includes(jogo.status_detalhado || '')) return true;
     
+    const statusDet = (jogo.status_detalhado || '').toUpperCase();
+    if (["PST", "CANX", "ABD", "CANC", "SUSP"].includes(statusDet)) {
+      return true;
+    }
+
     if (isPastGame(jogo)) {
       const kickoff = new Date(jogo.data_jogo).getTime();
       const now = new Date(dataServidor || new Date().toISOString()).getTime();
@@ -587,204 +630,230 @@ export default function MatchesSection({
             )}
           </button>
         </div>
-
-        {/* Collapsible Panel of Match Details */}
         {expandedGameIds.has(jogo.id) && (
-          <div className="pt-3 border-t border-slate-950/85 space-y-4 animate-fadeIn text-[11px] font-sans">
-            
-            {/* Real-time Match Predictions & Estimates */}
-            {jogo.preview && (
-              <div className="bg-slate-950/50 p-3 sm:p-4 rounded-xl border border-slate-900 space-y-3 font-sans">
-                <div className="flex items-center justify-between text-[10px] font-black uppercase text-slate-400 tracking-wider">
-                  <span className="flex items-center gap-1"><TrendingUp className="h-3.5 w-3.5 text-emerald-500" /> Probabilidades de Vitória (IA)</span>
-                  <span className="text-[9px] text-slate-600 font-mono">Simulados API-Sports</span>
-                </div>
-                
-                {/* Home x Draw x Away visual bar */}
-                <div className="space-y-1">
-                  <div className="h-2 rounded bg-slate-900 overflow-hidden flex border border-slate-950">
-                    <div 
-                      style={{ width: `${jogo.preview.vitoria_casa}%` }} 
-                      className="bg-brand-blue-accent"
-                    />
-                    <div 
-                      style={{ width: `${jogo.preview.empate}%` }} 
-                      className="bg-slate-750"
-                    />
-                    <div 
-                      style={{ width: `${jogo.preview.vitoria_fora}%` }} 
-                      className="bg-yellow-500"
-                    />
-                  </div>
-                  
-                  {/* Legends */}
-                  <div className="grid grid-cols-3 text-[9px] font-bold text-center mt-0.5">
-                    <div className="text-brand-blue-vibrant text-left">Empresa Casa ({jogo.preview.vitoria_casa}%)</div>
-                    <div className="text-slate-400">Empate ({jogo.preview.empate}%)</div>
-                    <div className="text-yellow-500 text-right">Empresa Fora ({jogo.preview.vitoria_fora}%)</div>
-                  </div>
-                </div>
+          <div className="pt-3 border-t border-slate-950/85 space-y-3 animate-fadeIn text-[11px] font-sans">
+            {/* Tab buttons */}
+            <div className="flex border-b border-slate-900 font-sans font-black text-[10px] uppercase tracking-wider">
+              <button
+                role="tab"
+                onClick={() => setGameActiveTab(prev => ({ ...prev, [jogo.id]: 'stats' }))}
+                className={`flex-1 py-2 text-center transition-all border-b-2 font-black ${
+                  (gameActiveTab[jogo.id] || 'stats') === 'stats'
+                    ? 'border-brand-blue-accent text-brand-blue-vibrant bg-brand-blue/5'
+                    : 'border-transparent text-slate-500 hover:text-slate-400'
+                }`}
+              >
+                📊 Estatísticas
+              </button>
+              <button
+                role="tab"
+                onClick={() => setGameActiveTab(prev => ({ ...prev, [jogo.id]: 'lineups' }))}
+                className={`flex-1 py-2 text-center transition-all border-b-2 font-black ${
+                  (gameActiveTab[jogo.id] || 'stats') === 'lineups'
+                    ? 'border-brand-blue-accent text-brand-blue-vibrant bg-brand-blue/5'
+                    : 'border-transparent text-slate-500 hover:text-slate-400'
+                }`}
+              >
+                📋 Escalação
+              </button>
+            </div>
 
-                {/* Expected Score */}
-                <div className="pt-2 border-t border-slate-900/60 flex items-center justify-between text-[10px]">
-                  <span className="font-bold text-slate-400">Placar sugerido pela IA:</span>
-                  <span className="font-mono text-emerald-450 font-black bg-emerald-950/30 border border-emerald-900/40 px-2 py-0.5 rounded">
-                    {jogo.time_casa} {jogo.preview.placar_estimado_casa} x {jogo.preview.placar_estimado_fora} {jogo.time_fora}
-                  </span>
-                </div>
+            {/* Tab Content Panes */}
+            {(gameActiveTab[jogo.id] || 'stats') === 'stats' ? (
+              <div className="bg-slate-950/40 p-3 sm:p-4 rounded-xl border border-slate-900/60 space-y-3.5">
+                {gameLoading[jogo.id]?.stats ? (
+                  <div className="flex flex-col items-center justify-center py-6 text-slate-500 space-y-2">
+                    <Loader2 className="h-5 w-5 animate-spin text-brand-blue-accent" />
+                    <span className="text-[10px] font-bold">Carregando estatísticas...</span>
+                  </div>
+                ) : gameError[jogo.id]?.stats ? (
+                  <div className="text-center py-4 text-red-500 font-bold">
+                    {gameError[jogo.id]?.stats}
+                    <button
+                      onClick={() => fetchStatsForGame(jogo.id)}
+                      className="block mx-auto mt-2 text-[9px] uppercase px-2 py-1 bg-slate-900 rounded border border-slate-800 text-slate-300 hover:text-slate-100"
+                    >
+                      Tentar Novamente
+                    </button>
+                  </div>
+                ) : gameStatsData[jogo.id] && gameStatsData[jogo.id].length > 0 ? (
+                  <div className="space-y-3">
+                    {gameStatsData[jogo.id].map((item: any, idx: number) => {
+                      const valHome = parseFloat(String(item.casa).replace('%', '')) || 0;
+                      const valAway = parseFloat(String(item.fora).replace('%', '')) || 0;
+                      const total = valHome + valAway;
+                      const percentHome = total > 0 ? (valHome / total) * 100 : 50;
+                      const percentAway = total > 0 ? (valAway / total) * 100 : 50;
+
+                      return (
+                        <div key={idx} className="space-y-1">
+                          <div className="flex justify-between items-center text-[10px] font-bold text-slate-300">
+                            <span className="w-10 text-left font-mono font-black text-slate-200">{item.casa}</span>
+                            <span className="text-slate-400 text-[9px] uppercase tracking-wide font-black truncate max-w-[150px] text-center">{item.name}</span>
+                            <span className="w-10 text-right font-mono font-black text-slate-200">{item.fora}</span>
+                          </div>
+                          <div className="h-1 rounded-full bg-slate-900 overflow-hidden flex border border-slate-950/40">
+                            <div 
+                              style={{ width: `${percentHome}%` }} 
+                              className="bg-brand-blue-accent rounded-l-full" 
+                            />
+                            <div 
+                              style={{ width: `${percentAway}%` }} 
+                              className="bg-amber-500 rounded-r-full" 
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-6 text-slate-500 text-[10px]">
+                    Nenhuma estatística disponível para esta partida.
+                  </div>
+                )}
               </div>
-            )}
-
-            {/* In-Play / Completed Match Statistics */}
-            {['AO_VIVO', 'ENCERRADO'].includes(jogo.status) && jogo.estatisticas && (
-              <div className="bg-slate-950/50 p-3 sm:p-4 rounded-xl border border-slate-900 space-y-3.5">
-                <div className="flex items-center justify-between text-[10px] font-black uppercase text-slate-400 tracking-wider">
-                  <span className="flex items-center gap-1"><BarChart2 className="h-3.5 w-3.5 text-brand-blue-accent" /> Estatísticas ao Vivo</span>
-                  <span className="text-[10px] text-brand-blue-vibrant uppercase font-bold tracking-tight font-mono">{STATUS_LABELS[jogo.status_detalhado || "FT"] || "Finalizado"}</span>
-                </div>
-
-                <div className="space-y-3">
-                  {/* Posse de bola */}
-                  <div className="space-y-1">
-                    <div className="flex justify-between font-extrabold text-slate-300">
-                      <span>{jogo.estatisticas.posse_casa}%</span>
-                      <span className="text-slate-500 uppercase tracking-wider text-[9px]">Posse de Bola</span>
-                      <span>{jogo.estatisticas.posse_fora}%</span>
-                    </div>
-                    <div className="h-1.5 rounded bg-slate-950 overflow-hidden flex border border-slate-900/40">
-                      <div style={{ width: `${jogo.estatisticas.posse_casa}%` }} className="bg-brand-blue-accent" />
-                      <div style={{ width: `${jogo.estatisticas.posse_fora}%` }} className="bg-yellow-500" />
-                    </div>
+            ) : (
+              <div className="bg-slate-950/40 p-3 sm:p-4 rounded-xl border border-slate-900/60">
+                {gameLoading[jogo.id]?.lineups ? (
+                  <div className="flex flex-col items-center justify-center py-6 text-slate-500 space-y-2">
+                    <Loader2 className="h-5 w-5 animate-spin text-brand-blue-accent" />
+                    <span className="text-[10px] font-bold">Carregando escalações...</span>
                   </div>
-
-                  {/* Chutes */}
-                  <div className="space-y-1">
-                    <div className="flex justify-between font-extrabold text-slate-300">
-                      <span>{jogo.estatisticas.chutes_casa}</span>
-                      <span className="text-slate-500 uppercase tracking-wider text-[9px]">Finalizações</span>
-                      <span>{jogo.estatisticas.chutes_fora}</span>
-                    </div>
-                    <div className="h-1.5 rounded bg-slate-950 overflow-hidden flex border border-slate-900/40">
-                      <div 
-                        style={{ width: `${(jogo.estatisticas.chutes_casa / Math.max(1, jogo.estatisticas.chutes_casa + jogo.estatisticas.chutes_fora)) * 100}%` }} 
-                        className="bg-brand-blue-accent" 
-                      />
-                      <div 
-                        style={{ width: `${(jogo.estatisticas.chutes_fora / Math.max(1, jogo.estatisticas.chutes_casa + jogo.estatisticas.chutes_fora)) * 100}%` }} 
-                        className="bg-yellow-500" 
-                      />
-                    </div>
+                ) : gameError[jogo.id]?.lineups ? (
+                  <div className="text-center py-4 text-red-500 font-bold">
+                    {gameError[jogo.id]?.lineups}
+                    <button
+                      onClick={() => fetchLineupsForGame(jogo.id)}
+                      className="block mx-auto mt-2 text-[9px] uppercase px-2 py-1 bg-slate-900 rounded border border-slate-800 text-slate-300 hover:text-slate-100"
+                    >
+                      Tentar Novamente
+                    </button>
                   </div>
-
-                  {/* Faltas e escanteios details */}
-                  <div className="grid grid-cols-2 gap-3 pt-1 border-t border-slate-900/50 text-center font-mono text-[10px]">
-                    <div className="bg-slate-900/40 p-1.5 rounded border border-slate-900/80">
-                      <div className="text-[8px] text-slate-500 uppercase font-sans font-bold">Faltas</div>
-                      <div className="text-xs font-black text-slate-200 mt-0.5">{jogo.estatisticas.faltas_casa} x {jogo.estatisticas.faltas_fora}</div>
-                    </div>
-                    <div className="bg-slate-900/40 p-1.5 rounded border border-slate-900/80">
-                      <div className="text-[8px] text-slate-500 uppercase font-sans font-bold">Escanteios</div>
-                      <div className="text-xs font-black text-slate-200 mt-0.5">{jogo.estatisticas.escanteios_casa || 0} x {jogo.estatisticas.escanteios_fora || 0}</div>
-                    </div>
-                  </div>
-
-                  {/* Red & Yellow discipline card feedback */}
-                  <div className="flex justify-around items-center pt-1">
-                    <div className="flex items-center gap-2.5 bg-slate-950 px-2.5 py-1 rounded border border-slate-900 font-mono text-[9px]">
-                      <div className="flex items-center gap-1" title="Cartões Amarelos Casa">
-                        <div className="w-2.5 h-3.5 bg-yellow-500 rounded-sm" />
-                        <span className="font-extrabold text-slate-200">{jogo.estatisticas.cartoes_amarelos_casa}</span>
+                ) : gameLineupsData[jogo.id] ? (
+                  <div className="space-y-4">
+                    {/* Tactical formation header if available */}
+                    {(gameLineupsData[jogo.id].format_casa || gameLineupsData[jogo.id].format_fora) && (
+                      <div className="flex justify-between items-center bg-slate-900/20 border border-slate-900/60 rounded-lg px-3 py-1.5 font-sans text-[9px] font-bold text-slate-400">
+                        <div className="flex items-center gap-1">
+                          <span className="text-slate-500 text-[8px] uppercase font-black">Esquema:</span>
+                          <span className="font-mono bg-slate-900 px-1 py-0.2 rounded font-black text-brand-blue-accent">{gameLineupsData[jogo.id].format_casa || "N/D"}</span>
+                        </div>
+                        <span className="text-[8px] uppercase font-black tracking-widest text-slate-600">Alinhamento</span>
+                        <div className="flex items-center gap-1">
+                          <span className="text-slate-500 text-[8px] uppercase font-black">Esquema:</span>
+                          <span className="font-mono bg-slate-900 px-1 py-0.2 rounded font-black text-amber-500">{gameLineupsData[jogo.id].format_fora || "N/D"}</span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1" title="Cartões Vermelhos Casa">
-                        <div className="w-2.5 h-3.5 bg-red-600 rounded-sm" />
-                        <span className="font-extrabold text-slate-200">{jogo.estatisticas.cartoes_vermelhos_casa}</span>
-                      </div>
-                    </div>
-                    <div className="text-[8px] uppercase tracking-widest font-black text-slate-600">Falta Disciplinar</div>
-                    <div className="flex items-center gap-2.5 bg-slate-950 px-2.5 py-1 rounded border border-slate-900 font-mono text-[9px]">
-                      <div className="flex items-center gap-1" title="Cartões Amarelos Fora">
-                        <div className="w-2.5 h-3.5 bg-yellow-500 rounded-sm" />
-                        <span className="font-extrabold text-slate-200">{jogo.estatisticas.cartoes_amarelos_fora}</span>
-                      </div>
-                      <div className="flex items-center gap-1" title="Cartões Vermelhos Fora">
-                        <div className="w-2.5 h-3.5 bg-red-600 rounded-sm" />
-                        <span className="font-extrabold text-slate-200">{jogo.estatisticas.cartoes_vermelhos_fora}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+                    )}
 
-            {/* Real Starting XI Lineups */}
-            {jogo.status === 'PENDENTE' ? (
-              <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-900 flex flex-col items-center justify-center py-6 text-center text-xs text-slate-400 font-sans space-y-1.5">
-                <Users className="h-5 w-5 text-slate-600 animate-pulse" />
-                <span className="font-bold text-slate-350">Aguardando informação da escalação</span>
-                <span className="text-[10px] text-slate-500 max-w-xs leading-normal">
-                  As escalações oficiais de {jogo.time_casa} x {jogo.time_fora} são divulgadas aproximadamente 1 hora antes do início da partida.
-                </span>
-              </div>
-            ) : jogo.escalacao ? (
-              <div className="bg-slate-950/50 p-3 sm:p-4 rounded-xl border border-slate-900 space-y-3 font-sans">
-                <div className="flex items-center justify-between text-[10px] font-black uppercase text-slate-400 tracking-wider pb-1 border-b border-slate-900">
-                  <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5 text-brand-blue-accent" /> Titulares Escalados</span>
-                  <span className="text-[9px] font-mono text-slate-500 font-bold uppercase">ALINHAMENTO TÁTICO</span>
-                </div>
+                    {/* Titulares list side-by-side */}
+                    <div className="grid grid-cols-2 gap-3">
+                      {/* Home XI */}
+                      <div className="space-y-2">
+                        <div className="font-black text-[9px] text-brand-blue-vibrant uppercase border-b border-slate-900/40 pb-1 flex justify-between">
+                          <span className="truncate max-w-[85px]">{jogo.time_casa}</span>
+                          <span className="text-[7.5px] font-sans font-black text-slate-600 shrink-0 uppercase tracking-wider">CASA</span>
+                        </div>
+                        {gameLineupsData[jogo.id].titular_casa && gameLineupsData[jogo.id].titular_casa.length > 0 ? (
+                          <ul className="space-y-1 text-[10px] text-slate-300">
+                            {gameLineupsData[jogo.id].titular_casa.map((p: string, pIdx: number) => {
+                              const numMatch = p.match(/(.*?)\s*\((\d+)\)\s*-\s*(\w+)/) || p.match(/(.*?)\s*\((\d+)\)/);
+                              if (numMatch) {
+                                const name = numMatch[1].trim();
+                                const number = numMatch[2];
+                                const pos = numMatch[3] ? numMatch[3].toUpperCase() : null;
+                                return (
+                                  <li key={pIdx} className="flex items-center gap-1.5 truncate select-text py-0.5 hover:bg-slate-900/10 rounded">
+                                    <span className="w-4 h-4 flex items-center justify-center font-mono font-bold text-[8.5px] bg-brand-blue/20 text-brand-blue-vibrant border border-brand-blue-accent/10 rounded-full shrink-0">{number}</span>
+                                    <span className="truncate text-slate-300 font-medium">{name}</span>
+                                    {pos && <span className="text-[7.5px] text-slate-500 font-mono font-black ml-auto bg-slate-900/40 px-1 rounded shrink-0">{pos}</span>}
+                                  </li>
+                                );
+                              }
+                              return (
+                                <li key={pIdx} className="truncate select-text pl-1.5 border-l border-brand-blue/30 py-0.5 text-slate-300 font-medium">{p}</li>
+                              );
+                            })}
+                          </ul>
+                        ) : (
+                          <div className="text-[9.5px] text-slate-600 italic">Nenhum escalado</div>
+                        )}
+                        
+                        {gameLineupsData[jogo.id].tecnico_casa && (
+                          <div className="text-[8.5px] font-bold text-slate-500 uppercase tracking-tight mt-1.5 truncate bg-slate-900/10 p-1 rounded border border-slate-900/40">
+                            Técnico: <span className="text-slate-350 font-medium font-sans">{gameLineupsData[jogo.id].tecnico_casa}</span>
+                          </div>
+                        )}
+                      </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Home Squad */}
-                  <div className="space-y-1.5">
-                    <div className="font-black text-[9px] text-brand-blue-vibrant uppercase truncate flex justify-between border-b border-slate-900/40 pb-0.5">
-                      <span className="truncate">{jogo.time_casa}</span>
-                      <span className="text-[8px] font-mono font-bold text-slate-600 shrink-0">CASA</span>
+                      {/* Away XI */}
+                      <div className="space-y-2 border-l border-slate-900/40 pl-3">
+                        <div className="font-black text-[9px] text-amber-500 uppercase border-b border-slate-900/40 pb-1 flex justify-between">
+                          <span className="truncate max-w-[85px]">{jogo.time_fora}</span>
+                          <span className="text-[7.5px] font-sans font-black text-slate-600 shrink-0 uppercase tracking-wider">FORA</span>
+                        </div>
+                        {gameLineupsData[jogo.id].titular_fora && gameLineupsData[jogo.id].titular_fora.length > 0 ? (
+                          <ul className="space-y-1 text-[10px] text-slate-300">
+                            {gameLineupsData[jogo.id].titular_fora.map((p: string, pIdx: number) => {
+                              const numMatch = p.match(/(.*?)\s*\((\d+)\)\s*-\s*(\w+)/) || p.match(/(.*?)\s*\((\d+)\)/);
+                              if (numMatch) {
+                                const name = numMatch[1].trim();
+                                const number = numMatch[2];
+                                const pos = numMatch[3] ? numMatch[3].toUpperCase() : null;
+                                return (
+                                  <li key={pIdx} className="flex items-center gap-1.5 truncate select-text py-0.5 hover:bg-slate-900/10 rounded">
+                                    <span className="w-4 h-4 flex items-center justify-center font-mono font-bold text-[8.5px] bg-amber-950/20 text-amber-500 border border-amber-600/10 rounded-full shrink-0">{number}</span>
+                                    <span className="truncate text-slate-300 font-medium">{name}</span>
+                                    {pos && <span className="text-[7.5px] text-slate-500 font-mono font-black ml-auto bg-slate-900/40 px-1 rounded shrink-0">{pos}</span>}
+                                  </li>
+                                );
+                              }
+                              return (
+                                <li key={pIdx} className="truncate select-text pl-1.5 border-l border-amber-500/30 py-0.5 text-slate-300 font-medium">{p}</li>
+                              );
+                            })}
+                          </ul>
+                        ) : (
+                          <div className="text-[9.5px] text-slate-600 italic">Nenhum escalado</div>
+                        )}
+
+                        {gameLineupsData[jogo.id].tecnico_fora && (
+                          <div className="text-[8.5px] font-bold text-slate-500 uppercase tracking-tight mt-1.5 truncate bg-slate-900/10 p-1 rounded border border-slate-900/40">
+                            Técnico: <span className="text-slate-350 font-medium font-sans">{gameLineupsData[jogo.id].tecnico_fora}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <ul className="space-y-0.5 text-[9px] font-mono text-slate-350 list-decimal pl-3.5">
-                      {jogo.escalacao.titular_casa?.map((p, pIdx) => (
-                        <li key={pIdx} className="truncate select-text">{p}</li>
-                      ))}
-                    </ul>
-                    {jogo.escalacao.tecnico_casa && (
-                      <div className="text-[8px] font-black text-slate-500 uppercase tracking-tight mt-1 truncate">
-                        Técnico: <span className="text-slate-300 font-normal">{jogo.escalacao.tecnico_casa}</span>
+
+                    {/* Substitutes squad drawer */}
+                    {((gameLineupsData[jogo.id].reservas_casa && gameLineupsData[jogo.id].reservas_casa.length > 0) || 
+                      (gameLineupsData[jogo.id].reservas_fora && gameLineupsData[jogo.id].reservas_fora.length > 0)) && (
+                      <div className="pt-2.5 border-t border-slate-900 flex flex-col gap-1 text-[8.5px] text-slate-500 font-sans">
+                        <div className="font-extrabold uppercase text-slate-400 tracking-wide">Suplementação técnica (Reservas):</div>
+                        <div className="grid grid-cols-2 gap-3 leading-relaxed">
+                          <div className="text-[9px] text-slate-400 italic">
+                            <div className="font-black text-slate-500 not-italic text-[8.5px] uppercase mb-0.5 truncate">{jogo.time_casa}</div>
+                            <span className="line-clamp-2 font-sans" title={gameLineupsData[jogo.id].reservas_casa?.join(", ")}>
+                              {gameLineupsData[jogo.id].reservas_casa?.join(", ") || "Nenhum reserva listado"}
+                            </span>
+                          </div>
+                          <div className="text-[9px] text-slate-400 italic border-l border-slate-900/60 pl-3">
+                            <div className="font-black text-slate-500 not-italic text-[8.5px] uppercase mb-0.5 truncate">{jogo.time_fora}</div>
+                            <span className="line-clamp-2 font-sans" title={gameLineupsData[jogo.id].reservas_fora?.join(", ")}>
+                              {gameLineupsData[jogo.id].reservas_fora?.join(", ") || "Nenhum reserva listado"}
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
-
-                  {/* Away Squad */}
-                  <div className="space-y-1.5 border-l border-slate-900/60 pl-3">
-                    <div className="font-black text-[9px] text-yellow-500 uppercase truncate flex justify-between border-b border-slate-900/40 pb-0.5">
-                      <span className="truncate">{jogo.time_fora}</span>
-                      <span className="text-[8px] font-mono font-bold text-slate-600 shrink-0">FORA</span>
-                    </div>
-                    <ul className="space-y-0.5 text-[9px] font-mono text-slate-350 list-decimal pl-3.5">
-                      {jogo.escalacao.titular_fora?.map((p, pIdx) => (
-                        <li key={pIdx} className="truncate select-text">{p}</li>
-                      ))}
-                    </ul>
-                    {jogo.escalacao.tecnico_fora && (
-                      <div className="text-[8px] font-black text-slate-500 uppercase tracking-tight mt-1 truncate">
-                        Técnico: <span className="text-slate-300 font-normal">{jogo.escalacao.tecnico_fora}</span>
-                      </div>
-                    )}
+                ) : (
+                  <div className="text-center py-6 text-slate-500 text-[10px]">
+                    Nenhuma escalação disponível para esta partida.
                   </div>
-                </div>
-
-                {/* Substitutes squad drawer */}
-                <div className="pt-2 border-t border-slate-900/60 flex flex-col gap-0.5 text-[8.5px] text-slate-500 font-mono">
-                  <div className="font-extrabold uppercase text-slate-655 block">Suplementação técnica:</div>
-                  <div className="grid grid-cols-2 gap-3 leading-relaxed">
-                    <div className="truncate italic" title={jogo.escalacao.reservas_casa?.join(", ")}>
-                      {jogo.escalacao.reservas_casa?.join(", ") || "Nenhum reserva listado"}
-                    </div>
-                    <div className="truncate italic border-l border-slate-900/50 pl-3" title={jogo.escalacao.reservas_fora?.join(", ")}>
-                      {jogo.escalacao.reservas_fora?.join(", ") || "Nenhum reserva listado"}
-                    </div>
-                  </div>
-                </div>
+                )}
               </div>
-            ) : null}
-
+            )}
           </div>
         )}
 

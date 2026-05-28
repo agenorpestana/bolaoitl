@@ -210,6 +210,15 @@ export default function HomePublic({
       const idUpper = (j.status_detalhado || '').toUpperCase();
       const isExplicitLive = ['1H', 'HT', '2H', 'ET', 'P', 'BT', 'LIVE', 'SUSP', 'INT'].includes(idUpper) || j.status === 'AO_VIVO';
       
+      // Postponed/abandoned/canceled matches in the past are considered concluded/not blocking for round calculation
+      if (['PST', 'CANX', 'ABD', 'CANC', 'SUSP'].includes(idUpper)) {
+        return true;
+      }
+
+      if (gameMs < nowMs && !isExplicitLive) {
+        return true;
+      }
+
       if (gameMs <= nowMs && !isExplicitLive) {
         const elapsedMins = (nowMs - gameMs) / (1000 * 60);
         if (elapsedMins >= 135) {
@@ -245,14 +254,23 @@ export default function HomePublic({
     const libCurrentRound = getChampionshipCurrentRound(libGames);
     const brasCurrentRound = getChampionshipCurrentRound(brasGames);
 
+    // Normalize Server date to start of today local to avoid timezone leaks
+    const now = new Date(dataServidorStr);
+    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
     // Now, filter pending games that are within those current rounds AND do NOT have a date in the past
     const pendingAndValidHighlights = (jogos || []).filter(j => {
       // Must be PENDENTE
       if (j.status !== 'PENDENTE') return false;
 
-      // Must NOT have a date prior to the current date
-      const gameMs = new Date(j.data_jogo).getTime();
-      if (gameMs < nowMs) return false;
+      // Must NOT be explicit postponed/cancelled
+      const statusDet = (j.status_detalhado || '').toUpperCase();
+      if (['PST', 'CANX', 'ABD', 'CANC', 'SUSP'].includes(statusDet)) return false;
+
+      // Must NOT have a date prior to today (yesterday or older)
+      const gameDate = new Date(j.data_jogo);
+      const gameMs = gameDate.getTime();
+      if (gameMs < todayMidnight) return false;
 
       // Must be of the current/active round of its championship
       const champ = getGameCampeonato(j);
