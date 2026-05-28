@@ -27,13 +27,13 @@ const TEAM_GROUPS: { [key: string]: string } = {
 
   // Libertadores Groups
   "Flamengo": "Grupo A", "Peñarol": "Grupo A", "Millonarios": "Grupo A", "Bolívar": "Grupo A",
-  "Palmeiras": "Grupo B", "San Lorenzo": "Grupo B", "Ind. del Valle": "Grupo B", "Liverpool URU": "Grupo B",
+  "Palmeiras": "Grupo B", "San Lorenzo": "Grupo B", "Ind. del Valle": "Grupo B", "Independiente del Valle": "Grupo B", "Liverpool URU": "Grupo B", "Liverpool M.": "Grupo B", "Liverpool Montevideo": "Grupo B",
   "São Paulo": "Grupo C", "Talleres": "Grupo C", "Barcelona SC": "Grupo C", "Cobresal": "Grupo C",
-  "Fluminense": "Grupo D", "Colo-Colo": "Grupo D", "Cerro Porteño": "Grupo D", "Alianza Lima": "Grupo D",
-  "Botafogo": "Grupo E", "Junior Barranquilla": "Grupo E", "LDU Quito": "Grupo E", "Universitario": "Grupo E",
-  "River Plate": "Grupo F", "Nacional URU": "Grupo F", "Libertad": "Grupo F", "Deportivo Táchira": "Grupo F",
+  "Fluminense": "Grupo D", "Colo-Colo": "Grupo D", "Cerro Porteño": "Grupo D", "Cerro Porteno": "Grupo D", "Alianza Lima": "Grupo D",
+  "Botafogo": "Grupo E", "Junior Barranquilla": "Grupo E", "Junior": "Grupo E", "LDU Quito": "Grupo E", "LDU de Quito": "Grupo E", "Universitario": "Grupo E",
+  "River Plate": "Grupo F", "Nacional URU": "Grupo F", "Club Nacional": "Grupo F", "Libertad": "Grupo F", "Libertad Asuncion": "Grupo F", "Deportivo Táchira": "Grupo F", "Deportivo Tachira": "Grupo F",
   "Atlético-MG": "Grupo G", "Rosario Central": "Grupo G", "Caracas": "Grupo G", "Peñarol MVD": "Grupo G",
-  "Grêmio": "Grupo H", "The Strongest": "Grupo H", "Huachipato": "Grupo H", "Estudiantes": "Grupo H"
+  "Grêmio": "Grupo H", "The Strongest": "Grupo H", "Huachipato": "Grupo H", "Estudiantes": "Grupo H", "Estudiantes L.P.": "Grupo H", "Estudiantes LP": "Grupo H"
 };
 
 export function calculateStandings(jogos: Jogo[]): StandingRow[] {
@@ -106,9 +106,9 @@ function cleanTeamName(name: string): string {
     .trim();
 }
 
-export function guessGroupForTeam(teamName: string): string {
+export function guessGroupForTeamExplicit(teamName: string): string | null {
   const cleanedInput = cleanTeamName(teamName);
-  if (!cleanedInput) return "Grupo A";
+  if (!cleanedInput) return null;
 
   // 1. Try exact cleaned match
   for (const [tName, group] of Object.entries(TEAM_GROUPS)) {
@@ -125,7 +125,14 @@ export function guessGroupForTeam(teamName: string): string {
     }
   }
 
-  // 3. Fallback: Distribute deterministically based on character code sum to avoid "Grupo Geral"
+  return null;
+}
+
+export function guessGroupForTeam(teamName: string): string {
+  const explicitGroup = guessGroupForTeamExplicit(teamName);
+  if (explicitGroup) return explicitGroup;
+
+  // Fallback: Distribute deterministically based on character code sum to avoid "Grupo Geral"
   // and keep exactly 8 groups (A to H) nicely distributed
   const sum = Array.from(teamName).reduce((acc, char) => acc + char.charCodeAt(0), 0);
   const groups = ["Grupo A", "Grupo B", "Grupo C", "Grupo D", "Grupo E", "Grupo F", "Grupo G", "Grupo H"];
@@ -133,27 +140,55 @@ export function guessGroupForTeam(teamName: string): string {
 }
 
 export function groupStandings(standings: StandingRow[]): { [groupName: string]: StandingRow[] } {
+  // We want to distribute teams into exactly 8 groups: A, B, C, D, E, F, G, H
+  const groupKeys = ["Grupo A", "Grupo B", "Grupo C", "Grupo D", "Grupo E", "Grupo F", "Grupo G", "Grupo H"];
+  
   const groups: { [groupName: string]: StandingRow[] } = {};
-
-  standings.forEach(row => {
-    const group = guessGroupForTeam(row.time);
-    if (!groups[group]) {
-      groups[group] = [];
-    }
-    groups[group].push(row);
+  groupKeys.forEach(gKey => {
+    groups[gKey] = [];
   });
 
-  // Sort the keys so they appear A, B, C, D, E, F, G, H
-  const sortedGroups: { [groupName: string]: StandingRow[] } = {};
-  const sortedKeys = Object.keys(groups).sort();
-  
-  sortedKeys.forEach(gName => {
-    sortedGroups[gName] = groups[gName].sort((a, b) => {
-      if (b.pontos !== a.pontos) return b.pontos - a.pontos;
-      if (b.vitorias !== a.vitorias) return b.vitorias - a.vitorias;
-      if (b.saldo !== a.saldo) return b.saldo - a.saldo;
-      return b.golsPro - a.golsPro;
+  const unmatched: StandingRow[] = [];
+
+  standings.forEach(row => {
+    const group = guessGroupForTeamExplicit(row.time);
+    if (group && groups[group] !== undefined) {
+      groups[group].push(row);
+    } else {
+      unmatched.push(row);
+    }
+  });
+
+  // Sort unmatched deterministically by team name to keep refreshing stable
+  unmatched.sort((a, b) => a.time.localeCompare(b.time));
+
+  // Distribute unmatched teams to the groups with the minimum current size to keep them balanced
+  unmatched.forEach(row => {
+    let minSize = Infinity;
+    let targetGroup = "Grupo A";
+
+    groupKeys.forEach(gKey => {
+      const size = groups[gKey].length;
+      if (size < minSize) {
+        minSize = size;
+        targetGroup = gKey;
+      }
     });
+
+    groups[targetGroup].push(row);
+  });
+
+  // Build sorted map containing only groups with teams
+  const sortedGroups: { [groupName: string]: StandingRow[] } = {};
+  groupKeys.forEach(gName => {
+    if (groups[gName].length > 0) {
+      sortedGroups[gName] = groups[gName].sort((a, b) => {
+        if (b.pontos !== a.pontos) return b.pontos - a.pontos;
+        if (b.vitorias !== a.vitorias) return b.vitorias - a.vitorias;
+        if (b.saldo !== a.saldo) return b.saldo - a.saldo;
+        return b.golsPro - a.golsPro;
+      });
+    }
   });
 
   return sortedGroups;

@@ -1198,7 +1198,7 @@ export default function MatchesSection({
                               <span className={`truncate ${rIdx < 2 ? 'text-slate-100 font-bold' : 'text-slate-400'}`}>{row.time}</span>
                             </div>
                             <div className="font-mono text-[9.5px] font-black flex items-center gap-2 shrink-0">
-                              <span className="text-brand-blue-light">{row.pontos}p</span>
+                              <span className="text-slate-100">{row.pontos}p</span>
                               <span className={`text-[9.5px] w-5 text-right ${row.saldo >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
                                 {row.saldo > 0 ? `+${row.saldo}` : row.saldo}
                               </span>
