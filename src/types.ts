@@ -64,6 +64,7 @@ export interface Jogo {
 export interface PalpiteGolJogador {
   jogador: string;
   gols: number;
+  time_lado?: 'casa' | 'fora';
 }
 
 export interface Palpite {

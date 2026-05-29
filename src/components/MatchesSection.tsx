@@ -371,6 +371,34 @@ export default function MatchesSection({
 
   const [expandedScorers, setExpandedScorers] = React.useState<{ [jogoId: number]: boolean }>({});
 
+  const getScorersTotalGoals = (jogoId: number, currentScorers?: { jogador: string; gols: number; time_lado?: 'casa' | 'fora' }[]) => {
+    const list = currentScorers || scorerInputs[jogoId] || [];
+    const gamePlayers = playersCache[jogoId];
+    
+    let totalCasa = 0;
+    let totalFora = 0;
+    
+    list.forEach(row => {
+      let side = row.time_lado;
+      if (!side && gamePlayers) {
+        if (gamePlayers.jogadores_casa.includes(row.jogador)) {
+          side = 'casa';
+        } else if (gamePlayers.jogadores_fora.includes(row.jogador)) {
+          side = 'fora';
+        }
+      }
+      if (!side) side = 'casa';
+      
+      if (side === 'casa') {
+        totalCasa += Number(row.gols) || 0;
+      } else {
+        totalFora += Number(row.gols) || 0;
+      }
+    });
+    
+    return { totalCasa, totalFora };
+  };
+
   const fetchPlayersForGame = async (jogoId: number) => {
     if (playersCache[jogoId]) return;
     try {
@@ -378,6 +406,31 @@ export default function MatchesSection({
       if (res.ok) {
         const data = await res.json();
         setPlayersCache(prev => ({ ...prev, [jogoId]: data }));
+        
+        // Auto-refresh the team sides for existing scorer inputs of this game
+        setScorerInputs(prev => {
+          const rows = prev[jogoId];
+          if (!rows || rows.length === 0) return prev;
+          
+          const updatedRows = rows.map(r => {
+            if (r.time_lado) return r;
+            let side: 'casa' | 'fora' | undefined;
+            if (data.jogadores_casa.includes(r.jogador)) {
+              side = 'casa';
+            } else if (data.jogadores_fora.includes(r.jogador)) {
+              side = 'fora';
+            }
+            return {
+              ...r,
+              time_lado: side || 'casa' // Fallback to 'casa'
+            };
+          });
+          
+          return {
+            ...prev,
+            [jogoId]: updatedRows
+          };
+        });
       }
     } catch (err) {
       console.error("Failed to fetch players for match", jogoId, err);
@@ -396,25 +449,130 @@ export default function MatchesSection({
 
   const handleAddScorerRow = (jogoId: number) => {
     markGameAsDirty(jogoId);
+    
+    // Get predicted score limits
+    const inputVal = inputs[jogoId] || { casa: "", fora: "" };
+    const maxCasa = Number(inputVal.casa) || 0;
+    const maxFora = Number(inputVal.fora) || 0;
+    
+    const totals = getScorersTotalGoals(jogoId);
+    
+    // Check which side has space left
+    let defaultSide: 'casa' | 'fora' = 'casa';
+    if (totals.totalCasa < maxCasa) {
+      defaultSide = 'casa';
+    } else if (totals.totalFora < maxFora) {
+      defaultSide = 'fora';
+    } else {
+      alert(`Você já distribuiu todos os gols previstos no seu placar para este jogo (${maxCasa + maxFora} gols).`);
+      return;
+    }
+    
     setScorerInputs(prev => ({
       ...prev,
       [jogoId]: [
         ...(prev[jogoId] || []),
-        { jogador: "", gols: 1 }
+        { jogador: "", gols: 1, time_lado: defaultSide }
       ]
     }));
   };
 
-  const handleUpdateScorerRow = (jogoId: number, idx: number, field: 'jogador' | 'gols', val: any) => {
+  const handleUpdateScorerRow = (jogoId: number, idx: number, field: string, val: any) => {
     markGameAsDirty(jogoId);
+    
+    // Get predicted score limits
+    const inputVal = inputs[jogoId] || { casa: "", fora: "" };
+    const maxCasa = Number(inputVal.casa) || 0;
+    const maxFora = Number(inputVal.fora) || 0;
+    
     setScorerInputs(prev => {
       const rows = [...(prev[jogoId] || [])];
-      if (rows[idx]) {
-        rows[idx] = {
-          ...rows[idx],
-          [field]: field === 'gols' ? Math.max(1, Number(val)) : val
-        };
+      if (!rows[idx]) return prev;
+      
+      const gamePlayers = playersCache[jogoId];
+      const oldRow = rows[idx];
+      
+      // Build draft row
+      let updatedRow = { ...oldRow, [field]: val };
+      
+      // Auto-determine time_lado if player changed
+      if (field === 'jogador') {
+        if (gamePlayers) {
+          if (gamePlayers.jogadores_casa.includes(val)) {
+            updatedRow.time_lado = 'casa';
+          } else if (gamePlayers.jogadores_fora.includes(val)) {
+            updatedRow.time_lado = 'fora';
+          }
+        }
       }
+      
+      // Determine final side
+      let side = updatedRow.time_lado;
+      if (!side && gamePlayers) {
+        if (gamePlayers.jogadores_casa.includes(updatedRow.jogador)) {
+          side = 'casa';
+        } else if (gamePlayers.jogadores_fora.includes(updatedRow.jogador)) {
+          side = 'fora';
+        }
+      }
+      if (!side) side = 'casa'; // default
+      
+      const maxLimit = side === 'casa' ? maxCasa : maxFora;
+      const teamName = side === 'casa' ? (gamePlayers?.time_casa || "Time Casa") : (gamePlayers?.time_fora || "Time Fora");
+      
+      // Sum the other rows for this same team side
+      let sumOthers = 0;
+      rows.forEach((r, rIdx) => {
+        if (rIdx === idx) return;
+        let rSide = r.time_lado;
+        if (!rSide && gamePlayers) {
+          if (gamePlayers.jogadores_casa.includes(r.jogador)) {
+            rSide = 'casa';
+          } else if (gamePlayers.jogadores_fora.includes(r.jogador)) {
+            rSide = 'fora';
+          }
+        }
+        if (!rSide) rSide = 'casa';
+        
+        if (rSide === side) {
+          sumOthers += Number(r.gols) || 0;
+        }
+      });
+      
+      if (maxLimit === 0) {
+        alert(`O time ${teamName} não possui gols previstos no seu placar (0 gols). Selecione o placar do jogo primeiro.`);
+        return prev;
+      }
+      
+      if (field === 'gols') {
+        const requestedGols = Math.max(1, Number(val));
+        if (sumOthers + requestedGols > maxLimit) {
+          const allowed = maxLimit - sumOthers;
+          if (allowed <= 0) {
+            alert(`O limite de gols para o ${teamName} já foi preenchido por outros jogadores (${sumOthers}/${maxLimit} gols).`);
+            updatedRow.gols = oldRow.gols;
+          } else {
+            alert(`O placar excede o limite do ${teamName}. Ajustado para o máximo restante de ${allowed} gol(s).`);
+            updatedRow.gols = allowed;
+          }
+        } else {
+          updatedRow.gols = requestedGols;
+        }
+      } else if (field === 'jogador' || field === 'time_lado') {
+        const rowGols = Number(updatedRow.gols) || 1;
+        if (sumOthers + rowGols > maxLimit) {
+          const allowed = maxLimit - sumOthers;
+          if (allowed <= 0) {
+            alert(`Não é possível selecionar este jogador do ${teamName} pois o limite de gols de ${maxLimit} já foi atingido.`);
+            return prev; // reject selecting this player
+          } else {
+            alert(`Ajustado automaticamente os gols de ${updatedRow.jogador || "jogador"} para ${allowed} para respeitar o limite de ${maxLimit} gols do ${teamName}.`);
+            updatedRow.gols = allowed;
+          }
+        }
+      }
+      
+      rows[idx] = updatedRow;
       return { ...prev, [jogoId]: rows };
     });
   };
@@ -475,6 +633,23 @@ export default function MatchesSection({
     const vals = inputs[jogoId];
     if (!vals || vals.casa === "" || vals.fora === "") {
       alert("Por favor, preencha os placares de ambas as equipes para salvar seu palpite.");
+      return;
+    }
+
+    // ENFORCE EXACT SCORE LIMIT RULES BEFORE SAVING
+    const jogo = jogos.find(j => j.id === jogoId);
+    const teamCasaName = jogo ? jogo.time_casa : "Time Casa";
+    const teamForaName = jogo ? jogo.time_fora : "Time Fora";
+    const maxCasa = Number(vals.casa) || 0;
+    const maxFora = Number(vals.fora) || 0;
+    
+    const totals = getScorersTotalGoals(jogoId);
+    if (totals.totalCasa > maxCasa) {
+      alert(`Não é possível salvar: A soma de gols dos artilheiros do ${teamCasaName} (${totals.totalCasa}) é maior do que o placar previsto (${maxCasa}). Por favor, ajuste os artilheiros.`);
+      return;
+    }
+    if (totals.totalFora > maxFora) {
+      alert(`Não é possível salvar: A soma de gols dos artilheiros do ${teamForaName} (${totals.totalFora}) é maior do que o placar previsto (${maxFora}). Por favor, ajuste os artilheiros.`);
       return;
     }
 
@@ -856,105 +1031,161 @@ export default function MatchesSection({
             </span>
           </button>
 
-          {expandedScorers[jogo.id] && (
-            <div className="mt-2.5 bg-slate-950/40 p-2.5 rounded-xl border border-slate-900/50 space-y-2.5">
-              <div className="text-[10px] text-slate-400 font-sans leading-relaxed">
-                Dica: Acerte o autor e a quantidade de gols para pontuar (<strong>7 pontos</strong> por gol acertado).
-              </div>
+          {expandedScorers[jogo.id] && (() => {
+            const totals = getScorersTotalGoals(jogo.id);
+            const inputVal = inputs[jogo.id] || { casa: "", fora: "" };
+            const maxCasa = Number(inputVal.casa) || 0;
+            const maxFora = Number(inputVal.fora) || 0;
+            const gamePlayers = playersCache[jogo.id];
 
-              {(scorerInputs[jogo.id] || []).length === 0 ? (
-                <div className="text-slate-500 italic text-[11px] py-1.5 text-center font-sans">
-                  Nenhum jogador selecionado para gols neste jogo.
+            return (
+              <div className="mt-2.5 bg-slate-950/40 p-2.5 rounded-xl border border-slate-900/50 space-y-2.5 animate-fadeIn">
+                <div className="text-[10px] text-slate-400 font-sans leading-relaxed">
+                  Dica: Acerte o autor e a quantidade de gols para pontuar (<strong>7 pontos</strong> por gol acertado).
                 </div>
-              ) : (
-                <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
-                  {(scorerInputs[jogo.id] || []).map((row, idx) => {
-                    const gamePlayers = playersCache[jogo.id];
-                    return (
-                      <div key={idx} className="flex items-center gap-2">
-                        <div className="flex-1 min-w-0">
-                          {isReadonly || isBlocked || isCanceled ? (
-                            <div className="bg-slate-900/50 p-2 rounded-lg border border-slate-800 text-slate-300 truncate font-sans text-[11px] font-semibold">
-                              {row.jogador || "Outro jogador..."}
-                            </div>
-                          ) : (
-                            <select
-                              value={row.jogador}
-                              onChange={(e) => handleUpdateScorerRow(jogo.id, idx, 'jogador', e.target.value)}
-                              className="w-full bg-slate-900 border border-slate-800 text-slate-100 rounded-lg p-1.5 text-[11px] font-medium focus:border-brand-blue"
-                            >
-                              <option value="">-- Selecione o Jogador --</option>
-                              {gamePlayers && (
-                                <>
-                                  <optgroup label={jogo.time_casa}>
-                                    {gamePlayers.jogadores_casa.map(p => (
-                                      <option key={p} value={p}>{p}</option>
-                                    ))}
-                                  </optgroup>
-                                  <optgroup label={jogo.time_fora}>
-                                    {gamePlayers.jogadores_fora.map(p => (
-                                      <option key={p} value={p}>{p}</option>
-                                    ))}
-                                  </optgroup>
-                                </>
+
+                {/* Status indicator showing goals ratio per side */}
+                <div className="flex flex-col xs:flex-row justify-between gap-1.5 p-2 rounded-lg bg-slate-900 border border-slate-800/60 font-sans font-medium text-[10px]">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 bg-brand-blue-accent rounded-full animate-pulse"></span>
+                    <span className="text-slate-400">{jogo.time_casa}:</span>
+                    <span className={totals.totalCasa === maxCasa ? "text-emerald-400 font-extrabold" : "text-amber-400 font-bold"}>
+                      {totals.totalCasa} de {maxCasa} gols {totals.totalCasa === maxCasa && maxCasa > 0 ? "✓" : ""}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 bg-brand-blue-vibrant rounded-full animate-pulse"></span>
+                    <span className="text-slate-400">{jogo.time_fora}:</span>
+                    <span className={totals.totalFora === maxFora ? "text-emerald-400 font-extrabold" : "text-amber-400 font-bold"}>
+                      {totals.totalFora} de {maxFora} gols {totals.totalFora === maxFora && maxFora > 0 ? "✓" : ""}
+                    </span>
+                  </div>
+                </div>
+
+                {(scorerInputs[jogo.id] || []).length === 0 ? (
+                  <div className="text-slate-500 italic text-[11px] py-1.5 text-center font-sans">
+                    Nenhum jogador selecionado para gols neste jogo.
+                  </div>
+                ) : (
+                  <div className="space-y-2.5 max-h-[190px] overflow-y-auto pr-1">
+                    {(scorerInputs[jogo.id] || []).map((row, idx) => {
+                      return (
+                        <div key={idx} className="flex flex-col p-2 bg-slate-900/40 border border-slate-900/60 rounded-xl space-y-2">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 min-w-0">
+                              {isReadonly || isBlocked || isCanceled ? (
+                                <div className="bg-slate-900/50 p-2 rounded-lg border border-slate-800 text-slate-300 truncate font-sans text-[11px] font-semibold">
+                                  {row.jogador || "Outro jogador..."}
+                                </div>
+                              ) : (
+                                <select
+                                  value={row.jogador}
+                                  onChange={(e) => handleUpdateScorerRow(jogo.id, idx, 'jogador', e.target.value)}
+                                  className="w-full bg-slate-900 border border-slate-800 text-slate-100 rounded-lg p-1.5 text-[11px] font-medium focus:border-brand-blue"
+                                >
+                                  <option value="">-- Selecione o Jogador --</option>
+                                  {gamePlayers && (
+                                    <>
+                                      <optgroup label={jogo.time_casa}>
+                                        {gamePlayers.jogadores_casa.map(p => (
+                                          <option key={p} value={p}>{p}</option>
+                                        ))}
+                                      </optgroup>
+                                      <optgroup label={jogo.time_fora}>
+                                        {gamePlayers.jogadores_fora.map(p => (
+                                          <option key={p} value={p}>{p}</option>
+                                        ))}
+                                      </optgroup>
+                                    </>
+                                  )}
+                                  <option value="custom_value_typing">Digitar outro jogador...</option>
+                                </select>
                               )}
-                              <option value="custom_value_typing">Digitar outro jogador...</option>
-                            </select>
-                          )}
 
-                          {/* Show freeform text field if custom chosen or not in dropdown */}
-                          {!isReadonly && !isBlocked && !isCanceled && (row.jogador === 'custom_value_typing' || (gamePlayers && !gamePlayers.jogadores_casa.includes(row.jogador) && !gamePlayers.jogadores_fora.includes(row.jogador) && row.jogador !== '')) && (
-                            <input
-                              type="text"
-                              placeholder="Nome do jogador..."
-                              value={row.jogador === 'custom_value_typing' ? "" : row.jogador}
-                              onChange={(e) => handleUpdateScorerRow(jogo.id, idx, 'jogador', e.target.value)}
-                              className="mt-1 w-full bg-slate-900 border border-slate-800 focus:border-brand-blue-accent focus:ring-1 focus:ring-brand-blue-accent text-slate-100 rounded-lg p-1.5 text-[11px] font-medium"
-                            />
-                          )}
+                              {/* Show freeform text field if custom chosen or not in dropdown */}
+                              {!isReadonly && !isBlocked && !isCanceled && (row.jogador === 'custom_value_typing' || (gamePlayers && !gamePlayers.jogadores_casa.includes(row.jogador) && !gamePlayers.jogadores_fora.includes(row.jogador) && row.jogador !== '')) && (
+                                <div className="mt-1.5 space-y-1.5 animate-fadeIn">
+                                  <input
+                                    type="text"
+                                    placeholder="Nome do jogador..."
+                                    value={row.jogador === 'custom_value_typing' ? "" : row.jogador}
+                                    onChange={(e) => handleUpdateScorerRow(jogo.id, idx, 'jogador', e.target.value)}
+                                    className="w-full bg-slate-900 border border-slate-800 focus:border-brand-blue-accent focus:ring-1 focus:ring-brand-blue-accent text-slate-100 rounded-lg p-1.5 text-[11px] font-medium"
+                                  />
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[9px] text-slate-500 font-sans font-semibold">Time:</span>
+                                    <div className="flex bg-slate-900 border border-slate-850 rounded-lg p-0.5 shrink-0">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleUpdateScorerRow(jogo.id, idx, 'time_lado', 'casa')}
+                                        className={`px-2 py-0.5 text-[9px] font-bold rounded transition ${
+                                          row.time_lado === 'casa'
+                                            ? 'bg-brand-blue-accent text-white shadow-sm'
+                                            : 'text-slate-400 hover:text-slate-200'
+                                        }`}
+                                      >
+                                        {jogo.time_casa}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleUpdateScorerRow(jogo.id, idx, 'time_lado', 'fora')}
+                                        className={`px-2 py-0.5 text-[9px] font-bold rounded transition ${
+                                          row.time_lado === 'fora'
+                                            ? 'bg-brand-blue-accent text-white shadow-sm'
+                                            : 'text-slate-400 hover:text-slate-200'
+                                        }`}
+                                      >
+                                        {jogo.time_fora}
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-1 shrink-0">
+                              <span className="text-[10px] text-slate-500 font-sans">Gols:</span>
+                              <input
+                                type="number"
+                                min={1}
+                                max={10}
+                                disabled={isReadonly || isBlocked || isCanceled}
+                                value={row.gols}
+                                onChange={(e) => handleUpdateScorerRow(jogo.id, idx, 'gols', e.target.value)}
+                                className="w-12 bg-slate-900 border border-slate-800 focus:border-brand-blue text-brand-blue-vibrant text-center font-bold rounded-lg p-1.5 text-[11px]"
+                              />
+                            </div>
+
+                            {!isReadonly && !isBlocked && !isCanceled && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveScorerRow(jogo.id, idx)}
+                                className="p-1.5 text-red-500 hover:text-red-400 hover:bg-slate-900 rounded-lg transition"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3.5 h-3.5">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
                         </div>
+                      );
+                    })}
+                  </div>
+                )}
 
-                        <div className="flex items-center gap-1 shrink-0">
-                          <span className="text-[10px] text-slate-500 font-sans">Gols:</span>
-                          <input
-                            type="number"
-                            min={1}
-                            max={10}
-                            disabled={isReadonly || isBlocked || isCanceled}
-                            value={row.gols}
-                            onChange={(e) => handleUpdateScorerRow(jogo.id, idx, 'gols', e.target.value)}
-                            className="w-12 bg-slate-900 border border-slate-800 focus:border-brand-blue text-brand-blue-vibrant text-center font-bold rounded-lg p-1.5 text-[11px]"
-                          />
-                        </div>
-
-                        {!isReadonly && !isBlocked && !isCanceled && (
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveScorerRow(jogo.id, idx)}
-                            className="p-1.5 text-red-500 hover:text-red-400 hover:bg-slate-900 rounded-lg transition"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3.5 h-3.5">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {!isReadonly && !isBlocked && !isCanceled && (
-                <button
-                  type="button"
-                  onClick={() => handleAddScorerRow(jogo.id)}
-                  className="w-full flex items-center justify-center gap-1.5 py-1.5 border border-dashed border-slate-800 hover:border-brand-blue/50 text-[11px] text-slate-400 hover:text-brand-blue-vibrant rounded-xl transition bg-slate-900/20 font-sans font-medium"
-                >
-                  <span>+ Adicionar Gol de Jogador</span>
-                </button>
-              )}
-            </div>
-          )}
+                {!isReadonly && !isBlocked && !isCanceled && (
+                  <button
+                    type="button"
+                    onClick={() => handleAddScorerRow(jogo.id)}
+                    className="w-full flex items-center justify-center gap-1.5 py-1.5 border border-dashed border-slate-800 hover:border-brand-blue/50 text-[11px] text-slate-400 hover:text-brand-blue-vibrant rounded-xl transition bg-slate-900/20 font-sans font-medium"
+                  >
+                    <span>+ Adicionar Gol de Jogador</span>
+                  </button>
+                )}
+              </div>
+            );
+          })()}
         </div>
 
         {/* Input action panels */}
