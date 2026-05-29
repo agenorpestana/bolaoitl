@@ -2247,6 +2247,7 @@ async function startServer() {
     res.json({
       jogos: enriched,
       palpites: rawUserGuesses,
+      configs_points: db.configs_points,
       data_servidor: new Date().toISOString()
     });
   });
@@ -2356,8 +2357,14 @@ async function startServer() {
     res.json({ success: true, palpite: existingBet });
   });
 
+  const getTeamIdFromLogo = (logoUrl: string | null | undefined): number | null => {
+    if (!logoUrl) return null;
+    const match = logoUrl.match(/\/teams\/(\d+)\.png/) || logoUrl.match(/\/teams\/(\d+)/) || logoUrl.match(/teams_logo\/(\d+)/) || logoUrl.match(/\/(\d+)\.png/);
+    return match ? parseInt(match[1], 10) : null;
+  };
+
   // Fetch both team rosters/players catalog for the scorer card widget dropdown list selections
-  app.get("/api/jogos/:id/jogadores", (req, res) => {
+  app.get("/api/jogos/:id/jogadores", async (req, res) => {
     try {
       const db = loadDatabase();
       const jogoId = parseInt(req.params.id, 10);
@@ -2366,27 +2373,85 @@ async function startServer() {
         return res.status(404).json({ error: "Partida não encontrada." });
       }
 
-      let rosterCasa = lookupRoster(jogo.time_casa, jogo.id * 2);
-      if (!rosterCasa) {
-        rosterCasa = generateGenericRoster(jogo.time_casa, jogo.id * 2);
+      if (!(db as any).squads_cache) {
+        (db as any).squads_cache = {};
       }
 
-      let rosterFora = lookupRoster(jogo.time_fora, jogo.id * 3);
-      if (!rosterFora) {
-        rosterFora = generateGenericRoster(jogo.time_fora, jogo.id * 3);
+      const apiKey = db.configs_football.key;
+      const apiUrl = db.configs_football.url || "https://v3.football.api-sports.io";
+      const isRealApi = apiKey && apiKey.trim() !== "" && !apiKey.toLowerCase().includes("dummy") && apiKey.length > 10;
+
+      const homeId = getTeamIdFromLogo(jogo.time_casa_bandeira);
+      const awayId = getTeamIdFromLogo(jogo.time_fora_bandeira);
+
+      let jogCasa: string[] = [];
+      let jogFora: string[] = [];
+
+      // HELPER FETCH SQUAD WITH CACHE & ROSTER FALLBACKS
+      const fetchSquad = async (teamId: number, teamName: string, fallbackKey: number): Promise<string[]> => {
+        if ((db as any).squads_cache[teamId]) {
+          return (db as any).squads_cache[teamId];
+        }
+
+        if (isRealApi) {
+          try {
+            console.log(`[API Football Squad Fetch] Sincronizando elenco atualizado para o clube ID: ${teamId} (${teamName})...`);
+            const response = await axios.get(`${apiUrl}/players/squads`, {
+              params: { team: String(teamId) },
+              headers: { "x-apisports-key": apiKey },
+              timeout: 6000
+            });
+            const playersList = response?.data?.response?.[0]?.players || [];
+            if (playersList.length > 0) {
+              const names = playersList.map((p: any) => p.name).filter(Boolean);
+              (db as any).squads_cache[teamId] = names;
+              saveDatabase(db);
+              return names;
+            }
+          } catch (e: any) {
+            console.error(`[API Football Squad Fetch] Erro ao sincronizar elenco via API do ${teamName}:`, e.message);
+          }
+        }
+
+        // Return fallback
+        let roster = lookupRoster(teamName, fallbackKey);
+        if (!roster) {
+          roster = generateGenericRoster(teamName, fallbackKey);
+        }
+        const stripNumbers = (p: string) => p.replace(/\s*\(\s*\d+\s*\)\s*$/, "").trim();
+        return [
+          ...(roster.starter || []).map(stripNumbers),
+          ...(roster.subs || []).map(stripNumbers)
+        ];
+      };
+
+      if (homeId) {
+        jogCasa = await fetchSquad(homeId, jogo.time_casa, jogo.id * 2);
+      } else {
+        let rosterHome = lookupRoster(jogo.time_casa, jogo.id * 2);
+        if (!rosterHome) {
+          rosterHome = generateGenericRoster(jogo.time_casa, jogo.id * 2);
+        }
+        const stripNumbers = (p: string) => p.replace(/\s*\(\s*\d+\s*\)\s*$/, "").trim();
+        jogCasa = [
+          ...(rosterHome.starter || []).map(stripNumbers),
+          ...(rosterHome.subs || []).map(stripNumbers)
+        ];
       }
 
-      const stripNumbers = (p: string) => p.replace(/\s*\(\s*\d+\s*\)\s*$/, "").trim();
-
-      const jogCasa = [
-        ...(rosterCasa.starter || []).map(stripNumbers),
-        ...(rosterCasa.subs || []).map(stripNumbers)
-      ];
-
-      const jogFora = [
-        ...(rosterFora.starter || []).map(stripNumbers),
-        ...(rosterFora.subs || []).map(stripNumbers)
-      ];
+      if (awayId) {
+        jogFora = await fetchSquad(awayId, jogo.time_fora, jogo.id * 3);
+      } else {
+        let rosterAway = lookupRoster(jogo.time_fora, jogo.id * 3);
+        if (!rosterAway) {
+          rosterAway = generateGenericRoster(jogo.time_fora, jogo.id * 3);
+        }
+        const stripNumbers = (p: string) => p.replace(/\s*\(\s*\d+\s*\)\s*$/, "").trim();
+        jogFora = [
+          ...(rosterAway.starter || []).map(stripNumbers),
+          ...(rosterAway.subs || []).map(stripNumbers)
+        ];
+      }
 
       return res.json({
         time_casa: jogo.time_casa,

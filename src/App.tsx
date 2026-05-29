@@ -41,6 +41,7 @@ export default function App() {
   const [ranking, setRanking] = React.useState<any[]>([]);
   const [vencedoresRodadas, setVencedoresRodadas] = React.useState<any[]>([]);
   const [publicMetrics, setPublicMetrics] = React.useState<any | null>(null);
+  const [pointsConfig, setPointsConfig] = React.useState<any>(null);
   const [dataServidor, setDataServidor] = React.useState<string>(new Date().toISOString());
   const [ixcOfflineMode, setIxcOfflineMode] = React.useState<boolean>(true);
 
@@ -136,6 +137,9 @@ export default function App() {
         setJogos(gData.jogos);
         setPalpites(gData.palpites);
         setDataServidor(gData.data_servidor);
+        if (gData.configs_points) {
+          setPointsConfig(gData.configs_points);
+        }
       }
 
     } catch (err) {
@@ -344,6 +348,7 @@ export default function App() {
                 onSavePalpite={handleSavePalpite}
                 onCtaLogin={() => setActiveTab('login')}
                 dataServidor={dataServidor}
+                pointsConfig={pointsConfig}
               />
             )}
 

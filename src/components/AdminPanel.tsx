@@ -98,6 +98,7 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
   const [ptsWinner, setPtsWinner] = React.useState(4);
   const [ptsDraw, setPtsDraw] = React.useState(4);
   const [ptsExact, setPtsExact] = React.useState(6);
+  const [ptsScorer, setPtsScorer] = React.useState(7);
   const [ptsBonusRound, setPtsBonusRound] = React.useState(5);
   const [ptsBonusSeq, setPtsBonusSeq] = React.useState(3);
   const [ptsBonusPerfect, setPtsBonusPerfect] = React.useState(15);
@@ -314,6 +315,7 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
         setPtsWinner(data.configs_points.pontos_acertar_vencedor);
         setPtsDraw(data.configs_points.pontos_acertar_empate);
         setPtsExact(data.configs_points.pontos_acertar_placar_exato);
+        setPtsScorer(data.configs_points.pontos_acertar_autor_gol !== undefined ? data.configs_points.pontos_acertar_autor_gol : 7);
         setPtsBonusRound(data.configs_points.bonus_rodada);
         setPtsBonusSeq(data.configs_points.bonus_sequencia);
         setPtsBonusPerfect(data.configs_points.bonus_jogos_perfeitos);
@@ -456,6 +458,7 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
           pontos_acertar_vencedor: ptsWinner,
           pontos_acertar_empate: ptsDraw,
           pontos_acertar_placar_exato: ptsExact,
+          pontos_acertar_autor_gol: ptsScorer,
           bonus_rodada: ptsBonusRound,
           bonus_sequencia: ptsBonusSeq,
           bonus_jogos_perfeitos: ptsBonusPerfect
@@ -1232,7 +1235,7 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
             </p>
           </div>
 
-          <div className="grid gap-5 sm:grid-cols-3">
+          <div className="grid gap-5 sm:grid-cols-4">
             
             <div className="bg-slate-950 p-4 rounded-xl space-y-2 text-left">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Acerto de Vencedor</label>
@@ -1270,6 +1273,19 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
               />
               <span className="text-[9px] text-slate-500 block leading-normal">
                 Pontos extras somados caso acerte o placar inteiro exato (Ex: cravou Brasil 2 x 1, terminou 2 x 1).
+              </span>
+            </div>
+
+            <div className="bg-slate-950 p-4 rounded-xl space-y-2 text-left">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Acerto de Artilheiro</label>
+              <input
+                type="number"
+                value={ptsScorer}
+                onChange={(e) => setPtsScorer(Number(e.target.value))}
+                className="w-full p-2 bg-slate-900/80 border border-slate-800 rounded font-mono text-center text-sm font-bold text-brand-blue-vibrant"
+              />
+              <span className="text-[9px] text-slate-500 block leading-normal">
+                Pontos concedidos para cada jogador que marcar gol palpitado corretamente na escalação.
               </span>
             </div>
 

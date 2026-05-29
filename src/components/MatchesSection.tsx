@@ -63,6 +63,7 @@ interface MatchesSectionProps {
   onSavePalpite: (jogoId: number, placarCasa: number, placarFora: number, palpitesGolsJogadores?: any[]) => Promise<boolean>;
   onCtaLogin: () => void;
   dataServidor: string;
+  pointsConfig?: any;
 }
 
 export default function MatchesSection({ 
@@ -71,7 +72,8 @@ export default function MatchesSection({
   token, 
   onSavePalpite, 
   onCtaLogin, 
-  dataServidor 
+  dataServidor,
+  pointsConfig
 }: MatchesSectionProps) {
   
   const hasCopaGames = React.useMemo(() => jogos.some(j => getGameCampeonato(j) === 'COPA_MUNDO'), [jogos]);
@@ -342,6 +344,18 @@ export default function MatchesSection({
   const [inputs, setInputs] = React.useState<{ [key: string]: { casa: string; fora: string } }>({});
   const [savingKeys, setSavingKeys] = React.useState<{ [key: string]: boolean }>({});
   
+  // Track games being currently modified so background pollers do not overwrite them
+  const [dirtyGameIds, setDirtyGameIds] = React.useState<Set<number>>(new Set());
+
+  const markGameAsDirty = (jogoId: number) => {
+    setDirtyGameIds(prev => {
+      if (prev.has(jogoId)) return prev;
+      const next = new Set(prev);
+      next.add(jogoId);
+      return next;
+    });
+  };
+
   // Temporary player goalscorer predictions state mapped to game id
   const [scorerInputs, setScorerInputs] = React.useState<{ [jogoId: number]: { jogador: string; gols: number }[] }>({});
   
@@ -381,6 +395,7 @@ export default function MatchesSection({
   };
 
   const handleAddScorerRow = (jogoId: number) => {
+    markGameAsDirty(jogoId);
     setScorerInputs(prev => ({
       ...prev,
       [jogoId]: [
@@ -391,6 +406,7 @@ export default function MatchesSection({
   };
 
   const handleUpdateScorerRow = (jogoId: number, idx: number, field: 'jogador' | 'gols', val: any) => {
+    markGameAsDirty(jogoId);
     setScorerInputs(prev => {
       const rows = [...(prev[jogoId] || [])];
       if (rows[idx]) {
@@ -404,6 +420,7 @@ export default function MatchesSection({
   };
 
   const handleRemoveScorerRow = (jogoId: number, idx: number) => {
+    markGameAsDirty(jogoId);
     setScorerInputs(prev => {
       const rows = [...(prev[jogoId] || [])];
       rows.splice(idx, 1);
@@ -411,26 +428,40 @@ export default function MatchesSection({
     });
   };
   
-  // Map API response guesses to internal inputs state on load
+  // Map API response guesses to internal inputs state on load (guarding dirty/modified games)
   React.useEffect(() => {
-    const updatedInputs: { [key: string]: { casa: string; fora: string } } = {};
-    const updatedScorers: { [jogoId: number]: { jogador: string; gols: number }[] } = {};
-    palpites.forEach(p => {
-      updatedInputs[p.jogo_id] = {
-        casa: String(p.placar_casa),
-        fora: String(p.placar_fora)
-      };
-      if (p.palpites_gols_jogadores) {
-        updatedScorers[p.jogo_id] = p.palpites_gols_jogadores;
-      }
+    setInputs(prevInputs => {
+      const updatedInputs = { ...prevInputs };
+      palpites.forEach(p => {
+        if (!dirtyGameIds.has(p.jogo_id)) {
+          updatedInputs[p.jogo_id] = {
+            casa: String(p.placar_casa),
+            fora: String(p.placar_fora)
+          };
+        }
+      });
+      return updatedInputs;
     });
-    setInputs(updatedInputs);
-    setScorerInputs(updatedScorers);
-  }, [palpites]);
+
+    setScorerInputs(prevScorers => {
+      const updatedScorers = { ...prevScorers };
+      palpites.forEach(p => {
+        if (!dirtyGameIds.has(p.jogo_id)) {
+          if (p.palpites_gols_jogadores) {
+            updatedScorers[p.jogo_id] = p.palpites_gols_jogadores;
+          } else {
+            updatedScorers[p.jogo_id] = [];
+          }
+        }
+      });
+      return updatedScorers;
+    });
+  }, [palpites, dirtyGameIds]);
 
   const handleInputChange = (jogoId: number, side: 'casa' | 'fora', val: string) => {
     // Only allow positive integers
     const sanitizedValue = val.replace(/\D/g, "");
+    markGameAsDirty(jogoId);
     setInputs(prev => ({
       ...prev,
       [jogoId]: {
@@ -452,6 +483,14 @@ export default function MatchesSection({
     const filteredScorers = scorers.filter(s => s.jogador && s.jogador.trim() !== "");
     const success = await onSavePalpite(jogoId, Number(vals.casa), Number(vals.fora), filteredScorers);
     
+    if (success) {
+      setDirtyGameIds(prev => {
+        const next = new Set(prev);
+        next.delete(jogoId);
+        return next;
+      });
+    }
+
     // Slight simulated wait for premium UX
     setTimeout(() => {
       setSavingKeys(prev => ({ ...prev, [jogoId]: false }));
@@ -805,7 +844,7 @@ export default function MatchesSection({
             className="flex items-center justify-between w-full py-1 text-slate-400 hover:text-slate-200 transition font-sans font-medium"
           >
             <span className="flex items-center gap-1.5 font-bold text-slate-300">
-              <span role="img" aria-label="soccer">⚽</span> Palpitar Gols de Jogadores (+7 Pts)
+              <span role="img" aria-label="soccer">⚽</span> Palpitar Gols de Jogadores (+{pointsConfig?.pontos_acertar_autor_gol ?? 7} Pts)
               {scorerInputs[jogo.id]?.length > 0 && (
                 <span className="bg-brand-blue-accent/30 text-brand-blue-vibrant text-[10px] px-1.5 py-0.2 rounded-full font-extrabold border border-brand-blue-accent/20">
                   {scorerInputs[jogo.id].length}
