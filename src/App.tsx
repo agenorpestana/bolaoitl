@@ -87,6 +87,16 @@ export default function App() {
     };
   }, []);
 
+  // Sincronização dinâmica de Favicon
+  React.useEffect(() => {
+    if (publicMetrics?.configs_favicon?.has_custom_favicon) {
+      const link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']");
+      if (link) {
+        link.href = `/favicon.ico?v=${publicMetrics.configs_favicon.timestamp}`;
+      }
+    }
+  }, [publicMetrics]);
+
   const handleInstallPWA = async () => {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();

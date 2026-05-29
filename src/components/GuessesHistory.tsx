@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trophy, CheckCircle, XCircle, Clock, Calendar, Search, Award, TrendingUp, Filter } from 'lucide-react';
+import { Trophy, CheckCircle, XCircle, Clock, Calendar, Search, Award, TrendingUp, Filter, Target } from 'lucide-react';
 import { Jogo, Palpite } from '../types';
 import { getGameCampeonato } from './MatchesSection';
 
@@ -82,6 +82,7 @@ export default function GuessesHistory({ jogos, palpites, usuarioNome, isCompact
     let erros = 0;
     let pendentes = 0;
     let pontosSomados = 0;
+    let acertosArtilheiro = 0;
 
     historyData.forEach(item => {
       pontosSomados += item.pontos;
@@ -89,9 +90,27 @@ export default function GuessesHistory({ jogos, palpites, usuarioNome, isCompact
       else if (item.classification === 'VENCEDOR') vencedor++;
       else if (item.classification === 'ERRO') erros++;
       else if (item.classification === 'PENDENTE') pendentes++;
+
+      // Count exact scorer prediction hits
+      if (item.palpite.palpites_gols_jogadores && item.palpite.palpites_gols_jogadores.length > 0) {
+        const actualGoals = getGoalsFromGameEvents(item.jogo);
+        item.palpite.palpites_gols_jogadores.forEach(sg => {
+          const gNameNormal = normalizePlayerName(sg.jogador);
+          let matchedActualGoals = 0;
+          for (const [evtName, goalsScored] of Object.entries(actualGoals)) {
+            if (evtName.includes(gNameNormal) || gNameNormal.includes(evtName)) {
+              matchedActualGoals = goalsScored;
+              break;
+            }
+          }
+          if (matchedActualGoals >= sg.gols) {
+            acertosArtilheiro++;
+          }
+        });
+      }
     });
 
-    return { total, exatos, vencedor, erros, pendentes, pontosSomados };
+    return { total, exatos, vencedor, erros, pendentes, pontosSomados, acertosArtilheiro };
   }, [historyData]);
 
   // Filter & Search
@@ -150,7 +169,7 @@ export default function GuessesHistory({ jogos, palpites, usuarioNome, isCompact
       )}
 
       {/* Summary Analytics Cards */}
-      <div className={`grid ${isCompact ? 'grid-cols-2 md:grid-cols-5 gap-2' : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3'}`}>
+      <div className={`grid ${isCompact ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2' : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3'}`}>
         <div className="bg-slate-950/60 p-2.5 sm:p-3 rounded-xl border border-slate-900 flex flex-col items-center justify-center text-center">
           <Award className="h-4 w-4 sm:h-5 sm:w-5 text-brand-blue-accent mb-1" />
           <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest font-sans">Total Enviados</span>
@@ -175,7 +194,13 @@ export default function GuessesHistory({ jogos, palpites, usuarioNome, isCompact
           <span className="text-sm sm:text-base font-black text-brand-blue-vibrant mt-0.5 font-mono">{stats.vencedor}</span>
         </div>
 
-        <div className="bg-slate-950/60 p-2.5 sm:p-3 rounded-xl border border-slate-900 grid-cols-2 col-span-2 sm:col-span-1 flex flex-col items-center justify-center text-center">
+        <div className="bg-slate-950/60 p-2.5 sm:p-3 rounded-xl border border-slate-900 flex flex-col items-center justify-center text-center">
+          <Target className="h-4 w-4 sm:h-5 sm:w-5 text-amber-500 mb-1" />
+          <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest font-sans">Acerto Artilheiro</span>
+          <span className="text-sm sm:text-base font-black text-amber-500 mt-0.5 font-mono">{stats.acertosArtilheiro}</span>
+        </div>
+
+        <div className="bg-slate-950/60 p-2.5 sm:p-3 rounded-xl border border-slate-900 flex flex-col items-center justify-center text-center">
           <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500 mb-1 animate-pulse" />
           <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest font-sans">Pendentes</span>
           <span className="text-sm sm:text-base font-black text-slate-400 mt-0.5 font-mono">{stats.pendentes}</span>

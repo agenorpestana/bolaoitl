@@ -27,6 +27,15 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
   const [logoUploadStatus, setLogoUploadStatus] = React.useState<{ msg: string; isErr: boolean } | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
+  // Custom System Favicon upload state hooks
+  const [isFaviconDragging, setIsFaviconDragging] = React.useState(false);
+  const [faviconPreview, setFaviconPreview] = React.useState<string | null>(null);
+  const [faviconFileBase64, setFaviconFileBase64] = React.useState<string | null>(null);
+  const [faviconFileName, setFaviconFileName] = React.useState<string>("");
+  const [isSavingFavicon, setIsSavingFavicon] = React.useState(false);
+  const [faviconUploadStatus, setFaviconUploadStatus] = React.useState<{ msg: string; isErr: boolean } | null>(null);
+  const faviconInputRef = React.useRef<HTMLInputElement | null>(null);
+
   const handleFileSelection = (file: File) => {
     if (!file.type.startsWith('image/')) {
       setLogoUploadStatus({ msg: "Por favor escolha uma imagem válida (PNG, JPG, SVG).", isErr: true });
@@ -72,6 +81,55 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
       setLogoUploadStatus({ msg: "Erro ao conectar com o servidor: " + err.message, isErr: true });
     } finally {
       setIsSavingLogo(false);
+    }
+  };
+
+  const handleFaviconSelection = (file: File) => {
+    const isAccepted = file.name.endsWith('.ico') || file.name.endsWith('.png') || file.name.endsWith('.svg') || file.type === 'image/x-icon' || file.type === 'image/png' || file.type === 'image/svg+xml';
+    if (!isAccepted) {
+      setFaviconUploadStatus({ msg: "Por favor escolha uma imagem em formato aceito (.ico, .png, .svg).", isErr: true });
+      return;
+    }
+    setFaviconFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const base64 = e.target?.result as string;
+      setFaviconFileBase64(base64);
+      setFaviconPreview(base64);
+      setFaviconUploadStatus(null);
+    };
+    reader.onerror = () => {
+      setFaviconUploadStatus({ msg: "Falha ao ler o arquivo selecionado.", isErr: true });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleUploadFavicon = async () => {
+    if (!faviconFileBase64) return;
+    setIsSavingFavicon(true);
+    setFaviconUploadStatus(null);
+    try {
+      const response = await fetch("/api/admin/upload-favicon", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ base64Data: faviconFileBase64, originalName: faviconFileName })
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setFaviconUploadStatus({ msg: "O favicon do sistema foi atualizado com sucesso!", isErr: false });
+        setTimeout(() => {
+          onRefreshLeaderboard();
+        }, 1200);
+      } else {
+        setFaviconUploadStatus({ msg: data.error || "Ocorreu um erro ao atualizar o favicon.", isErr: true });
+      }
+    } catch (err: any) {
+      setFaviconUploadStatus({ msg: "Erro ao conectar com o servidor: " + err.message, isErr: true });
+    } finally {
+      setIsSavingFavicon(false);
     }
   };
 
@@ -3138,6 +3196,144 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
                       onClick={() => {
                         setLogoPreview(null);
                         setLogoFileBase64(null);
+                      }}
+                      className="px-4 py-2.5 bg-slate-900 border border-slate-800 hover:text-slate-200 text-xs font-bold text-slate-400 rounded-xl transition"
+                    >
+                      Limpar
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* FAVICON DA ABA DO NAVEGADOR UPLOAD */}
+          <div className="bg-slate-950 border border-slate-900 rounded-2xl p-6 mt-6">
+            <h3 className="text-sm font-black uppercase text-yellow-500 mb-2 font-extrabold tracking-wider">
+              Favicon da Aba do Navegador
+            </h3>
+            <p className="text-xs text-slate-400 mb-6 font-medium leading-relaxed">
+              Faça upload de uma nova imagem para substituir o ícone da aba do navegador (Favicon). Este ícone será atualizado e exibido no topo da aba do seu navegador (formatos aceitos: .ico, .png, .svg).
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+              {/* Image Input Selection */}
+              <div className="space-y-4">
+                <div 
+                  className={`border-2 border-dashed rounded-2xl p-6 text-center transition cursor-pointer ${
+                    isFaviconDragging ? 'border-yellow-500 bg-yellow-500/5' : 'border-slate-800 hover:border-slate-200 bg-slate-900/40'
+                  }`}
+                  onDragOver={(e) => { e.preventDefault(); setIsFaviconDragging(true); }}
+                  onDragLeave={() => setIsFaviconDragging(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsFaviconDragging(false);
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) handleFaviconSelection(file);
+                  }}
+                  onClick={() => faviconInputRef.current?.click()}
+                >
+                  <input 
+                    type="file" 
+                    ref={faviconInputRef} 
+                    className="hidden" 
+                    accept=".ico,.png,.svg,image/x-icon,image/png,image/svg+xml"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleFaviconSelection(file);
+                    }}
+                  />
+                  <div className="flex flex-col items-center justify-center space-y-3">
+                    <div className="h-11 w-11 rounded-xl bg-slate-950 border border-slate-800 text-slate-400 flex items-center justify-center">
+                      <Save className="h-5 w-5 text-yellow-500" />
+                    </div>
+                    <div>
+                      <span className="block text-xs font-black text-slate-200">Arraste o favicon aqui ou clique para buscar</span>
+                      <span className="block text-[10px] text-slate-500 mt-1 font-medium select-none">
+                        Formatos aceitos: ICO, PNG ou SVG.
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {faviconUploadStatus && (
+                  <div className={`p-3.5 rounded-xl border text-[11px] font-sans font-extrabold flex items-center gap-1.5 ${
+                    faviconUploadStatus.isErr 
+                      ? 'bg-red-950/25 border-red-900/40 text-red-400' 
+                      : 'bg-emerald-950/25 border-emerald-900/40 text-emerald-400'
+                  }`}>
+                    {faviconUploadStatus.msg}
+                  </div>
+                )}
+              </div>
+
+              {/* Preview and Button Controls */}
+              <div className="bg-slate-900/25 border border-slate-900/80 rounded-2xl p-5 space-y-4">
+                <span className="block text-xs font-black uppercase text-slate-350 tracking-wider">Visualização Prévia (Preview)</span>
+                
+                <div className="flex items-center gap-5 bg-slate-950 border border-slate-900 p-4 rounded-xl">
+                  {faviconPreview ? (
+                    <img 
+                      src={faviconPreview} 
+                      alt="Preview Favicon" 
+                      className="h-10 w-10 object-contain rounded bg-slate-900 p-0.5 border border-slate-800" 
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div className="h-10 w-10 rounded bg-slate-905 border border-slate-850 flex items-center justify-center text-slate-600 shrink-0">
+                      <img 
+                        src="/favicon.ico" 
+                        alt="Default Favicon" 
+                        className="h-6 w-6 object-contain opacity-50"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.src = "/icon-192.png";
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  <div className="space-y-1">
+                    <span className="block text-xs font-extrabold text-slate-200">
+                      {faviconPreview ? "Novo Favicon Carregado" : "Usando o Favicon Atual"}
+                    </span>
+                    <span className="block text-[10px] text-slate-500 leading-relaxed font-semibold max-w-[210px]">
+                      {faviconPreview 
+                        ? `Clique em "Salvar Favicon" abaixo para atualizar o ícone do navegador.` 
+                        : "Nenhum arquivo de imagem foi selecionado de momento."
+                      }
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    disabled={!faviconFileBase64 || isSavingFavicon}
+                    onClick={handleUploadFavicon}
+                    className={`flex-1 py-2.5 text-xs font-extrabold uppercase tracking-wider rounded-xl transition duration-200 flex items-center justify-center gap-1.5 ${
+                      !faviconFileBase64 || isSavingFavicon
+                        ? 'bg-slate-900 border border-slate-850 text-slate-600 cursor-not-allowed'
+                        : 'bg-yellow-500 hover:bg-yellow-600 text-slate-950 shadow-md shadow-yellow-500/10'
+                    }`}
+                  >
+                    {isSavingFavicon ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                        Salvando...
+                      </>
+                    ) : (
+                      <>
+                        <Check className="h-4 w-4" />
+                        Salvar Favicon
+                      </>
+                    )}
+                  </button>
+                  {faviconPreview && (
+                    <button
+                      onClick={() => {
+                        setFaviconPreview(null);
+                        setFaviconFileBase64(null);
+                        setFaviconFileName("");
                       }}
                       className="px-4 py-2.5 bg-slate-900 border border-slate-800 hover:text-slate-200 text-xs font-bold text-slate-400 rounded-xl transition"
                     >

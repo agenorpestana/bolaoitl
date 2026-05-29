@@ -53,6 +53,11 @@ interface LocalDatabase {
     has_custom_logo: boolean;
     timestamp: number;
   };
+  configs_favicon?: {
+    has_custom_favicon: boolean;
+    timestamp: number;
+    extension?: string;
+  };
 }
 
 // ==========================================
@@ -2875,7 +2880,8 @@ async function startServer() {
       top_15: topUsers,
       data_servidor: new Date().toISOString(),
       ixc_offline_mode: db.configs_ixc.offline_mode,
-      configs_logo: db.configs_logo || { has_custom_logo: false, timestamp: 0 }
+      configs_logo: db.configs_logo || { has_custom_logo: false, timestamp: 0 },
+      configs_favicon: db.configs_favicon || { has_custom_favicon: false, timestamp: 0 }
     });
   });
 
@@ -4065,6 +4071,39 @@ async function startServer() {
     return res.status(404).send("PWA Icon 512 not found");
   });
 
+  // Dynamic Favicon Serving
+  app.get("/favicon.ico", (req, res) => {
+    const publicDir = path.join(process.cwd(), "public");
+    const favIco = path.join(publicDir, "favicon.ico");
+    const favPng = path.join(publicDir, "favicon.png");
+    const favSvg = path.join(publicDir, "favicon.svg");
+
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+
+    if (fs.existsSync(favIco)) {
+      res.setHeader("Content-Type", "image/x-icon");
+      return res.sendFile(favIco);
+    }
+    if (fs.existsSync(favPng)) {
+      res.setHeader("Content-Type", "image/png");
+      return res.sendFile(favPng);
+    }
+    if (fs.existsSync(favSvg)) {
+      res.setHeader("Content-Type", "image/svg+xml");
+      return res.sendFile(favSvg);
+    }
+
+    // Default fallback to icon-192.png if no favicon is uploaded at all
+    const defaultIcon = path.join(publicDir, "icon-192.png");
+    if (fs.existsSync(defaultIcon)) {
+      res.setHeader("Content-Type", "image/png");
+      return res.sendFile(defaultIcon);
+    }
+    return res.status(404).send("Favicon not found");
+  });
+
   // Logo upload API route
   app.post("/api/admin/upload-logo", verifyAdminToken, async (req: any, res) => {
     try {
@@ -4135,6 +4174,96 @@ async function startServer() {
     } catch (err: any) {
       console.error("Erro interno no upload de logo:", err);
       return res.status(500).json({ error: "Erro ao processar imagem: " + err.message });
+    }
+  });
+
+  // Favicon upload API route
+  app.post("/api/admin/upload-favicon", verifyAdminToken, async (req: any, res) => {
+    try {
+      if (!req.admin.permissions.podeEditar) {
+        return res.status(403).json({ error: "Sua conta de administrador não possui permissão para alterar o favicon." });
+      }
+
+      const { base64Data, originalName } = req.body;
+      if (!base64Data) {
+        return res.status(400).json({ error: "Nenhum arquivo de imagem recebido." });
+      }
+
+      const matches = base64Data.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      if (!matches || matches.length !== 3) {
+        return res.status(400).json({ error: "Formato de imagem inválido. Use .ico, .png ou .svg." });
+      }
+
+      const mimeType = matches[1];
+      const buffer = Buffer.from(matches[2], "base64");
+
+      const publicDir = path.join(process.cwd(), "public");
+      if (!fs.existsSync(publicDir)) {
+        fs.mkdirSync(publicDir, { recursive: true });
+      }
+
+      // Determine extension based on originalName or mimeType
+      let extension = "ico";
+      if (mimeType.includes("png")) {
+        extension = "png";
+      } else if (mimeType.includes("svg")) {
+        extension = "svg";
+      } else if (originalName && originalName.endsWith(".svg")) {
+        extension = "svg";
+      } else if (originalName && originalName.endsWith(".png")) {
+        extension = "png";
+      } else if (originalName && originalName.endsWith(".ico")) {
+        extension = "ico";
+      }
+
+      // Delete any old favicon files to avoid conflicts
+      const possibleNames = ["favicon.ico", "favicon.png", "favicon.svg"];
+      possibleNames.forEach(name => {
+        try {
+          const fp = path.join(publicDir, name);
+          if (fs.existsSync(fp)) {
+            fs.unlinkSync(fp);
+          }
+        } catch (err) {}
+      });
+
+      // Write the new favicon file
+      const newFaviconName = `favicon.${extension}`;
+      const faviconPath = path.join(publicDir, newFaviconName);
+      fs.writeFileSync(faviconPath, buffer);
+
+      // Copy to dist/ if it exists
+      const distPath = path.join(process.cwd(), "dist");
+      if (fs.existsSync(distPath)) {
+        try {
+          // Delete old files in dist
+          possibleNames.forEach(name => {
+            const dp = path.join(distPath, name);
+            if (fs.existsSync(dp)) {
+              fs.unlinkSync(dp);
+            }
+          });
+          // Copy new file
+          fs.copyFileSync(faviconPath, path.join(distPath, newFaviconName));
+        } catch (copyErr) {
+          console.error("Error copying favicon to dist directory", copyErr);
+        }
+      }
+
+      const db = loadDatabase();
+      db.configs_favicon = {
+        has_custom_favicon: true,
+        timestamp: Date.now(),
+        extension: extension
+      };
+      saveDatabase(db);
+
+      addLog("Favicon Update", "FAVICON_ATUALIZACAO_SUCESSO", `Novo favicon do sistema (.${extension}) foi carregado com sucesso.`, req);
+
+      return res.json({ success: true, configs_favicon: db.configs_favicon });
+    } catch (err: any) {
+      console.error("Erro interno no upload de favicon:", err);
+      return res.status(500).json({ error: "Erro ao processar favicon: " + err.message });
     }
   });
 

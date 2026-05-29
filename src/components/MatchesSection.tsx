@@ -1041,7 +1041,7 @@ export default function MatchesSection({
             return (
               <div className="mt-2.5 bg-slate-950/40 p-2.5 rounded-xl border border-slate-900/50 space-y-2.5 animate-fadeIn">
                 <div className="text-[10px] text-slate-400 font-sans leading-relaxed">
-                  Dica: Acerte o autor e a quantidade de gols para pontuar (<strong>7 pontos</strong> por gol acertado).
+                  Dica: Acerte o autor e a quantidade de gols para pontuar (<strong>{pointsConfig?.pontos_acertar_autor_gol ?? 7} pontos</strong> por gol acertado).
                 </div>
 
                 {/* Status indicator showing goals ratio per side */}
