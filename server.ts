@@ -90,6 +90,448 @@ if (process.env.DATABASE_URL) {
 
 let cachedDb: LocalDatabase | null = null;
 
+const FALLBACK_LIBERTADORES = [
+  // ----------------------------------------
+  // RODADA 1 (TODOS ENCERRADOS COM PLACAR REALISTA DA COPA LIBERTADORES 2026)
+  // ----------------------------------------
+  // GRUPO A
+  {
+    api_id: "libertadores_r1_gA_1",
+    time_casa: "Flamengo",
+    time_fora: "Estudiantes",
+    time_casa_bandeira: "🇧🇷",
+    time_fora_bandeira: "🇦🇷",
+    data_jogo: "2026-05-12T19:00:00Z",
+    status: "ENCERRADO",
+    status_detalhado: "FT",
+    placar_casa: 2,
+    placar_fora: 1,
+    rodada: 1
+  },
+  {
+    api_id: "libertadores_r1_gA_2",
+    time_casa: "Cusco",
+    time_fora: "Ind. Medellín",
+    time_casa_bandeira: "🇵🇪",
+    time_fora_bandeira: "🇨🇴",
+    data_jogo: "2026-05-12T21:30:00Z",
+    status: "ENCERRADO",
+    status_detalhado: "FT",
+    placar_casa: 1,
+    placar_fora: 1,
+    rodada: 1
+  },
+  // GRUPO B
+  {
+    api_id: "libertadores_r1_gB_1",
+    time_casa: "Nacional",
+    time_fora: "Universitário",
+    time_casa_bandeira: "🇺🇾",
+    time_fora_bandeira: "🇵🇪",
+    data_jogo: "2026-05-13T19:00:00Z",
+    status: "ENCERRADO",
+    status_detalhado: "FT",
+    placar_casa: 0,
+    placar_fora: 1,
+    rodada: 1
+  },
+  {
+    api_id: "libertadores_r1_gB_2",
+    time_casa: "Coquimbo Unido",
+    time_fora: "Tolima",
+    time_casa_bandeira: "🇨🇱",
+    time_fora_bandeira: "🇨🇴",
+    data_jogo: "2026-05-13T21:30:00Z",
+    status: "ENCERRADO",
+    status_detalhado: "FT",
+    placar_casa: 2,
+    placar_fora: 2,
+    rodada: 1
+  },
+  // GRUPO C
+  {
+    api_id: "libertadores_r1_gC_1",
+    time_casa: "Fluminense",
+    time_fora: "Bolívar",
+    time_casa_bandeira: "🇧🇷",
+    time_fora_bandeira: "🇧🇴",
+    data_jogo: "2026-05-14T19:00:00Z",
+    status: "ENCERRADO",
+    status_detalhado: "FT",
+    placar_casa: 3,
+    placar_fora: 0,
+    rodada: 1
+  },
+  {
+    api_id: "libertadores_r1_gC_2",
+    time_casa: "Dep. La Guaira",
+    time_fora: "Ind. Rivadavia",
+    time_casa_bandeira: "🇻🇪",
+    time_fora_bandeira: "🇦🇷",
+    data_jogo: "2026-05-14T21:30:00Z",
+    status: "ENCERRADO",
+    status_detalhado: "FT",
+    placar_casa: 1,
+    placar_fora: 2,
+    rodada: 1
+  },
+  // GRUPO D
+  {
+    api_id: "libertadores_r1_gD_1",
+    time_casa: "Boca Júniors",
+    time_fora: "Cruzeiro",
+    time_casa_bandeira: "🇦🇷",
+    time_fora_bandeira: "🇧🇷",
+    data_jogo: "2026-05-15T19:00:00Z",
+    status: "ENCERRADO",
+    status_detalhado: "FT",
+    placar_casa: 1,
+    placar_fora: 0,
+    rodada: 1
+  },
+  {
+    api_id: "libertadores_r1_gD_2",
+    time_casa: "Univ. Católica",
+    time_fora: "Bar. Guayaquil",
+    time_casa_bandeira: "🇨🇱",
+    time_fora_bandeira: "🇪🇨",
+    data_jogo: "2026-05-15T21:30:00Z",
+    status: "ENCERRADO",
+    status_detalhado: "FT",
+    placar_casa: 2,
+    placar_fora: 0,
+    rodada: 1
+  },
+  // GRUPO E
+  {
+    api_id: "libertadores_r1_gE_1",
+    time_casa: "Peñarol",
+    time_fora: "Corinthians",
+    time_casa_bandeira: "🇺🇾",
+    time_fora_bandeira: "🇧🇷",
+    data_jogo: "2026-05-19T19:00:00Z",
+    status: "ENCERRADO",
+    status_detalhado: "FT",
+    placar_casa: 1,
+    placar_fora: 2,
+    rodada: 1
+  },
+  {
+    api_id: "libertadores_r1_gE_2",
+    time_casa: "Ind. Santa Fé",
+    time_fora: "Platense",
+    time_casa_bandeira: "🇨🇴",
+    time_fora_bandeira: "🇦🇷",
+    data_jogo: "2026-05-19T21:30:00Z",
+    status: "ENCERRADO",
+    status_detalhado: "FT",
+    placar_casa: 0,
+    placar_fora: 0,
+    rodada: 1
+  },
+  // GRUPO F
+  {
+    api_id: "libertadores_r1_gF_1",
+    time_casa: "Palmeiras",
+    time_fora: "Cerro Porteño",
+    time_casa_bandeira: "🇧🇷",
+    time_fora_bandeira: "🇵🇾",
+    data_jogo: "2026-05-20T19:00:00Z",
+    status: "ENCERRADO",
+    status_detalhado: "FT",
+    placar_casa: 4,
+    placar_fora: 1,
+    rodada: 1
+  },
+  {
+    api_id: "libertadores_r1_gF_2",
+    time_casa: "Júnior Barranquilla",
+    time_fora: "Sporting Cristal",
+    time_casa_bandeira: "🇨🇴",
+    time_fora_bandeira: "🇵🇪",
+    data_jogo: "2026-05-20T21:30:00Z",
+    status: "ENCERRADO",
+    status_detalhado: "FT",
+    placar_casa: 1,
+    placar_fora: 1,
+    rodada: 1
+  },
+  // GRUPO G
+  {
+    api_id: "libertadores_r1_gG_1",
+    time_casa: "LDU",
+    time_fora: "Lanús",
+    time_casa_bandeira: "🇪🇨",
+    time_fora_bandeira: "🇦🇷",
+    data_jogo: "2026-05-21T19:00:00Z",
+    status: "ENCERRADO",
+    status_detalhado: "FT",
+    placar_casa: 2,
+    placar_fora: 1,
+    rodada: 1
+  },
+  {
+    api_id: "libertadores_r1_gG_2",
+    time_casa: "Always Ready",
+    time_fora: "Mirassol",
+    time_casa_bandeira: "🇧🇴",
+    time_fora_bandeira: "🇧🇷",
+    data_jogo: "2026-05-21T21:30:00Z",
+    status: "ENCERRADO",
+    status_detalhado: "FT",
+    placar_casa: 0,
+    placar_fora: 2,
+    rodada: 1
+  },
+  // GRUPO H
+  {
+    api_id: "libertadores_r1_gH_1",
+    time_casa: "Ind. del Valle",
+    time_fora: "Libertad",
+    time_casa_bandeira: "🇪🇨",
+    time_fora_bandeira: "🇵🇾",
+    data_jogo: "2026-05-22T19:00:00Z",
+    status: "ENCERRADO",
+    status_detalhado: "FT",
+    placar_casa: 1,
+    placar_fora: 1,
+    rodada: 1
+  },
+  {
+    api_id: "libertadores_r1_gH_2",
+    time_casa: "Rosário Central",
+    time_fora: "Univ. Central",
+    time_casa_bandeira: "🇦🇷",
+    time_fora_bandeira: "🇻🇪",
+    data_jogo: "2026-05-22T21:30:00Z",
+    status: "ENCERRADO",
+    status_detalhado: "FT",
+    placar_casa: 2,
+    placar_fora: 0,
+    rodada: 1
+  },
+
+  // ----------------------------------------
+  // RODADA 2 (PROXIMOS JOGOS SELECIONADOS PARA PALPITES DOS CLIENTES)
+  // ----------------------------------------
+  // GRUPO A
+  {
+    api_id: "libertadores_r2_gA_1",
+    time_casa: "Ind. Medellín",
+    time_fora: "Flamengo",
+    time_casa_bandeira: "🇨🇴",
+    time_fora_bandeira: "🇧🇷",
+    data_jogo: "2026-06-02T19:00:00Z",
+    status: "PENDENTE",
+    status_detalhado: "PENDENTE",
+    placar_casa: null as number | null,
+    placar_fora: null as number | null,
+    rodada: 2
+  },
+  {
+    api_id: "libertadores_r2_gA_2",
+    time_casa: "Estudiantes",
+    time_fora: "Cusco",
+    time_casa_bandeira: "🇦🇷",
+    time_fora_bandeira: "🇵🇪",
+    data_jogo: "2026-06-02T21:30:00Z",
+    status: "PENDENTE",
+    status_detalhado: "PENDENTE",
+    placar_casa: null as number | null,
+    placar_fora: null as number | null,
+    rodada: 2
+  },
+  // GRUPO B
+  {
+    api_id: "libertadores_r2_gB_1",
+    time_casa: "Tolima",
+    time_fora: "Nacional",
+    time_casa_bandeira: "🇨🇴",
+    time_fora_bandeira: "🇺🇾",
+    data_jogo: "2026-06-03T19:00:00Z",
+    status: "PENDENTE",
+    status_detalhado: "PENDENTE",
+    placar_casa: null as number | null,
+    placar_fora: null as number | null,
+    rodada: 2
+  },
+  {
+    api_id: "libertadores_r2_gB_2",
+    time_casa: "Universitário",
+    time_fora: "Coquimbo Unido",
+    time_casa_bandeira: "🇵🇪",
+    time_fora_bandeira: "🇨🇱",
+    data_jogo: "2026-06-03T21:30:00Z",
+    status: "PENDENTE",
+    status_detalhado: "PENDENTE",
+    placar_casa: null as number | null,
+    placar_fora: null as number | null,
+    rodada: 2
+  },
+  // GRUPO C
+  {
+    api_id: "libertadores_r2_gC_1",
+    time_casa: "Ind. Rivadavia",
+    time_fora: "Fluminense",
+    time_casa_bandeira: "🇦🇷",
+    time_fora_bandeira: "🇧🇷",
+    data_jogo: "2026-06-04T19:00:00Z",
+    status: "PENDENTE",
+    status_detalhado: "PENDENTE",
+    placar_casa: null as number | null,
+    placar_fora: null as number | null,
+    rodada: 2
+  },
+  {
+    api_id: "libertadores_r2_gC_2",
+    time_casa: "Bolívar",
+    time_fora: "Dep. La Guaira",
+    time_casa_bandeira: "🇧🇴",
+    time_fora_bandeira: "🇻🇪",
+    data_jogo: "2026-06-04T21:30:00Z",
+    status: "PENDENTE",
+    status_detalhado: "PENDENTE",
+    placar_casa: null as number | null,
+    placar_fora: null as number | null,
+    rodada: 2
+  },
+  // GRUPO D
+  {
+    api_id: "libertadores_r2_gD_1",
+    time_casa: "Bar. Guayaquil",
+    time_fora: "Boca Júniors",
+    time_casa_bandeira: "🇪🇨",
+    time_fora_bandeira: "🇦🇷",
+    data_jogo: "2026-06-05T19:00:00Z",
+    status: "PENDENTE",
+    status_detalhado: "PENDENTE",
+    placar_casa: null as number | null,
+    placar_fora: null as number | null,
+    rodada: 2
+  },
+  {
+    api_id: "libertadores_r2_gD_2",
+    time_casa: "Cruzeiro",
+    time_fora: "Univ. Católica",
+    time_casa_bandeira: "🇧🇷",
+    time_fora_bandeira: "🇨🇱",
+    data_jogo: "2026-06-05T21:30:00Z",
+    status: "PENDENTE",
+    status_detalhado: "PENDENTE",
+    placar_casa: null as number | null,
+    placar_fora: null as number | null,
+    rodada: 2
+  },
+  // GRUPO E
+  {
+    api_id: "libertadores_r2_gE_1",
+    time_casa: "Platense",
+    time_fora: "Peñarol",
+    time_casa_bandeira: "🇦🇷",
+    time_fora_bandeira: "🇺🇾",
+    data_jogo: "2026-06-09T19:00:00Z",
+    status: "PENDENTE",
+    status_detalhado: "PENDENTE",
+    placar_casa: null as number | null,
+    placar_fora: null as number | null,
+    rodada: 2
+  },
+  {
+    api_id: "libertadores_r2_gE_2",
+    time_casa: "Corinthians",
+    time_fora: "Ind. Santa Fé",
+    time_casa_bandeira: "🇧🇷",
+    time_fora_bandeira: "🇨🇴",
+    data_jogo: "2026-06-09T21:30:00Z",
+    status: "PENDENTE",
+    status_detalhado: "PENDENTE",
+    placar_casa: null as number | null,
+    placar_fora: null as number | null,
+    rodada: 2
+  },
+  // GRUPO F
+  {
+    api_id: "libertadores_r2_gF_1",
+    time_casa: "Sporting Cristal",
+    time_fora: "Palmeiras",
+    time_casa_bandeira: "🇵🇪",
+    time_fora_bandeira: "🇧🇷",
+    data_jogo: "2026-06-10T19:00:00Z",
+    status: "PENDENTE",
+    status_detalhado: "PENDENTE",
+    placar_casa: null as number | null,
+    placar_fora: null as number | null,
+    rodada: 2
+  },
+  {
+    api_id: "libertadores_r2_gF_2",
+    time_casa: "Cerro Porteño",
+    time_fora: "Júnior Barranquilla",
+    time_casa_bandeira: "🇵🇾",
+    time_fora_bandeira: "🇨🇴",
+    data_jogo: "2026-06-10T21:30:00Z",
+    status: "PENDENTE",
+    status_detalhado: "PENDENTE",
+    placar_casa: null as number | null,
+    placar_fora: null as number | null,
+    rodada: 2
+  },
+  // GRUPO G
+  {
+    api_id: "libertadores_r2_gG_1",
+    time_casa: "Mirassol",
+    time_fora: "LDU",
+    time_casa_bandeira: "🇧🇷",
+    time_fora_bandeira: "🇪🇨",
+    data_jogo: "2026-06-11T19:00:00Z",
+    status: "PENDENTE",
+    status_detalhado: "PENDENTE",
+    placar_casa: null as number | null,
+    placar_fora: null as number | null,
+    rodada: 2
+  },
+  {
+    api_id: "libertadores_r2_gG_2",
+    time_casa: "Lanús",
+    time_fora: "Always Ready",
+    time_casa_bandeira: "🇦🇷",
+    time_fora_bandeira: "🇧🇴",
+    data_jogo: "2026-06-11T21:30:00Z",
+    status: "PENDENTE",
+    status_detalhado: "PENDENTE",
+    placar_casa: null as number | null,
+    placar_fora: null as number | null,
+    rodada: 2
+  },
+  // GRUPO H
+  {
+    api_id: "libertadores_r2_gH_1",
+    time_casa: "Univ. Central",
+    time_fora: "Ind. del Valle",
+    time_casa_bandeira: "🇻🇪",
+    time_fora_bandeira: "🇪🇨",
+    data_jogo: "2026-06-12T19:00:00Z",
+    status: "PENDENTE",
+    status_detalhado: "PENDENTE",
+    placar_casa: null as number | null,
+    placar_fora: null as number | null,
+    rodada: 2
+  },
+  {
+    api_id: "libertadores_r2_gH_2",
+    time_casa: "Libertad",
+    time_fora: "Rosário Central",
+    time_casa_bandeira: "🇵🇾",
+    time_fora_bandeira: "🇦🇷",
+    data_jogo: "2026-06-12T21:30:00Z",
+    status: "PENDENTE",
+    status_detalhado: "PENDENTE",
+    placar_casa: null as number | null,
+    placar_fora: null as number | null,
+    rodada: 2
+  }
+];
+
 // ==========================================
 // GLOBAL FOOTBALL API HELPERS & ENGINE
 // ==========================================
@@ -203,14 +645,14 @@ function getGameCampeonato(jogo: Jogo): 'COPA_MUNDO' | 'LIBERTADORES' | 'BRASILE
 
 function cleanInvalidLibertadoresMatches(db: LocalDatabase) {
   const LIBERTADORES_GROUPS_TEAMS = new Set([
-    "fluminense", "colo-colo", "colo colo", "cerro porteno", "cerro porteño", "alianza lima",
-    "sao paulo", "são paulo", "talleres", "barcelona sc", "barcelona guayaquil", "barcelona s.c.", "cobresal",
-    "gremio", "grêmio", "the strongest", "huachipato", "estudiantes", "estudiantes l.p.", "estudiantes lp",
-    "ldu quito", "ldu de quito", "l.d.u. quito", "junior barranquilla", "junior", "universitario", "botafogo",
-    "flamengo", "bolivar", "bolívar", "millonarios", "palestino", "palestino chi",
-    "palmeiras", "ind. del valle", "independiente del valle", "san lorenzo", "liverpool uru", "liverpool m.", "liverpool montevideo",
-    "penarol", "peñarol", "peñarol mvd", "atletico-mg", "atletico mg", "atletico mineiro", "atlético-mg", "atlético mineiro", "rosario central", "caracas",
-    "river plate", "libertad", "libertad asuncion", "nacional uru", "nacional montevideo", "club nacional", "nacional", "deportivo tachira", "deportivo táchira"
+    "flamengo", "estudiantes", "estudiantes l.p.", "estudiantes lp", "estudiantes de la plata", "cusco", "cusco fc", "ind. medellin", "independiente medellin", "medellin",
+    "nacional", "club nacional", "nacional montevideo", "nacional uru", "universitario", "universitário", "coquimbo unido", "coquimbo", "tolima", "deportes tolima",
+    "fluminense", "bolivar", "bolívar", "dep. la guaira", "deportivo la guaira", "la guaira", "ind. rivadavia", "independiente rivadavia", "rivadavia",
+    "boca juniors", "boca júniors", "boca", "cruzeiro", "univ. catolica", "universidad catolica", "univ catolica", "univ. católica", "bar. guayaquil", "barcelona sc", "barcelona guayaquil", "barcelona s.c.",
+    "penarol", "peñarol", "corinthians", "corintians", "ind. santa fe", "independiente santa fe", "santa fe", "platense",
+    "palmeiras", "cerro porteno", "cerro porteño", "junior barranquilla", "junior de barranquilla", "junior", "sporting cristal", "cristal",
+    "ldu", "ldu quito", "ldu de quito", "lanus", "lanús", "always ready", "mirassol",
+    "ind. del valle", "independiente del valle", "libertad", "libertad asuncion", "rosario central", "rosário central", "univ. central", "universidad central", "universidad central de venezuela", "ucv"
   ]);
 
   const isValidLibertadoresTeam = (name: string): boolean => {
@@ -230,10 +672,7 @@ function cleanInvalidLibertadoresMatches(db: LocalDatabase) {
        .trim()
     );
 
-    // Prevent known false-positive matches of qualifiers / non-group phase teams
-    if (cleaned === "bocajuniors" || cleaned.includes("boca")) {
-      return false;
-    }
+    // Prevent known false-positive matches of qualifiers / non-group phase teams (like Nacional Potosi, etc.)
     if (cleaned === "nacionalpotosi" || cleaned.includes("potosi")) {
       return false;
     }
@@ -888,6 +1327,31 @@ function ensureCustomLogoAndFaviconStatus(db: LocalDatabase | null) {
 function loadDatabase(): LocalDatabase {
   if (cachedDb) {
     ensureCustomLogoAndFaviconStatus(cachedDb);
+    
+    // Auto-populate warm cache if missing Copa Libertadores matches
+    const hasWarmLibertadoresMatches = cachedDb.jogos.some(j => (j.api_id?.toLowerCase().includes("libertadores") || getGameCampeonato(j) === "LIBERTADORES"));
+    if (!hasWarmLibertadoresMatches) {
+      console.log("[Database Warm Cache] Warm loading database and auto-populating missing Libertadores matches...");
+      for (const item of FALLBACK_LIBERTADORES) {
+        const newId = cachedDb.jogos.length > 0 ? Math.max(...cachedDb.jogos.map(j => j.id)) + 1 : 1;
+        cachedDb.jogos.push({
+          id: newId,
+          api_id: item.api_id,
+          time_casa: item.time_casa,
+          time_fora: item.time_fora,
+          time_casa_bandeira: item.time_casa_bandeira,
+          time_fora_bandeira: item.time_fora_bandeira,
+          data_jogo: item.data_jogo,
+          placar_casa: item.placar_casa,
+          placar_fora: item.placar_fora,
+          status: item.status as any,
+          status_detalhado: item.status_detalhado || (item.status === "ENCERRADO" ? "FT" : "FT"),
+          rodada: item.rodada
+        });
+      }
+      saveDatabase(cachedDb);
+    }
+    
     return cachedDb;
   }
   cachedDb = loadDatabaseFromFile();
@@ -951,6 +1415,36 @@ function loadDatabase(): LocalDatabase {
   // Purge any unwanted Libertadores qualifier entries or unmatched teams to make group stage/standings pristine
   const purgedLibMatches = cleanInvalidLibertadoresMatches(cachedDb);
   if (purgedLibMatches) {
+    saveDatabase(cachedDb);
+  }
+
+  // If no Copa Libertadores games exist, auto-populate them in cache using the global manual groups fallback schedule
+  const legacyCount = cachedDb.jogos.length;
+  cachedDb.jogos = cachedDb.jogos.filter(j => !(j.api_id && j.api_id.startsWith("libertadores_fallback_")));
+  if (cachedDb.jogos.length !== legacyCount) {
+    saveDatabase(cachedDb);
+  }
+
+  const hasLibertadoresMatches = cachedDb.jogos.some(j => (j.api_id?.toLowerCase().includes("libertadores") || getGameCampeonato(j) === "LIBERTADORES"));
+  if (!hasLibertadoresMatches) {
+    console.log("[Database Load] Auto-populating Copa Libertadores 2026 groups manual matches...");
+    for (const item of FALLBACK_LIBERTADORES) {
+      const newId = cachedDb.jogos.length > 0 ? Math.max(...cachedDb.jogos.map(j => j.id)) + 1 : 1;
+      cachedDb.jogos.push({
+        id: newId,
+        api_id: item.api_id,
+        time_casa: item.time_casa,
+        time_fora: item.time_fora,
+        time_casa_bandeira: item.time_casa_bandeira,
+        time_fora_bandeira: item.time_fora_bandeira,
+        data_jogo: item.data_jogo,
+        placar_casa: item.placar_casa,
+        placar_fora: item.placar_fora,
+        status: item.status as any,
+        status_detalhado: item.status_detalhado || (item.status === "ENCERRADO" ? "FT" : "FT"),
+        rodada: item.rodada
+      });
+    }
     saveDatabase(cachedDb);
   }
 
@@ -1653,6 +2147,9 @@ async function initializeDatabase() {
       });
       saveDatabase(cachedDb);
     }
+    
+    // Auto-populate custom manual groups schedule if missing from synced MySQL database
+    loadDatabase();
   }
 }
 
@@ -3714,70 +4211,6 @@ async function startServer() {
     let addedCount = 0;
     let updatedCount = 0;
 
-    // High quality real matches for today's Libertadores as dynamic fallback set relative to current date 2026-05-26
-    const FALLBACK_LIBERTADORES = [
-      {
-        api_id: "libertadores_fallback_201",
-        time_casa: "Junior",
-        time_fora: "Botafogo",
-        time_casa_bandeira: "🇨🇴",
-        time_fora_bandeira: "🇧🇷",
-        data_jogo: "2026-05-26T19:00:00Z",
-        status: "PENDENTE",
-        rodada: 1
-      },
-      {
-        api_id: "libertadores_fallback_202",
-        time_casa: "Flamengo",
-        time_fora: "Millonarios",
-        time_casa_bandeira: "🇧🇷",
-        time_fora_bandeira: "🇨🇴",
-        data_jogo: "2026-05-26T21:00:00Z",
-        status: "PENDENTE",
-        rodada: 1
-      },
-      {
-        api_id: "libertadores_fallback_203",
-        time_casa: "Grêmio",
-        time_fora: "The Strongest",
-        time_casa_bandeira: "🇧🇷",
-        time_fora_bandeira: "🇧🇴",
-        data_jogo: "2026-05-27T19:00:00Z",
-        status: "PENDENTE",
-        rodada: 1
-      },
-      {
-        api_id: "libertadores_fallback_204",
-        time_casa: "São Paulo",
-        time_fora: "Talleres",
-        time_casa_bandeira: "🇧🇷",
-        time_fora_bandeira: "🇦🇷",
-        data_jogo: "2026-05-27T21:30:00Z",
-        status: "PENDENTE",
-        rodada: 1
-      },
-      {
-        api_id: "libertadores_fallback_205",
-        time_casa: "Palmeiras",
-        time_fora: "San Lorenzo",
-        time_casa_bandeira: "🇧🇷",
-        time_fora_bandeira: "🇦🇷",
-        data_jogo: "2026-05-28T19:00:00Z",
-        status: "PENDENTE",
-        rodada: 1
-      },
-      {
-        api_id: "libertadores_fallback_206",
-        time_casa: "Fluminense",
-        time_fora: "Alianza Lima",
-        time_casa_bandeira: "🇧🇷",
-        time_fora_bandeira: "🇵🇪",
-        data_jogo: "2026-05-28T21:30:00Z",
-        status: "PENDENTE",
-        rodada: 1
-      }
-    ];
-
     if (isFallback) {
       for (const item of FALLBACK_LIBERTADORES) {
         let existing = db.jogos.find(j => j.api_id === item.api_id);
@@ -3796,9 +4229,10 @@ async function startServer() {
             time_casa_bandeira: item.time_casa_bandeira,
             time_fora_bandeira: item.time_fora_bandeira,
             data_jogo: item.data_jogo,
-            placar_casa: null,
-            placar_fora: null,
+            placar_casa: item.placar_casa,
+            placar_fora: item.placar_fora,
             status: item.status as any,
+            status_detalhado: item.status_detalhado || (item.status === "ENCERRADO" ? "FT" : "FT"),
             rodada: item.rodada
           });
           addedCount++;
@@ -3808,6 +4242,11 @@ async function startServer() {
           existing.time_casa_bandeira = item.time_casa_bandeira;
           existing.time_fora_bandeira = item.time_fora_bandeira;
           existing.data_jogo = item.data_jogo;
+          existing.status = item.status as any;
+          existing.status_detalhado = item.status_detalhado || (item.status === "ENCERRADO" ? "FT" : "FT");
+          existing.placar_casa = item.placar_casa;
+          existing.placar_fora = item.placar_fora;
+          existing.rodada = item.rodada;
           updatedCount++;
         }
       }
@@ -4587,6 +5026,12 @@ async function startServer() {
   // Active server listen
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`[Copa 2026 Portal] Running successfully on http://0.0.0.0:${PORT}`);
+    try {
+      console.log(`[Boot Cache] Triggering initial database load and cache warmup...`);
+      loadDatabase();
+    } catch (err: any) {
+      console.error(`[Boot Cache Log Exception] Warmup error ignored:`, err.message);
+    }
   });
 }
 

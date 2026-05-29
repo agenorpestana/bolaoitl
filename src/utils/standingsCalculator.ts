@@ -66,28 +66,52 @@ const WORLD_CUP_TEAM_GROUPS: { [key: string]: string } = {
 
 const LIBERTADORES_TEAM_GROUPS: { [key: string]: string } = {
   // Grupo A
-  "Fluminense": "Grupo A", "Colo-Colo": "Grupo A", "Colo Colo": "Grupo A", "Cerro Porteño": "Grupo A", "Cerro Porteno": "Grupo A", "Alianza Lima": "Grupo A",
+  "Flamengo": "Grupo A", "Flamingo": "Grupo A",
+  "Estudiantes": "Grupo A", "Estudiantes L.P.": "Grupo A", "Estudiantes LP": "Grupo A", "Estudiantes de La Plata": "Grupo A",
+  "Cusco": "Grupo A", "Cusco FC": "Grupo A", "Cusco F.C.": "Grupo A",
+  "Ind. Medellín": "Grupo A", "Independiente Medellín": "Grupo A", "Medellín": "Grupo A", "Independiente Medellin": "Grupo A", "Ind. Medellin": "Grupo A",
 
   // Grupo B
-  "São Paulo": "Grupo B", "Talleres": "Grupo B", "Barcelona SC": "Grupo B", "Barcelona Guayaquil": "Grupo B", "Barcelona S.C.": "Grupo B", "Cobresal": "Grupo B",
+  "Nacional": "Grupo B", "Club Nacional": "Grupo B", "Nacional Montevideo": "Grupo B", "Nacional URU": "Grupo B", "Nacional de Montevideo": "Grupo B",
+  "Universitário": "Grupo B", "Universitario": "Grupo B", "Universitario de Deportes": "Grupo B",
+  "Coquimbo Unido": "Grupo B", "Coquimbo": "Grupo B",
+  "Tolima": "Grupo B", "Deportes Tolima": "Grupo B", "Dep. Tolima": "Grupo B",
 
   // Grupo C
-  "Grêmio": "Grupo C", "Gremio": "Grupo C", "The Strongest": "Grupo C", "Huachipato": "Grupo C", "Estudiantes": "Grupo C", "Estudiantes L.P.": "Grupo C", "Estudiantes LP": "Grupo C", "Estudiantes de La Plata": "Grupo C",
+  "Fluminense": "Grupo C",
+  "Bolívar": "Grupo C", "Bolivar": "Grupo C",
+  "Dep. La Guaira": "Grupo C", "Deportivo La Guaira": "Grupo C", "La Guaira": "Grupo C",
+  "Ind. Rivadavia": "Grupo C", "Independiente Rivadavia": "Grupo C", "Rivadavia": "Grupo C",
 
   // Grupo D
-  "LDU Quito": "Grupo D", "LDU de Quito": "Grupo D", "L.D.U. Quito": "Grupo D", "Junior Barranquilla": "Grupo D", "Junior": "Grupo D", "Junior de Barranquilla": "Grupo D", "Universitario": "Grupo D", "Botafogo": "Grupo D",
+  "Boca Júniors": "Grupo D", "Boca Juniors": "Grupo D", "Boca": "Grupo D", "Boca Jr": "Grupo D", "Boca Jrs": "Grupo D",
+  "Cruzeiro": "Grupo D",
+  "Univ. Católica": "Grupo D", "Universidad Católica": "Grupo D", "Univ Catolica": "Grupo D", "Universidad Catolica": "Grupo D", "U. Católica": "Grupo D",
+  "Bar. Guayaquil": "Grupo D", "Barcelona SC": "Grupo D", "Barcelona Guayaquil": "Grupo D", "Barcelona S.C.": "Grupo D",
 
   // Grupo E
-  "Flamengo": "Grupo E", "Bolívar": "Grupo E", "Bolivar": "Grupo E", "Millonarios": "Grupo E", "Palestino": "Grupo E", "Palestino CHI": "Grupo E",
+  "Peñarol": "Grupo E", "Penarol": "Grupo E",
+  "Corinthians": "Grupo E", "Corintians": "Grupo E",
+  "Ind. Santa Fé": "Grupo E", "Independiente Santa Fe": "Grupo E", "Santa Fe": "Grupo E", "Santa Fé": "Grupo E", "Ind. Santa Fe": "Grupo E",
+  "Platense": "Grupo E", "C.A. Platense": "Grupo E", "Atletico Platense": "Grupo E",
 
   // Grupo F
-  "Palmeiras": "Grupo F", "Ind. del Valle": "Grupo F", "Independiente del Valle": "Grupo F", "San Lorenzo": "Grupo F", "Liverpool URU": "Grupo F", "Liverpool M.": "Grupo F", "Liverpool Montevideo": "Grupo F",
+  "Palmeiras": "Grupo F",
+  "Cerro Porteño": "Grupo F", "Cerro Porteno": "Grupo F",
+  "Júnior Barranquilla": "Grupo F", "Junior": "Grupo F", "Junior Barranquilla": "Grupo F", "Junior de Barranquilla": "Grupo F",
+  "Sporting Cristal": "Grupo F", "Cristal": "Grupo F",
 
   // Grupo G
-  "Peñarol": "Grupo G", "Penarol": "Grupo G", "Atlético-MG": "Grupo G", "Atletico-MG": "Grupo G", "Atletico MG": "Grupo G", "Atlético Mineiro": "Grupo G", "Rosario Central": "Grupo G", "Caracas": "Grupo G",
+  "LDU": "Grupo G", "LDU Quito": "Grupo G", "LDU de Quito": "Grupo G", "L.D.U. Quito": "Grupo G",
+  "Lanús": "Grupo G", "Lanus": "Grupo G",
+  "Always Ready": "Grupo G",
+  "Mirassol": "Grupo G", "Mirassol FC": "Grupo G",
 
   // Grupo H
-  "River Plate": "Grupo H", "Libertad": "Grupo H", "Libertad Asuncion": "Grupo H", "Nacional URU": "Grupo H", "Nacional Montevideo": "Grupo H", "Club Nacional": "Grupo H", "Nacional": "Grupo H", "Deportivo Táchira": "Grupo H", "Deportivo Tachira": "Grupo H"
+  "Ind. del Valle": "Grupo H", "Independiente del Valle": "Grupo H", "IDV": "Grupo H",
+  "Libertad": "Grupo H", "Libertad Asuncion": "Grupo H",
+  "Rosário Central": "Grupo H", "Rosario Central": "Grupo H",
+  "Univ. Central": "Grupo H", "Universidad Central": "Grupo H", "Universidad Central de Venezuela": "Grupo H", "UCV": "Grupo H"
 };
 
 export function calculateStandings(jogos: Jogo[]): StandingRow[] {
