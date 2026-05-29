@@ -915,7 +915,8 @@ async function saveDatabaseToMySqlIncremental(db: LocalDatabase | null) {
           update: {
             placar_casa: p.placar_casa,
             placar_fora: p.placar_fora,
-            pontos: p.pontos
+            pontos: p.pontos,
+            gols_jogadores: p.palpites_gols_jogadores ? JSON.stringify(p.palpites_gols_jogadores) : null
           },
           create: {
             usuario_id: p.usuario_id,
@@ -923,6 +924,7 @@ async function saveDatabaseToMySqlIncremental(db: LocalDatabase | null) {
             placar_casa: p.placar_casa,
             placar_fora: p.placar_fora,
             pontos: p.pontos,
+            gols_jogadores: p.palpites_gols_jogadores ? JSON.stringify(p.palpites_gols_jogadores) : null,
             created_at: new Date(p.created_at)
           }
         });
@@ -1177,15 +1179,26 @@ async function loadDatabaseFromMySql(): Promise<LocalDatabase> {
       rodada: g.rodada,
       status_detalhado: (g as any).status_detalhado || "NS"
     })),
-    palpites: dbPalpites.map(p => ({
-      id: p.id,
-      usuario_id: p.usuario_id,
-      jogo_id: p.jogo_id,
-      placar_casa: p.placar_casa,
-      placar_fora: p.placar_fora,
-      pontos: p.pontos,
-      created_at: p.created_at.toISOString()
-    })),
+    palpites: dbPalpites.map(p => {
+      let parsedGols: any[] | undefined = undefined;
+      if (p.gols_jogadores) {
+        try {
+          parsedGols = JSON.parse(p.gols_jogadores);
+        } catch (err) {
+          console.error(`Error parsing gols_jogadores for palpite ID ${p.id}:`, err);
+        }
+      }
+      return {
+        id: p.id,
+        usuario_id: p.usuario_id,
+        jogo_id: p.jogo_id,
+        placar_casa: p.placar_casa,
+        placar_fora: p.placar_fora,
+        pontos: p.pontos,
+        palpites_gols_jogadores: parsedGols,
+        created_at: p.created_at.toISOString()
+      };
+    }),
     configs_ixc: {
       url: dbCfg.ixc_url,
       token: dbCfg.ixc_token,
