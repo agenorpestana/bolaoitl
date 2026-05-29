@@ -162,21 +162,8 @@ export function groupStandings(standings: StandingRow[]): { [groupName: string]:
   // Sort unmatched deterministically by team name to keep refreshing stable
   unmatched.sort((a, b) => a.time.localeCompare(b.time));
 
-  // Distribute unmatched teams to the groups with the minimum current size to keep them balanced
-  unmatched.forEach(row => {
-    let minSize = Infinity;
-    let targetGroup = "Grupo A";
-
-    groupKeys.forEach(gKey => {
-      const size = groups[gKey].length;
-      if (size < minSize) {
-        minSize = size;
-        targetGroup = gKey;
-      }
-    });
-
-    groups[targetGroup].push(row);
-  });
+  // No longer distributing unmatched teams to groups automatically to avoid messing up official Group Stages (e.g. Copa Libertadores qualifiers).
+  // Unmatched, extraneous teams are safely ignored in the Group Stage visualizer.
 
   // Build sorted map containing only groups with teams
   const sortedGroups: { [groupName: string]: StandingRow[] } = {};

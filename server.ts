@@ -172,7 +172,7 @@ function parseRoundNumber(roundStr: string, isLibertadores = false): number {
     if (norm.includes("quarter") || norm.includes("quartas")) return 8;
     if (norm.includes("semi")) return 9;
     if (norm.includes("final")) return 10;
-    return 1;
+    return -100; // Qualifiers / Prévia matches return -100
   }
 
   if (norm.includes("group stage - 1") || norm.includes("rodada 1")) return 1;
@@ -197,6 +197,64 @@ function getGameCampeonato(jogo: Jogo): 'COPA_MUNDO' | 'LIBERTADORES' | 'BRASILE
     }
   }
   return 'COPA_MUNDO';
+}
+
+function cleanInvalidLibertadoresMatches(db: LocalDatabase) {
+  const LIBERTADORES_GROUPS_TEAMS = new Set([
+    "fluminense", "colo-colo", "colo colo", "cerro porteno", "cerro porteño", "alianza lima",
+    "sao paulo", "são paulo", "talleres", "barcelona sc", "barcelona guayaquil", "barcelona s.c.", "cobresal",
+    "gremio", "grêmio", "the strongest", "huachipato", "estudiantes", "estudiantes l.p.", "estudiantes lp",
+    "ldu quito", "ldu de quito", "l.d.u. quito", "junior barranquilla", "junior", "universitario", "botafogo",
+    "flamengo", "bolivar", "bolívar", "millonarios", "palestino", "palestino chi",
+    "palmeiras", "ind. del valle", "independiente del valle", "san lorenzo", "liverpool uru", "liverpool m.", "liverpool montevideo",
+    "penarol", "peñarol", "peñarol mvd", "atletico-mg", "atletico mg", "atletico mineiro", "atlético-mg", "atlético mineiro", "rosario central", "caracas",
+    "river plate", "libertad", "libertad asuncion", "nacional uru", "nacional montevideo", "club nacional", "nacional", "deportivo tachira", "deportivo táchira"
+  ]);
+
+  const isValidLibertadoresTeam = (name: string): boolean => {
+    if (!name) return false;
+    const cleaned = name.toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim();
+    for (const team of LIBERTADORES_GROUPS_TEAMS) {
+      if (cleaned.includes(team) || team.includes(cleaned)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const toDeleteIds: number[] = [];
+  
+  db.jogos = db.jogos.filter(j => {
+    const isLib = (j.api_id?.toLowerCase().includes("libertadores") || getGameCampeonato(j) === 'LIBERTADORES');
+    if (isLib) {
+      const validTeams = isValidLibertadoresTeam(j.time_casa) && isValidLibertadoresTeam(j.time_fora);
+      if (!validTeams || j.rodada === -100) {
+        toDeleteIds.push(j.id);
+        return false;
+      }
+    }
+    return true;
+  });
+
+  if (toDeleteIds.length > 0) {
+    console.log(`[Database Cleanup] Purging ${toDeleteIds.length} invalid Libertadores matches. IDs:`, toDeleteIds);
+    if (prisma) {
+      prisma.jogo.deleteMany({
+        where: { id: { in: toDeleteIds } }
+      })
+      .then((res) => {
+        console.log(`[Database Cleanup MySQL] Deleted ${res.count} qualifier rows from MySQL of total ${toDeleteIds.length} elements.`);
+      })
+      .catch((err) => {
+        console.error("[Database Cleanup MySQL Error] Failed to delete rows:", err.message);
+      });
+    }
+    return true;
+  }
+  return false;
 }
 
 function isAnyRoundWindowActive(jogos: Jogo[]): boolean {
@@ -292,6 +350,11 @@ async function syncLeagueFromApi(db: LocalDatabase, leagueId: number): Promise<{
     });
     const fixtures = response?.data?.response || [];
     for (const item of fixtures) {
+      const mappedRound = parseRoundNumber(item.league?.round || "Group Stage - 1", true);
+      if (mappedRound === -100) {
+        continue; // Skip any qualifiers / pre-libertadores matches
+      }
+
       const apiId = `libertadores_soccer_${item.fixture.id}`;
       const timeCasa = item.teams.home.name;
       const timeFora = item.teams.away.name;
@@ -332,7 +395,7 @@ async function syncLeagueFromApi(db: LocalDatabase, leagueId: number): Promise<{
           placar_casa: placarCasa,
           placar_fora: placarFora,
           status: mappedStatus as any,
-          rodada: parseRoundNumber(item.league?.round || "Group Stage - 1", true),
+          rodada: mappedRound,
           status_detalhado: shortStatus
         });
         addedCount++;
@@ -347,7 +410,7 @@ async function syncLeagueFromApi(db: LocalDatabase, leagueId: number): Promise<{
         existing.placar_fora = placarFora;
         existing.status = mappedStatus as any;
         existing.status_detalhado = shortStatus;
-        existing.rodada = parseRoundNumber(item.league?.round || "Group Stage - 1", true);
+        existing.rodada = mappedRound;
         updatedCount++;
       }
     }
@@ -762,6 +825,12 @@ function loadDatabase(): LocalDatabase {
   });
   if (cachedDb.jogos.length !== originalGamesLength) {
     console.log(`[Database Load] Dynamically purged ${originalGamesLength - cachedDb.jogos.length} fictional generated matches.`);
+    saveDatabase(cachedDb);
+  }
+
+  // Purge any unwanted Libertadores qualifier entries or unmatched teams to make group stage/standings pristine
+  const purgedLibMatches = cleanInvalidLibertadoresMatches(cachedDb);
+  if (purgedLibMatches) {
     saveDatabase(cachedDb);
   }
 
@@ -3624,6 +3693,11 @@ async function startServer() {
       }
     } else {
       for (const item of fixtures) {
+        const mappedRound = parseRoundNumber(item.league?.round || "Group Stage - 1", true);
+        if (mappedRound === -100) {
+          continue; // Skip any qualifiers / pre-libertadores matches
+        }
+
         const apiId = `libertadores_soccer_${item.fixture.id}`;
         const timeCasa = item.teams.home.name;
         const timeFora = item.teams.away.name;
@@ -3668,7 +3742,7 @@ async function startServer() {
             placar_fora: placarFora,
             status: mappedStatus as any,
             status_detalhado: shortStatus,
-            rodada: parseRoundNumber(item.league?.round || "Group Stage - 1", true)
+            rodada: mappedRound
           });
           addedCount++;
         } else {
@@ -3682,12 +3756,13 @@ async function startServer() {
           existing.placar_fora = placarFora;
           existing.status = mappedStatus as any;
           existing.status_detalhado = shortStatus;
-          existing.rodada = parseRoundNumber(item.league?.round || "Group Stage - 1", true);
+          existing.rodada = mappedRound;
           updatedCount++;
         }
       }
     }
 
+    cleanInvalidLibertadoresMatches(db);
     saveDatabase(db);
     addLog("Admin (Suporte)", "SYNC_LIBERTADORES", `Sincronizou jogos Libertadores: ${addedCount} adicionados, ${updatedCount} atualizados`, req);
     
