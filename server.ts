@@ -644,8 +644,67 @@ async function syncFootballApiReal(db: LocalDatabase, req?: express.Request): Pr
   };
 }
 
+function ensureCustomLogoAndFaviconStatus(db: LocalDatabase | null) {
+  if (!db) return;
+  const publicDir = path.join(process.cwd(), "public");
+  const customLogoPath = path.join(publicDir, "custom-logo.png");
+  if (fs.existsSync(customLogoPath)) {
+    try {
+      const stats = fs.statSync(customLogoPath);
+      db.configs_logo = {
+        has_custom_logo: true,
+        timestamp: Math.floor(stats.mtimeMs || Date.now())
+      };
+    } catch (e) {
+      db.configs_logo = {
+        has_custom_logo: true,
+        timestamp: Date.now()
+      };
+    }
+  } else if (!db.configs_logo) {
+    db.configs_logo = {
+      has_custom_logo: false,
+      timestamp: 0
+    };
+  }
+
+  const favIco = path.join(publicDir, "favicon.ico");
+  const favPng = path.join(publicDir, "favicon.png");
+  const favSvg = path.join(publicDir, "favicon.svg");
+  let hasFav = false;
+  let ext = "ico";
+  let mtime = Date.now();
+  if (fs.existsSync(favIco)) {
+    hasFav = true;
+    ext = "ico";
+    try { mtime = fs.statSync(favIco).mtimeMs; } catch (e) {}
+  } else if (fs.existsSync(favPng)) {
+    hasFav = true;
+    ext = "png";
+    try { mtime = fs.statSync(favPng).mtimeMs; } catch (e) {}
+  } else if (fs.existsSync(favSvg)) {
+    hasFav = true;
+    ext = "svg";
+    try { mtime = fs.statSync(favSvg).mtimeMs; } catch (e) {}
+  }
+
+  if (hasFav) {
+    db.configs_favicon = {
+      has_custom_favicon: true,
+      timestamp: Math.floor(mtime),
+      extension: ext
+    };
+  } else if (!db.configs_favicon) {
+    db.configs_favicon = {
+      has_custom_favicon: false,
+      timestamp: 0
+    };
+  }
+}
+
 function loadDatabase(): LocalDatabase {
   if (cachedDb) {
+    ensureCustomLogoAndFaviconStatus(cachedDb);
     return cachedDb;
   }
   cachedDb = loadDatabaseFromFile();
@@ -706,6 +765,7 @@ function loadDatabase(): LocalDatabase {
     saveDatabase(cachedDb);
   }
 
+  ensureCustomLogoAndFaviconStatus(cachedDb);
   return cachedDb;
 }
 
@@ -1382,6 +1442,7 @@ async function initializeDatabase() {
 
   // Ensure Admin Testing User is present in both MySQL and local cache
   if (cachedDb) {
+    ensureCustomLogoAndFaviconStatus(cachedDb);
     const adminUserExists = cachedDb.usuarios.some(u => u.id === 999999);
     if (!adminUserExists) {
       console.log("[MySql Sync] Registering admin testing user profile with ID 999999...");
