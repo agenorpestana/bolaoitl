@@ -3,6 +3,29 @@ import { Trophy, CheckCircle, XCircle, Clock, Calendar, Search, Award, TrendingU
 import { Jogo, Palpite } from '../types';
 import { getGameCampeonato } from './MatchesSection';
 
+function normalizePlayerName(name: string): string {
+  if (!name) return "";
+  let n = name.toLowerCase().trim();
+  n = n.normalize("NFD").replace(/[\u0300-\u036f]/g, ""); // remove accents
+  n = n.replace(/\(\s*\d+\s*\)/g, ""); // strip parentheses and number (e.g. " (1)")
+  n = n.replace(/\b[0-9]+\b/g, ""); // remove loose numbers
+  n = n.replace(/\s+/g, " "); // collapse spaces
+  return n.trim();
+}
+
+function getGoalsFromGameEvents(jogo: Jogo): { [playerName: string]: number } {
+  const goalsMap: { [playerName: string]: number } = {};
+  if (jogo.real_events && Array.isArray(jogo.real_events)) {
+    jogo.real_events.forEach(evt => {
+      if (evt.type === "Goal" && evt.player && evt.player.name) {
+        const pName = normalizePlayerName(evt.player.name);
+        goalsMap[pName] = (goalsMap[pName] || 0) + 1;
+      }
+    });
+  }
+  return goalsMap;
+}
+
 interface GuessesHistoryProps {
   jogos: Jogo[];
   palpites: Palpite[];
@@ -240,6 +263,53 @@ export default function GuessesHistory({ jogos, palpites, usuarioNome, isCompact
                     {/* Away Team */}
                     <span className="text-xs font-bold text-slate-100 max-w-[100px] truncate">{jogo.time_fora}</span>
                   </div>
+
+                  {/* Goalscorer predictions list (Artilheiros) */}
+                  {palpite.palpites_gols_jogadores && palpite.palpites_gols_jogadores.length > 0 && (
+                    <div className="mt-2 pt-1.5 border-t border-slate-900/40 flex flex-wrap gap-1.5 items-center">
+                      <span className="text-[8px] font-sans font-extrabold text-slate-500 uppercase tracking-widest mr-1">Artilheiros:</span>
+                      {palpite.palpites_gols_jogadores.map((sg, sgIdx) => {
+                        const actualGoals = getGoalsFromGameEvents(jogo);
+                        const gNameNormal = normalizePlayerName(sg.jogador);
+                        
+                        let matchedActualGoals = 0;
+                        for (const [evtName, goalsScored] of Object.entries(actualGoals)) {
+                          if (evtName.includes(gNameNormal) || gNameNormal.includes(evtName)) {
+                            matchedActualGoals = goalsScored;
+                            break;
+                          }
+                        }
+
+                        const isHit = matchedActualGoals >= sg.gols;
+                        const isPartialHit = !isHit && matchedActualGoals > 0;
+
+                        return (
+                          <span 
+                            key={sgIdx} 
+                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-sans font-medium border transition ${
+                              isHit 
+                                ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-400' 
+                                : isPartialHit 
+                                  ? 'bg-amber-950/40 border-amber-500/30 text-amber-400'
+                                  : 'bg-slate-900/60 border-slate-850/60 text-slate-400'
+                            }`}
+                          >
+                            <span>⚽</span>
+                            <span className="font-bold text-slate-200">{sg.jogador}</span>
+                            <span className="text-[8px] font-mono font-semibold">
+                              ({sg.gols} {sg.gols === 1 ? 'gol' : 'gols'})
+                            </span>
+                            {isHit && (
+                              <span className="text-[9px] text-emerald-400 font-extrabold leading-none">✓</span>
+                            )}
+                            {isPartialHit && (
+                              <span className="text-[8px] text-amber-400 font-extrabold leading-none">({matchedActualGoals})</span>
+                            )}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 {/* Right side outcome metrics */}
