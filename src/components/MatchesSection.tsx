@@ -1626,8 +1626,8 @@ export default function MatchesSection({
   }, [currentChampionshipGames]);
 
   const groupsData = React.useMemo(() => {
-    return groupStandings(standings);
-  }, [standings]);
+    return groupStandings(standings, selectedCampeonato);
+  }, [standings, selectedCampeonato]);
 
   const playOffsByRound = React.useMemo(() => {
     if (selectedCampeonato === 'LIBERTADORES') {
@@ -1639,6 +1639,7 @@ export default function MatchesSection({
       };
     }
     return {
+      4: currentChampionshipGames.filter(j => j.rodada === 4).sort((a,b) => a.id - b.id), // 16 Avos (16 games)
       5: currentChampionshipGames.filter(j => j.rodada === 5).sort((a,b) => a.id - b.id), // Oitavas (8 games)
       6: currentChampionshipGames.filter(j => j.rodada === 6).sort((a,b) => a.id - b.id), // Quartas (4 games)
       7: currentChampionshipGames.filter(j => j.rodada === 7).sort((a,b) => a.id - b.id), // Semifinais (2 games)
@@ -2071,76 +2072,168 @@ export default function MatchesSection({
 
                 {/* Vertical tree grid - responsive outer overflow */}
                 <div className="bg-slate-950/80 border border-slate-900 p-4 sm:p-6 rounded-2xl overflow-x-auto">
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6 select-none min-w-[900px] py-2">
-                    
-                    {/* Column 1: Oitavas de Final */}
-                    <div className="space-y-4">
-                      <div className="text-[10px] font-black uppercase text-brand-blue-accent tracking-widest text-center border-b border-slate-900 pb-2">
-                        Oitavas de Final
-                      </div>
-                      <div className="space-y-3">
-                        {Array.from({ length: 8 }).map((_, idx) => {
-                          const game = playOffsByRound[selectedCampeonato === 'LIBERTADORES' ? 7 : 5]?.[idx];
-                          return (
-                            <React.Fragment key={idx}>
-                              {renderBracketMatchBox(game, `Confronto #${idx + 1}`)}
-                            </React.Fragment>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Column 2: Quartas de Final */}
-                    <div className="space-y-4 flex flex-col justify-around">
-                      <div>
-                        <div className="text-[10px] font-black uppercase text-brand-blue-vibrant tracking-widest text-center border-b border-slate-900 pb-2">
-                          Quartas de Final
+                  {selectedCampeonato === 'COPA_MUNDO' ? (
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4 select-none min-w-[1100px] py-2">
+                      
+                      {/* Column 1: 16 Avos de Final (Round of 32) */}
+                      <div className="space-y-4">
+                        <div className="text-[10px] font-black uppercase text-brand-blue-accent tracking-widest text-center border-b border-slate-900 pb-2">
+                          16 Avos de Final
+                        </div>
+                        <div className="space-y-3">
+                          {Array.from({ length: 16 }).map((_, idx) => {
+                            const game = playOffsByRound[4]?.[idx];
+                            return (
+                              <React.Fragment key={idx}>
+                                {renderBracketMatchBox(game, `16 Avos #${idx + 1}`)}
+                              </React.Fragment>
+                            );
+                          })}
                         </div>
                       </div>
-                      <div className="space-y-16">
-                        {Array.from({ length: 4 }).map((_, idx) => {
-                          const game = playOffsByRound[selectedCampeonato === 'LIBERTADORES' ? 8 : 6]?.[idx];
-                          return (
-                            <React.Fragment key={idx}>
-                              {renderBracketMatchBox(game, `Quartas #${idx + 1}`)}
-                            </React.Fragment>
-                          );
-                        })}
-                      </div>
-                    </div>
 
-                    {/* Column 3: Semifinais */}
-                    <div className="space-y-4 flex flex-col justify-around">
-                      <div>
-                        <div className="text-[10px] font-black uppercase text-yellow-500 tracking-widest text-center border-b border-slate-900 pb-2">
-                          Semifinal
+                      {/* Column 2: Oitavas de Final (Round of 16) */}
+                      <div className="space-y-4 flex flex-col justify-around">
+                        <div>
+                          <div className="text-[10px] font-black uppercase text-brand-blue-accent tracking-widest text-center border-b border-slate-900 pb-2">
+                            Oitavas de Final
+                          </div>
+                        </div>
+                        <div className="space-y-6">
+                          {Array.from({ length: 8 }).map((_, idx) => {
+                            const game = playOffsByRound[5]?.[idx];
+                            return (
+                              <React.Fragment key={idx}>
+                                {renderBracketMatchBox(game, `Oitavas #${idx + 1}`)}
+                              </React.Fragment>
+                            );
+                          })}
                         </div>
                       </div>
-                      <div className="space-y-32">
-                        {Array.from({ length: 2 }).map((_, idx) => {
-                          const game = playOffsByRound[selectedCampeonato === 'LIBERTADORES' ? 9 : 7]?.[idx];
-                          return (
-                            <React.Fragment key={idx}>
-                              {renderBracketMatchBox(game, `Semifinal #${idx + 1}`)}
-                            </React.Fragment>
-                          );
-                        })}
-                      </div>
-                    </div>
 
-                    {/* Column 4: GRANDE FINAL */}
-                    <div className="space-y-4 flex flex-col justify-center">
-                      <div>
-                        <div className="text-[10px] font-black uppercase text-emerald-400 tracking-widest text-center border-b border-slate-900 pb-2 mb-8">
-                          Grande Final
+                      {/* Column 3: Quartas de Final */}
+                      <div className="space-y-4 flex flex-col justify-around">
+                        <div>
+                          <div className="text-[10px] font-black uppercase text-brand-blue-vibrant tracking-widest text-center border-b border-slate-900 pb-2">
+                            Quartas de Final
+                          </div>
+                        </div>
+                        <div className="space-y-16">
+                          {Array.from({ length: 4 }).map((_, idx) => {
+                            const game = playOffsByRound[6]?.[idx];
+                            return (
+                              <React.Fragment key={idx}>
+                                {renderBracketMatchBox(game, `Quartas #${idx + 1}`)}
+                              </React.Fragment>
+                            );
+                          })}
                         </div>
                       </div>
-                      <div className="space-y-2">
-                        {renderBracketMatchBox(playOffsByRound[selectedCampeonato === 'LIBERTADORES' ? 10 : 8]?.[0], "Grande Final")}
-                      </div>
-                    </div>
 
-                  </div>
+                      {/* Column 4: Semifinais */}
+                      <div className="space-y-4 flex flex-col justify-around">
+                        <div>
+                          <div className="text-[10px] font-black uppercase text-yellow-500 tracking-widest text-center border-b border-slate-900 pb-2">
+                            Semifinal
+                          </div>
+                        </div>
+                        <div className="space-y-32">
+                          {Array.from({ length: 2 }).map((_, idx) => {
+                            const game = playOffsByRound[7]?.[idx];
+                            return (
+                              <React.Fragment key={idx}>
+                                {renderBracketMatchBox(game, `Semifinal #${idx + 1}`)}
+                              </React.Fragment>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Column 5: GRANDE FINAL */}
+                      <div className="space-y-4 flex flex-col justify-center">
+                        <div>
+                          <div className="text-[10px] font-black uppercase text-emerald-400 tracking-widest text-center border-b border-slate-900 pb-2 mb-8">
+                            Grande Final
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          {renderBracketMatchBox(playOffsByRound[8]?.[0], "Grande Final")}
+                        </div>
+                      </div>
+
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 select-none min-w-[900px] py-2">
+                      
+                      {/* Column 1: Oitavas de Final */}
+                      <div className="space-y-4">
+                        <div className="text-[10px] font-black uppercase text-brand-blue-accent tracking-widest text-center border-b border-slate-900 pb-2">
+                          Oitavas de Final
+                        </div>
+                        <div className="space-y-3">
+                          {Array.from({ length: 8 }).map((_, idx) => {
+                            const game = playOffsByRound[selectedCampeonato === 'LIBERTADORES' ? 7 : 5]?.[idx];
+                            return (
+                              <React.Fragment key={idx}>
+                                {renderBracketMatchBox(game, `Confronto #${idx + 1}`)}
+                              </React.Fragment>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Column 2: Quartas de Final */}
+                      <div className="space-y-4 flex flex-col justify-around">
+                        <div>
+                          <div className="text-[10px] font-black uppercase text-brand-blue-vibrant tracking-widest text-center border-b border-slate-900 pb-2">
+                            Quartas de Final
+                          </div>
+                        </div>
+                        <div className="space-y-16">
+                          {Array.from({ length: 4 }).map((_, idx) => {
+                            const game = playOffsByRound[selectedCampeonato === 'LIBERTADORES' ? 8 : 6]?.[idx];
+                            return (
+                              <React.Fragment key={idx}>
+                                {renderBracketMatchBox(game, `Quartas #${idx + 1}`)}
+                              </React.Fragment>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Column 3: Semifinais */}
+                      <div className="space-y-4 flex flex-col justify-around">
+                        <div>
+                          <div className="text-[10px] font-black uppercase text-yellow-500 tracking-widest text-center border-b border-slate-900 pb-2">
+                            Semifinal
+                          </div>
+                        </div>
+                        <div className="space-y-32">
+                          {Array.from({ length: 2 }).map((_, idx) => {
+                            const game = playOffsByRound[selectedCampeonato === 'LIBERTADORES' ? 9 : 7]?.[idx];
+                            return (
+                              <React.Fragment key={idx}>
+                                {renderBracketMatchBox(game, `Semifinal #${idx + 1}`)}
+                              </React.Fragment>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Column 4: GRANDE FINAL */}
+                      <div className="space-y-4 flex flex-col justify-center">
+                        <div>
+                          <div className="text-[10px] font-black uppercase text-emerald-400 tracking-widest text-center border-b border-slate-900 pb-2 mb-8">
+                            Grande Final
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          {renderBracketMatchBox(playOffsByRound[selectedCampeonato === 'LIBERTADORES' ? 10 : 8]?.[0], "Grande Final")}
+                        </div>
+                      </div>
+
+                    </div>
+                  )}
                 </div>
 
                 <div className="bg-slate-900/30 border border-slate-900/80 p-3 rounded-xl text-[11px] text-slate-500 leading-relaxed">

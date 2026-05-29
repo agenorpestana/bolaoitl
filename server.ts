@@ -52,11 +52,13 @@ interface LocalDatabase {
   configs_logo?: {
     has_custom_logo: boolean;
     timestamp: number;
+    custom_logo_base64?: string;
   };
   configs_favicon?: {
     has_custom_favicon: boolean;
     timestamp: number;
     extension?: string;
+    custom_favicon_base64?: string;
   };
 }
 
@@ -215,13 +217,41 @@ function cleanInvalidLibertadoresMatches(db: LocalDatabase) {
     if (!name) return false;
     const cleaned = name.toLowerCase()
       .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[\u0300-\u036f]/g, "") // remove accents
+      .replace(/[^a-z0-0]/g, "") // remove symbols & spaces
       .trim();
-    for (const team of LIBERTADORES_GROUPS_TEAMS) {
-      if (cleaned.includes(team) || team.includes(cleaned)) {
+
+    // Normalise matches and database keys symmetrically
+    const normalisedGroupsTeams = Array.from(LIBERTADORES_GROUPS_TEAMS).map(t => 
+      t.toLowerCase()
+       .normalize("NFD")
+       .replace(/[\u0300-\u036f]/g, "")
+       .replace(/[^a-z0-0]/g, "")
+       .trim()
+    );
+
+    // Prevent known false-positive matches of qualifiers / non-group phase teams
+    if (cleaned === "bocajuniors" || cleaned.includes("boca")) {
+      return false;
+    }
+    if (cleaned === "nacionalpotosi" || cleaned.includes("potosi")) {
+      return false;
+    }
+    if (cleaned === "atleticonacional" || cleaned === "nacionalparaguay" || cleaned === "nacionalasuncion") {
+      return false;
+    }
+
+    if (normalisedGroupsTeams.includes(cleaned)) {
+      return true;
+    }
+
+    // Fallback block - only allow substring checks for sufficiently long names
+    for (const team of normalisedGroupsTeams) {
+      if (team.length >= 6 && (cleaned.includes(team) || team.includes(cleaned))) {
         return true;
       }
     }
+
     return false;
   };
 
@@ -711,17 +741,106 @@ function ensureCustomLogoAndFaviconStatus(db: LocalDatabase | null) {
   if (!db) return;
   const publicDir = path.join(process.cwd(), "public");
   const customLogoPath = path.join(publicDir, "custom-logo.png");
+
+  // 1. Auto-Restore Custom Logo and PWA Icons if missing, but we have base64 in database
+  if (db.configs_logo && db.configs_logo.has_custom_logo && db.configs_logo.custom_logo_base64 && !fs.existsSync(customLogoPath)) {
+    try {
+      console.log("[Logo Restoration] Recreating custom-logo.png and icons from persistent DB custom_logo_base64...");
+      const base64Str = db.configs_logo.custom_logo_base64;
+      const matches = base64Str.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      if (matches && matches.length === 3) {
+        const buffer = Buffer.from(matches[2], "base64");
+        if (!fs.existsSync(publicDir)) {
+          fs.mkdirSync(publicDir, { recursive: true });
+        }
+        fs.writeFileSync(customLogoPath, buffer);
+
+        const distPath = path.join(process.cwd(), "dist");
+        if (fs.existsSync(distPath)) {
+          try { fs.copyFileSync(customLogoPath, path.join(distPath, "custom-logo.png")); } catch (e) {}
+        }
+
+        const icon192Path = path.join(publicDir, "icon-192.png");
+        const icon512Path = path.join(publicDir, "icon-512.png");
+        
+        sharp(buffer)
+          .resize({ width: 256, height: 256, fit: "inside" })
+          .png()
+          .toFile(customLogoPath)
+          .catch(() => {});
+
+        sharp(buffer).resize(192, 192, { fit: "cover" }).png().toBuffer().then(b => {
+          fs.writeFileSync(icon192Path, b);
+          if (fs.existsSync(distPath)) {
+            try { fs.copyFileSync(icon192Path, path.join(distPath, "icon-192.png")); } catch (e) {}
+          }
+        }).catch(() => {});
+
+        sharp(buffer).resize(512, 512, { fit: "cover" }).png().toBuffer().then(b => {
+          fs.writeFileSync(icon512Path, b);
+          if (fs.existsSync(distPath)) {
+            try { fs.copyFileSync(icon512Path, path.join(distPath, "icon-512.png")); } catch (e) {}
+          }
+        }).catch(() => {});
+      }
+    } catch (restoreErr: any) {
+      console.error("[Logo Restoration Error]", restoreErr.message);
+    }
+  }
+
+  // 2. Auto-Restore Custom Favicon if missing, but we have base64 in database
+  const extDb = db.configs_favicon?.extension || "ico";
+  const expectedFaviconPath = path.join(publicDir, `favicon.${extDb}`);
+  if (db.configs_favicon && db.configs_favicon.has_custom_favicon && db.configs_favicon.custom_favicon_base64 && !fs.existsSync(expectedFaviconPath)) {
+    try {
+      console.log(`[Favicon Restoration] Recreating favicon.${extDb} from persistent DB custom_favicon_base64...`);
+      const base64Str = db.configs_favicon.custom_favicon_base64;
+      const matches = base64Str.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      if (matches && matches.length === 3) {
+        const buffer = Buffer.from(matches[2], "base64");
+        if (!fs.existsSync(publicDir)) {
+          fs.mkdirSync(publicDir, { recursive: true });
+        }
+
+        const possibleNames = ["favicon.ico", "favicon.png", "favicon.svg"];
+        possibleNames.forEach(name => {
+          try {
+            const fp = path.join(publicDir, name);
+            if (fs.existsSync(fp)) fs.unlinkSync(fp);
+          } catch (e) {}
+        });
+
+        fs.writeFileSync(expectedFaviconPath, buffer);
+
+        const distPath = path.join(process.cwd(), "dist");
+        if (fs.existsSync(distPath)) {
+          possibleNames.forEach(name => {
+            try {
+              const dp = path.join(distPath, name);
+              if (fs.existsSync(dp)) fs.unlinkSync(dp);
+            } catch (e) {}
+          });
+          try { fs.copyFileSync(expectedFaviconPath, path.join(distPath, `favicon.${extDb}`)); } catch (e) {}
+        }
+      }
+    } catch (restoreErr: any) {
+      console.error("[Favicon Restoration Error]", restoreErr.message);
+    }
+  }
+
   if (fs.existsSync(customLogoPath)) {
     try {
       const stats = fs.statSync(customLogoPath);
       db.configs_logo = {
         has_custom_logo: true,
-        timestamp: Math.floor(stats.mtimeMs || Date.now())
+        timestamp: Math.floor(stats.mtimeMs || Date.now()),
+        custom_logo_base64: db.configs_logo?.custom_logo_base64
       };
     } catch (e) {
       db.configs_logo = {
         has_custom_logo: true,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        custom_logo_base64: db.configs_logo?.custom_logo_base64
       };
     }
   } else if (!db.configs_logo) {
@@ -755,7 +874,8 @@ function ensureCustomLogoAndFaviconStatus(db: LocalDatabase | null) {
     db.configs_favicon = {
       has_custom_favicon: true,
       timestamp: Math.floor(mtime),
-      extension: ext
+      extension: ext,
+      custom_favicon_base64: db.configs_favicon?.custom_favicon_base64
     };
   } else if (!db.configs_favicon) {
     db.configs_favicon = {
@@ -4341,7 +4461,8 @@ async function startServer() {
       const db = loadDatabase();
       db.configs_logo = {
         has_custom_logo: true,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        custom_logo_base64: base64Data
       };
       saveDatabase(db);
 
@@ -4431,7 +4552,8 @@ async function startServer() {
       db.configs_favicon = {
         has_custom_favicon: true,
         timestamp: Date.now(),
-        extension: extension
+        extension: extension,
+        custom_favicon_base64: base64Data
       };
       saveDatabase(db);
 
