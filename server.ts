@@ -1345,9 +1345,30 @@ async function initializeDatabase() {
         saveDatabase(cachedDb);
       } else {
         console.log(`[MySql Sync] Cache successfully filled from MySQL: ${mysqlDb.usuarios.length} users, ${mysqlDb.palpites.length} bets, ${mysqlDb.jogos.length} games.`);
+        
+        let mergedScorerGuessesCount = 0;
+        mysqlDb.palpites.forEach(mysqlBet => {
+          if (!mysqlBet.palpites_gols_jogadores || mysqlBet.palpites_gols_jogadores.length === 0) {
+            const localBet = fileDb.palpites.find(p => p.usuario_id === mysqlBet.usuario_id && p.jogo_id === mysqlBet.jogo_id);
+            if (localBet && localBet.palpites_gols_jogadores && localBet.palpites_gols_jogadores.length > 0) {
+              mysqlBet.palpites_gols_jogadores = localBet.palpites_gols_jogadores;
+              mergedScorerGuessesCount++;
+            }
+          }
+        });
+
+        if (mergedScorerGuessesCount > 0) {
+          console.log(`[MySql Sync] Restored and merged ${mergedScorerGuessesCount} scorer guess predictions from local backup to prevent data loss.`);
+        }
+
         cachedDb = mysqlDb;
         // Keep the local file synchronized
         saveDatabaseToFile(cachedDb);
+
+        // Async write the merged local backup scorer guesses back to MySQL now that Prisma model supports it
+        if (mergedScorerGuessesCount > 0) {
+          triggerMySqlSync();
+        }
       }
     } catch (err: any) {
       console.error("[MySql Sync] MySQL connection failed completely, falling back to local database.json. Error:", err.message);
