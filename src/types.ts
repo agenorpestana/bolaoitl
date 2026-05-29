@@ -58,6 +58,12 @@ export interface Jogo {
     placar_estimado_casa: number;
     placar_estimado_fora: number;
   };
+  real_events?: any[];
+}
+
+export interface PalpiteGolJogador {
+  jogador: string;
+  gols: number;
 }
 
 export interface Palpite {
@@ -67,6 +73,7 @@ export interface Palpite {
   placar_casa: number;
   placar_fora: number;
   pontos: number | null;
+  palpites_gols_jogadores?: PalpiteGolJogador[];
   created_at: string;
 }
 
@@ -77,6 +84,7 @@ export interface ConfigPoints {
   bonus_rodada: number;
   bonus_sequencia: number;
   bonus_jogos_perfeitos: number;
+  pontos_acertar_autor_gol?: number;
 }
 
 export interface ConfigIXC {

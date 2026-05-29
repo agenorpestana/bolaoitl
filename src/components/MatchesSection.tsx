@@ -60,7 +60,7 @@ interface MatchesSectionProps {
   jogos: Jogo[];
   palpites: Palpite[];
   token: string | null;
-  onSavePalpite: (jogoId: number, placarCasa: number, placarFora: number) => Promise<boolean>;
+  onSavePalpite: (jogoId: number, placarCasa: number, placarFora: number, palpitesGolsJogadores?: any[]) => Promise<boolean>;
   onCtaLogin: () => void;
   dataServidor: string;
 }
@@ -342,16 +342,90 @@ export default function MatchesSection({
   const [inputs, setInputs] = React.useState<{ [key: string]: { casa: string; fora: string } }>({});
   const [savingKeys, setSavingKeys] = React.useState<{ [key: string]: boolean }>({});
   
+  // Temporary player goalscorer predictions state mapped to game id
+  const [scorerInputs, setScorerInputs] = React.useState<{ [jogoId: number]: { jogador: string; gols: number }[] }>({});
+  
+  // Cache of team players list for selection dropdowns
+  const [playersCache, setPlayersCache] = React.useState<{ 
+    [jogoId: number]: { 
+      time_casa: string; 
+      time_fora: string; 
+      jogadores_casa: string[]; 
+      jogadores_fora: string[] 
+    } 
+  }>({});
+
+  const [expandedScorers, setExpandedScorers] = React.useState<{ [jogoId: number]: boolean }>({});
+
+  const fetchPlayersForGame = async (jogoId: number) => {
+    if (playersCache[jogoId]) return;
+    try {
+      const res = await fetch(`/api/jogos/${jogoId}/jogadores`);
+      if (res.ok) {
+        const data = await res.json();
+        setPlayersCache(prev => ({ ...prev, [jogoId]: data }));
+      }
+    } catch (err) {
+      console.error("Failed to fetch players for match", jogoId, err);
+    }
+  };
+
+  const toggleScorersExpanded = (jogoId: number) => {
+    setExpandedScorers(prev => {
+      const nextVal = !prev[jogoId];
+      if (nextVal) {
+        fetchPlayersForGame(jogoId);
+      }
+      return { ...prev, [jogoId]: nextVal };
+    });
+  };
+
+  const handleAddScorerRow = (jogoId: number) => {
+    setScorerInputs(prev => ({
+      ...prev,
+      [jogoId]: [
+        ...(prev[jogoId] || []),
+        { jogador: "", gols: 1 }
+      ]
+    }));
+  };
+
+  const handleUpdateScorerRow = (jogoId: number, idx: number, field: 'jogador' | 'gols', val: any) => {
+    setScorerInputs(prev => {
+      const rows = [...(prev[jogoId] || [])];
+      if (rows[idx]) {
+        rows[idx] = {
+          ...rows[idx],
+          [field]: field === 'gols' ? Math.max(1, Number(val)) : val
+        };
+      }
+      return { ...prev, [jogoId]: rows };
+    });
+  };
+
+  const handleRemoveScorerRow = (jogoId: number, idx: number) => {
+    setScorerInputs(prev => {
+      const rows = [...(prev[jogoId] || [])];
+      rows.splice(idx, 1);
+      return { ...prev, [jogoId]: rows };
+    });
+  };
+  
   // Map API response guesses to internal inputs state on load
   React.useEffect(() => {
     const updatedInputs: { [key: string]: { casa: string; fora: string } } = {};
+    const updatedScorers: { [jogoId: number]: { jogador: string; gols: number }[] } = {};
     palpites.forEach(p => {
       updatedInputs[p.jogo_id] = {
         casa: String(p.placar_casa),
         fora: String(p.placar_fora)
       };
+      if (p.palpites_gols_jogadores) {
+        updatedScorers[p.jogo_id] = p.palpites_gols_jogadores;
+      }
     });
     setInputs(updatedInputs);
+    setScorerInputs(updatedScorers);
   }, [palpites]);
 
   const handleInputChange = (jogoId: number, side: 'casa' | 'fora', val: string) => {
@@ -374,7 +448,9 @@ export default function MatchesSection({
     }
 
     setSavingKeys(prev => ({ ...prev, [jogoId]: true }));
-    const success = await onSavePalpite(jogoId, Number(vals.casa), Number(vals.fora));
+    const scorers = scorerInputs[jogoId] || [];
+    const filteredScorers = scorers.filter(s => s.jogador && s.jogador.trim() !== "");
+    const success = await onSavePalpite(jogoId, Number(vals.casa), Number(vals.fora), filteredScorers);
     
     // Slight simulated wait for premium UX
     setTimeout(() => {
@@ -719,6 +795,127 @@ export default function MatchesSection({
             </span>
           </div>
 
+        </div>
+
+        {/* SEÇÃO ARTILHEIROS: PALPITE DE QUEM FAZ O GOL */}
+        <div className="mt-2.5 pt-2.5 border-t border-slate-900/60 text-xs">
+          <button
+            type="button"
+            onClick={() => toggleScorersExpanded(jogo.id)}
+            className="flex items-center justify-between w-full py-1 text-slate-400 hover:text-slate-200 transition font-sans font-medium"
+          >
+            <span className="flex items-center gap-1.5 font-bold text-slate-300">
+              <span role="img" aria-label="soccer">⚽</span> Palpitar Gols de Jogadores (+7 Pts)
+              {scorerInputs[jogo.id]?.length > 0 && (
+                <span className="bg-brand-blue-accent/30 text-brand-blue-vibrant text-[10px] px-1.5 py-0.2 rounded-full font-extrabold border border-brand-blue-accent/20">
+                  {scorerInputs[jogo.id].length}
+                </span>
+              )}
+            </span>
+            <span className="text-[10px] text-slate-500 font-mono font-black">
+              {expandedScorers[jogo.id] ? "RECOLHER ▲" : "EXPANDIR ▼"}
+            </span>
+          </button>
+
+          {expandedScorers[jogo.id] && (
+            <div className="mt-2.5 bg-slate-950/40 p-2.5 rounded-xl border border-slate-900/50 space-y-2.5">
+              <div className="text-[10px] text-slate-400 font-sans leading-relaxed">
+                Dica: Acerte o autor e a quantidade de gols para pontuar (<strong>7 pontos</strong> por gol acertado).
+              </div>
+
+              {(scorerInputs[jogo.id] || []).length === 0 ? (
+                <div className="text-slate-500 italic text-[11px] py-1.5 text-center font-sans">
+                  Nenhum jogador selecionado para gols neste jogo.
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
+                  {(scorerInputs[jogo.id] || []).map((row, idx) => {
+                    const gamePlayers = playersCache[jogo.id];
+                    return (
+                      <div key={idx} className="flex items-center gap-2">
+                        <div className="flex-1 min-w-0">
+                          {isReadonly || isBlocked || isCanceled ? (
+                            <div className="bg-slate-900/50 p-2 rounded-lg border border-slate-800 text-slate-300 truncate font-sans text-[11px] font-semibold">
+                              {row.jogador || "Outro jogador..."}
+                            </div>
+                          ) : (
+                            <select
+                              value={row.jogador}
+                              onChange={(e) => handleUpdateScorerRow(jogo.id, idx, 'jogador', e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-800 text-slate-100 rounded-lg p-1.5 text-[11px] font-medium focus:border-brand-blue"
+                            >
+                              <option value="">-- Selecione o Jogador --</option>
+                              {gamePlayers && (
+                                <>
+                                  <optgroup label={jogo.time_casa}>
+                                    {gamePlayers.jogadores_casa.map(p => (
+                                      <option key={p} value={p}>{p}</option>
+                                    ))}
+                                  </optgroup>
+                                  <optgroup label={jogo.time_fora}>
+                                    {gamePlayers.jogadores_fora.map(p => (
+                                      <option key={p} value={p}>{p}</option>
+                                    ))}
+                                  </optgroup>
+                                </>
+                              )}
+                              <option value="custom_value_typing">Digitar outro jogador...</option>
+                            </select>
+                          )}
+
+                          {/* Show freeform text field if custom chosen or not in dropdown */}
+                          {!isReadonly && !isBlocked && !isCanceled && (row.jogador === 'custom_value_typing' || (gamePlayers && !gamePlayers.jogadores_casa.includes(row.jogador) && !gamePlayers.jogadores_fora.includes(row.jogador) && row.jogador !== '')) && (
+                            <input
+                              type="text"
+                              placeholder="Nome do jogador..."
+                              value={row.jogador === 'custom_value_typing' ? "" : row.jogador}
+                              onChange={(e) => handleUpdateScorerRow(jogo.id, idx, 'jogador', e.target.value)}
+                              className="mt-1 w-full bg-slate-900 border border-slate-800 focus:border-brand-blue-accent focus:ring-1 focus:ring-brand-blue-accent text-slate-100 rounded-lg p-1.5 text-[11px] font-medium"
+                            />
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          <span className="text-[10px] text-slate-500 font-sans">Gols:</span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={10}
+                            disabled={isReadonly || isBlocked || isCanceled}
+                            value={row.gols}
+                            onChange={(e) => handleUpdateScorerRow(jogo.id, idx, 'gols', e.target.value)}
+                            className="w-12 bg-slate-900 border border-slate-800 focus:border-brand-blue text-brand-blue-vibrant text-center font-bold rounded-lg p-1.5 text-[11px]"
+                          />
+                        </div>
+
+                        {!isReadonly && !isBlocked && !isCanceled && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveScorerRow(jogo.id, idx)}
+                            className="p-1.5 text-red-500 hover:text-red-400 hover:bg-slate-900 rounded-lg transition"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3.5 h-3.5">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {!isReadonly && !isBlocked && !isCanceled && (
+                <button
+                  type="button"
+                  onClick={() => handleAddScorerRow(jogo.id)}
+                  className="w-full flex items-center justify-center gap-1.5 py-1.5 border border-dashed border-slate-800 hover:border-brand-blue/50 text-[11px] text-slate-400 hover:text-brand-blue-vibrant rounded-xl transition bg-slate-900/20 font-sans font-medium"
+                >
+                  <span>+ Adicionar Gol de Jogador</span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Input action panels */}

@@ -8,7 +8,8 @@ export const INITIAL_POINTS_CONFIG: ConfigPoints = {
   pontos_acertar_placar_exato: 6, // exact match points added with winner points = 10 total
   bonus_rodada: 5,
   bonus_sequencia: 3,
-  bonus_jogos_perfeitos: 15
+  bonus_jogos_perfeitos: 15,
+  pontos_acertar_autor_gol: 7
 };
 
 export const CIDADES_ATENDIDAS = [

@@ -62,6 +62,7 @@ model Palpite {
   placar_casa  Int
   placar_fora  Int
   pontos       Int?
+  gols_jogadores String? @db.Text
   created_at   DateTime @default(now())
 
   usuario      Usuario  @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
@@ -96,6 +97,7 @@ model Configuracoes {
   points_vencedor       Int      @default(4)
   points_empate         Int      @default(4)
   points_placar_exato   Int      @default(6)
+  points_autor_gol      Int      @default(7)
   bonus_rodada          Int      @default(5)
   bonus_sequencia       Int      @default(3)
   bonus_jogos_perfeitos Int      @default(15)

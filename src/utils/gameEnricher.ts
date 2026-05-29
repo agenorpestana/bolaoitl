@@ -248,7 +248,7 @@ const LAST_NAMES = [
   "Rios", "Bastos", "Alves", "Teixeira", "Moreira", "Vieira", "Araújo", "Romano", "Pinto", "Mendes", "Miranda"
 ];
 
-function generateGenericRoster(teamName: string, id: number): { starter: string[]; subs: string[]; coach: string } {
+export function generateGenericRoster(teamName: string, id: number): { starter: string[]; subs: string[]; coach: string } {
   const rand = new SeededRandom(id + teamName.charCodeAt(0) * 10);
   
   const starters: string[] = [];

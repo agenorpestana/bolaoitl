@@ -24,7 +24,7 @@ import {
   AdminUser 
 } from "./src/types";
 import { INITIAL_GAMES, INITIAL_POINTS_CONFIG, CIDADES_ATENDIDAS } from "./src/data";
-import { enrichGameDetails } from "./src/utils/gameEnricher";
+import { enrichGameDetails, lookupRoster, generateGenericRoster } from "./src/utils/gameEnricher";
 
 const JWT_SECRET = process.env.JWT_SECRET || "copa-bolao-2026-super-secret-key-isp";
 
@@ -645,6 +645,10 @@ function loadDatabase(): LocalDatabase {
   }
   cachedDb = loadDatabaseFromFile();
 
+  if (cachedDb.configs_points && !cachedDb.configs_points.pontos_acertar_autor_gol) {
+    cachedDb.configs_points.pontos_acertar_autor_gol = 7;
+  }
+
   if (!cachedDb.configs_libertadores) {
     cachedDb.configs_libertadores = { ativo: false };
   }
@@ -939,6 +943,7 @@ async function saveDatabaseToMySqlIncremental(db: LocalDatabase | null) {
         points_vencedor: db.configs_points.pontos_acertar_vencedor,
         points_empate: db.configs_points.pontos_acertar_empate,
         points_placar_exato: db.configs_points.pontos_acertar_placar_exato,
+        points_autor_gol: db.configs_points.pontos_acertar_autor_gol || 7,
         bonus_rodada: db.configs_points.bonus_rodada,
         bonus_sequencia: db.configs_points.bonus_sequencia,
         bonus_jogos_perfeitos: db.configs_points.bonus_jogos_perfeitos,
@@ -957,6 +962,7 @@ async function saveDatabaseToMySqlIncremental(db: LocalDatabase | null) {
         points_vencedor: db.configs_points.pontos_acertar_vencedor,
         points_empate: db.configs_points.pontos_acertar_empate,
         points_placar_exato: db.configs_points.pontos_acertar_placar_exato,
+        points_autor_gol: db.configs_points.pontos_acertar_autor_gol || 7,
         bonus_rodada: db.configs_points.bonus_rodada,
         bonus_sequencia: db.configs_points.bonus_sequencia,
         bonus_jogos_perfeitos: db.configs_points.bonus_jogos_perfeitos,
@@ -1055,6 +1061,7 @@ async function loadDatabaseFromMySql(): Promise<LocalDatabase> {
         points_vencedor: INITIAL_POINTS_CONFIG.pontos_acertar_vencedor,
         points_empate: INITIAL_POINTS_CONFIG.pontos_acertar_empate,
         points_placar_exato: INITIAL_POINTS_CONFIG.pontos_acertar_placar_exato,
+        points_autor_gol: INITIAL_POINTS_CONFIG.pontos_acertar_autor_gol || 7,
         bonus_rodada: INITIAL_POINTS_CONFIG.bonus_rodada,
         bonus_sequencia: INITIAL_POINTS_CONFIG.bonus_sequencia,
         bonus_jogos_perfeitos: INITIAL_POINTS_CONFIG.bonus_jogos_perfeitos,
@@ -1187,7 +1194,8 @@ async function loadDatabaseFromMySql(): Promise<LocalDatabase> {
       pontos_acertar_placar_exato: dbCfg.points_placar_exato,
       bonus_rodada: dbCfg.bonus_rodada,
       bonus_sequencia: dbCfg.bonus_sequencia,
-      bonus_jogos_perfeitos: dbCfg.bonus_jogos_perfeitos
+      bonus_jogos_perfeitos: dbCfg.bonus_jogos_perfeitos,
+      pontos_acertar_autor_gol: (dbCfg as any).points_autor_gol !== undefined ? (dbCfg as any).points_autor_gol : 7
     },
     configs_football: {
       key: dbCfg.football_api_key || "",
@@ -1392,6 +1400,34 @@ function addLog(usuario: string, acao: string, descricao: string, req?: express.
   saveDatabase(db);
 }
 
+function normalizePlayerName(name: string): string {
+  if (!name) return "";
+  let n = name.toLowerCase().trim();
+  n = n.normalize("NFD").replace(/[\u0300-\u036f]/g, ""); // remove accents
+  n = n.replace(/\(\s*\d+\s*\)/g, ""); // strip parentheses and number (e.g. " (1)")
+  n = n.replace(/\b[0-9]+\b/g, ""); // remove loose numbers
+  n = n.replace(/\s+/g, " "); // collapse spaces
+  return n.trim();
+}
+
+function getGoalsFromGameEvents(jogo: Jogo): { [playerName: string]: number } {
+  let rawEvents: any[] = [];
+  if (jogo.real_events && Array.isArray(jogo.real_events)) {
+    rawEvents = jogo.real_events;
+  } else {
+    rawEvents = generateDeterministicEvents(jogo, Date.now());
+  }
+
+  const goalsMap: { [playerName: string]: number } = {};
+  rawEvents.forEach(evt => {
+    if (evt.type === "Goal" && evt.player && evt.player.name) {
+      const pName = normalizePlayerName(evt.player.name);
+      goalsMap[pName] = (goalsMap[pName] || 0) + 1;
+    }
+  });
+  return goalsMap;
+}
+
 // Score Calculator Engine
 function calculatePointsForBet(palpite: Palpite, jogo: Jogo, points_cfg: ConfigPoints): number {
   if (jogo.placar_casa === null || jogo.placar_fora === null) return 0;
@@ -1401,32 +1437,59 @@ function calculatePointsForBet(palpite: Palpite, jogo: Jogo, points_cfg: ConfigP
   const realCasa = jogo.placar_casa;
   const realFora = jogo.placar_fora;
 
+  let basePoints = 0;
+
   // Exact scorecard match
   if (palpiteCasa === realCasa && palpiteFora === realFora) {
     // Winner hit points + Exact score bônus
-    return points_cfg.pontos_acertar_vencedor + points_cfg.pontos_acertar_placar_exato;
+    basePoints = points_cfg.pontos_acertar_vencedor + points_cfg.pontos_acertar_placar_exato;
+  } else {
+    // Draw check
+    const palpiteEmpate = palpiteCasa === palpiteFora;
+    const realEmpate = realCasa === realFora;
+
+    if (realEmpate && palpiteEmpate) {
+      basePoints = points_cfg.pontos_acertar_empate;
+    } else {
+      // Winner check (not a drawing score)
+      const palpiteVencedorCasa = palpiteCasa > palpiteFora;
+      const realVencedorCasa = realCasa > realFora;
+
+      const palpiteVencedorFora = palpiteCasa < palpiteFora;
+      const realVencedorFora = realCasa < realFora;
+
+      if ((palpiteVencedorCasa && realVencedorCasa) || (palpiteVencedorFora && realVencedorFora)) {
+        basePoints = points_cfg.pontos_acertar_vencedor;
+      }
+    }
   }
 
-  // Draw check
-  const palpiteEmpate = palpiteCasa === palpiteFora;
-  const realEmpate = realCasa === realFora;
+  // Scorer predictions points
+  let scorerPoints = 0;
+  const pointsPerGoal = points_cfg.pontos_acertar_autor_gol !== undefined ? points_cfg.pontos_acertar_autor_gol : 7;
 
-  if (realEmpate && palpiteEmpate) {
-    return points_cfg.pontos_acertar_empate;
+  if (palpite.palpites_gols_jogadores && Array.isArray(palpite.palpites_gols_jogadores)) {
+    const actualGoals = getGoalsFromGameEvents(jogo);
+    palpite.palpites_gols_jogadores.forEach(p_guess => {
+      const gNameNormal = normalizePlayerName(p_guess.jogador);
+      const guessedGoals = Number(p_guess.gols) || 0;
+      if (guessedGoals <= 0 || !gNameNormal) return;
+
+      let matchedActualGoals = 0;
+      for (const [evtName, goalsScored] of Object.entries(actualGoals)) {
+        if (evtName.includes(gNameNormal) || gNameNormal.includes(evtName)) {
+          matchedActualGoals = goalsScored;
+          break;
+        }
+      }
+
+      if (matchedActualGoals >= guessedGoals) {
+        scorerPoints += guessedGoals * pointsPerGoal;
+      }
+    });
   }
 
-  // Winner check (not a drawing score)
-  const palpiteVencedorCasa = palpiteCasa > palpiteFora;
-  const realVencedorCasa = realCasa > realFora;
-
-  const palpiteVencedorFora = palpiteCasa < palpiteFora;
-  const realVencedorFora = realCasa < realFora;
-
-  if ((palpiteVencedorCasa && realVencedorCasa) || (palpiteVencedorFora && realVencedorFora)) {
-    return points_cfg.pontos_acertar_vencedor;
-  }
-
-  return 0; // complete miss
+  return basePoints + scorerPoints;
 }
 
 // Recalculates whole database user tallies based on existing games and bets
@@ -2211,7 +2274,7 @@ async function startServer() {
       return res.status(403).json({ error: "Sua seção expirou ou o token é inválido." });
     }
 
-    const { jogo_id, placar_casa, placar_fora } = req.body;
+    const { jogo_id, placar_casa, placar_fora, palpites_gols_jogadores } = req.body;
 
     if (jogo_id === undefined || placar_casa === undefined || placar_fora === undefined) {
       return res.status(400).json({ error: "Dados incompletos para envio do palpite." });
@@ -2270,6 +2333,7 @@ async function startServer() {
     if (existingBet) {
       existingBet.placar_casa = numPlacarCasa;
       existingBet.placar_fora = numPlacarFora;
+      existingBet.palpites_gols_jogadores = Array.isArray(palpites_gols_jogadores) ? palpites_gols_jogadores : undefined;
       existingBet.created_at = new Date().toISOString();
     } else {
       const newBId = db.palpites.length > 0 ? Math.max(...db.palpites.map(p => p.id)) + 1 : 1;
@@ -2280,6 +2344,7 @@ async function startServer() {
         placar_casa: numPlacarCasa,
         placar_fora: numPlacarFora,
         pontos: null,
+        palpites_gols_jogadores: Array.isArray(palpites_gols_jogadores) ? palpites_gols_jogadores : undefined,
         created_at: new Date().toISOString()
       };
       db.palpites.push(existingBet);
@@ -2289,6 +2354,49 @@ async function startServer() {
     addLog(userName, "PARTICIPACAO_PALPITE", `Registrou palpite: ${jogo.time_casa} ${numPlacarCasa} x ${numPlacarFora} ${jogo.time_fora}`, req);
 
     res.json({ success: true, palpite: existingBet });
+  });
+
+  // Fetch both team rosters/players catalog for the scorer card widget dropdown list selections
+  app.get("/api/jogos/:id/jogadores", (req, res) => {
+    try {
+      const db = loadDatabase();
+      const jogoId = parseInt(req.params.id, 10);
+      const jogo = db.jogos.find(j => j.id === jogoId);
+      if (!jogo) {
+        return res.status(404).json({ error: "Partida não encontrada." });
+      }
+
+      let rosterCasa = lookupRoster(jogo.time_casa, jogo.id * 2);
+      if (!rosterCasa) {
+        rosterCasa = generateGenericRoster(jogo.time_casa, jogo.id * 2);
+      }
+
+      let rosterFora = lookupRoster(jogo.time_fora, jogo.id * 3);
+      if (!rosterFora) {
+        rosterFora = generateGenericRoster(jogo.time_fora, jogo.id * 3);
+      }
+
+      const stripNumbers = (p: string) => p.replace(/\s*\(\s*\d+\s*\)\s*$/, "").trim();
+
+      const jogCasa = [
+        ...(rosterCasa.starter || []).map(stripNumbers),
+        ...(rosterCasa.subs || []).map(stripNumbers)
+      ];
+
+      const jogFora = [
+        ...(rosterFora.starter || []).map(stripNumbers),
+        ...(rosterFora.subs || []).map(stripNumbers)
+      ];
+
+      return res.json({
+        time_casa: jogo.time_casa,
+        time_fora: jogo.time_fora,
+        jogadores_casa: Array.from(new Set(jogCasa)),
+        jogadores_fora: Array.from(new Set(jogFora))
+      });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
   });
 
   // Proxy endpoint to fetch real-time game statistics from API Football can fall back to deterministic mock stats
@@ -3115,7 +3223,8 @@ async function startServer() {
       pontos_acertar_placar_exato, 
       bonus_rodada, 
       bonus_sequencia, 
-      bonus_jogos_perfeitos 
+      bonus_jogos_perfeitos,
+      pontos_acertar_autor_gol
     } = req.body;
 
     if (pontos_acertar_vencedor !== undefined) db.configs_points.pontos_acertar_vencedor = Number(pontos_acertar_vencedor);
@@ -3124,6 +3233,7 @@ async function startServer() {
     if (bonus_rodada !== undefined) db.configs_points.bonus_rodada = Number(bonus_rodada);
     if (bonus_sequencia !== undefined) db.configs_points.bonus_sequencia = Number(bonus_sequencia);
     if (bonus_jogos_perfeitos !== undefined) db.configs_points.bonus_jogos_perfeitos = Number(bonus_jogos_perfeitos);
+    if (pontos_acertar_autor_gol !== undefined) db.configs_points.pontos_acertar_autor_gol = Number(pontos_acertar_autor_gol);
 
     saveDatabase(db);
     refreshLeaderboard(); // Recalculate using new metrics right away!

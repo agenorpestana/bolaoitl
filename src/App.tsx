@@ -191,7 +191,7 @@ export default function App() {
   };
 
   // Submit client bet
-  const handleSavePalpite = async (jogoId: number, placarCasa: number, placarFora: number): Promise<boolean> => {
+  const handleSavePalpite = async (jogoId: number, placarCasa: number, placarFora: number, palpitesGolsJogadores?: any[]): Promise<boolean> => {
     if (!token) {
       showAlert("É necessário estar logado para enviar palpites.", true);
       return false;
@@ -207,7 +207,8 @@ export default function App() {
         body: JSON.stringify({
           jogo_id: jogoId,
           placar_casa: placarCasa,
-          placar_fora: placarFora
+          placar_fora: placarFora,
+          palpites_gols_jogadores: palpitesGolsJogadores
         })
       });
 
