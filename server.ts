@@ -1284,6 +1284,13 @@ async function initializeDatabase() {
           // Will fail if column already exists, which is fine and expected
           console.log("[MySql Sync] Safe check for 'status_detalhado' column ready: ", colErr.message);
         }
+        try {
+          await prisma.$executeRawUnsafe("ALTER TABLE palpites ADD COLUMN gols_jogadores TEXT DEFAULT NULL");
+          console.log("[MySql Sync] Column 'gols_jogadores' added to 'palpites' successfully.");
+        } catch (colErr: any) {
+          // Will fail if column already exists, which is fine and expected
+          console.log("[MySql Sync] Safe check for 'gols_jogadores' column in 'palpites' table ready: ", colErr.message);
+        }
         console.log("[MySql Sync] Columns 'avatar', 'time_casa_bandeira', and 'time_fora_bandeira' successfully verified and enlarged to VARCHAR(255) via ALTER TABLE.");
       } catch (alterErr: any) {
         console.log("[MySql Sync] Safe column alteration check completed or bypassed: ", alterErr.message);
