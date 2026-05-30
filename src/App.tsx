@@ -483,7 +483,7 @@ export default function App() {
             )}
 
             {activeTab === 'ranking' && (
-              <RankingSection ranking={ranking} />
+              <RankingSection ranking={ranking} jogos={jogos} token={token} />
             )}
 
             {activeTab === 'historico' && usuario && (

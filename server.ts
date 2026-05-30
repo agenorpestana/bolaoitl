@@ -2285,6 +2285,54 @@ function getGoalsFromGameEvents(jogo: Jogo): { [playerName: string]: number } {
   return goalsMap;
 }
 
+function calculateArtilheiroHitsForBet(palpite: Palpite, jogo: Jogo): number {
+  let acertosArtilheiro = 0;
+  if (palpite.palpites_gols_jogadores && Array.isArray(palpite.palpites_gols_jogadores)) {
+    const actualGoals = getGoalsFromGameEvents(jogo);
+    palpite.palpites_gols_jogadores.forEach(p_guess => {
+      const gNameNormal = normalizePlayerName(p_guess.jogador);
+      const guessedGoals = Number(p_guess.gols) || 0;
+      const guessSide = p_guess.time_lado || "casa";
+      if (guessedGoals <= 0 || !gNameNormal) return;
+
+      let matchedActualGoals = 0;
+      let highestScore = 0;
+
+      for (const [evtNameWithSide, goalsScored] of Object.entries(actualGoals)) {
+        const parts = evtNameWithSide.split("_");
+        const evtName = parts[0];
+        const evtSide = parts[1] || guessSide;
+
+        if (evtName && gNameNormal && evtSide === guessSide) {
+          let score = 0;
+          if (evtName === gNameNormal) {
+            score = 100;
+          } else {
+            const evtWords = evtName.split(" ").filter(Boolean);
+            const guessWords = gNameNormal.split(" ").filter(Boolean);
+            const commonWords = evtWords.filter(w => guessWords.includes(w));
+            if (commonWords.length > 0) {
+              const overlap = commonWords.length / Math.max(evtWords.length, guessWords.length);
+              score = overlap * 80;
+            }
+          }
+
+          if (score > highestScore && score >= 20) {
+            highestScore = score;
+            matchedActualGoals = goalsScored;
+          }
+        }
+      }
+
+      const hitGoals = Math.min(matchedActualGoals, guessedGoals);
+      if (hitGoals > 0) {
+        acertosArtilheiro += hitGoals;
+      }
+    });
+  }
+  return acertosArtilheiro;
+}
+
 // Score Calculator Engine
 function calculatePointsForBet(palpite: Palpite, jogo: Jogo, points_cfg: ConfigPoints): number {
   if (jogo.placar_casa === null || jogo.placar_fora === null) return 0;
@@ -3782,21 +3830,71 @@ async function startServer() {
       } catch (e) {}
     }
 
+    const { campeonato, rodada } = req.query;
+
+    const useCamp = campeonato && campeonato !== "all" && campeonato !== "GERAL" && campeonato !== "TODOS";
+    const useRodada = rodada && rodada !== "all" && rodada !== "TODAS" && rodada !== "TODOS";
+
+    // Filter games
+    let filteredGames = db.jogos;
+    if (useCamp) {
+      filteredGames = filteredGames.filter(j => getGameCampeonato(j) === campeonato);
+    }
+    if (useRodada) {
+      filteredGames = filteredGames.filter(j => j.rodada === Number(rodada));
+    }
+
+    const filteredGameIds = new Set(filteredGames.map(g => g.id));
+    const points_cfg = db.configs_points;
+
     // Sort customers descending points, then by success tags, then name
     const leaderData = db.usuarios
       .filter(u => !u.bloqueado && u.id !== 999999)
       .map(u => {
+        let pontos = 0;
+        let acertos_exato = 0;
+        let acertos_vencedor = 0;
+        let erros = 0;
+        let acertos_artilheiro = 0;
+
+        // Find all bids for this user
+        const userBets = db.palpites.filter(p => p.usuario_id === u.id);
+        
+        userBets.forEach(p => {
+          if (!filteredGameIds.has(p.jogo_id)) return;
+          const jogo = filteredGames.find(g => g.id === p.jogo_id);
+          if (jogo && (jogo.status === 'ENCERRADO' || jogo.status === 'AO_VIVO')) {
+            const betPoints = calculatePointsForBet(p, jogo, points_cfg);
+            pontos += betPoints;
+
+            const maxPossivelExact = points_cfg.pontos_acertar_vencedor + points_cfg.pontos_acertar_placar_exato;
+            if (betPoints === maxPossivelExact) {
+              acertos_exato += 1;
+            } else if (betPoints > 0) {
+              acertos_vencedor += 1;
+            } else {
+              erros += 1;
+            }
+
+            // Calculate correct scorers/artilheiro hits for this bet
+            const artilheiroHits = calculateArtilheiroHitsForBet(p, jogo);
+            acertos_artilheiro += artilheiroHits;
+          }
+        });
+
         const isSelf = loggedInUserId !== null && loggedInUserId === u.id;
         const displayName = isSelf ? u.nome : maskName(u.nome);
+
         return {
           id: u.id,
           nome: displayName,
           cidade: u.cidade,
-          pontos: u.pontos_total,
-          acertos_exato: u.acertos_exato,
-          acertos_vencedor: u.acertos_vencedor,
-          erros: u.erros,
-          fator: u.pontos_total * 100 + u.acertos_exato * 10 - u.erros // resolving tiebreakers
+          pontos,
+          acertos_exato,
+          acertos_vencedor,
+          erros,
+          acertos_artilheiro,
+          fator: pontos * 100000 + acertos_exato * 10000 + acertos_vencedor * 1000 + acertos_artilheiro * 10 - erros
         };
       })
       .sort((a,b) => {
@@ -3805,6 +3903,15 @@ async function startServer() {
         }
         if (b.acertos_exato !== a.acertos_exato) {
           return b.acertos_exato - a.acertos_exato;
+        }
+        if (b.acertos_vencedor !== a.acertos_vencedor) {
+          return b.acertos_vencedor - a.acertos_vencedor;
+        }
+        if (b.acertos_artilheiro !== a.acertos_artilheiro) {
+          return b.acertos_artilheiro - a.acertos_artilheiro;
+        }
+        if (a.erros !== b.erros) {
+          return a.erros - b.erros;
         }
         return a.nome.localeCompare(b.nome);
       });
