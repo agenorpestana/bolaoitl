@@ -137,8 +137,9 @@ export default function GuessesHistory({ jogos, palpites, usuarioNome, isCompact
             }
           }
 
-          if (matchedActualGoals >= sg.gols) {
-            acertosArtilheiro++;
+          const hitGoals = Math.min(matchedActualGoals, sg.gols);
+          if (hitGoals > 0) {
+            acertosArtilheiro += hitGoals;
           }
         });
       }
