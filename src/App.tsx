@@ -106,6 +106,85 @@ export default function App() {
     setShowInstallBanner(false);
   };
 
+  // Helper to convert base64 url-safe key to UInt8 array for push manager subscription
+  const urlBase64ToUint8Array = (base64String: string) => {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding)
+      .replace(/\-/g, '+')
+      .replace(/_/g, '/');
+
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  };
+
+  const [notificationPermission, setNotificationPermission] = React.useState<string>(() => {
+    return 'Notification' in window ? Notification.permission : 'default';
+  });
+
+  const subscribeUserToPush = async (activeUserToken?: string) => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      console.warn("Navegador não possui suporte para notificações Web Push.");
+      return;
+    }
+
+    try {
+      const permission = await Notification.requestPermission();
+      setNotificationPermission(permission);
+      
+      if (permission !== 'granted') {
+        console.warn("Permissão de notificações não foi concedida pelo usuário.");
+        return;
+      }
+
+      const registration = await navigator.serviceWorker.ready;
+      let sub = await registration.pushManager.getSubscription();
+      
+      if (!sub) {
+        const keyRes = await fetch("/api/notifications/vapid-public-key");
+        if (!keyRes.ok) throw new Error("Chave VAPID pública indisponível.");
+        const keyData = await keyRes.json();
+        
+        if (!keyData.publicKey) {
+          console.warn("Chave pública VAPID nula retornada.");
+          return;
+        }
+
+        const convertedKey = urlBase64ToUint8Array(keyData.publicKey);
+        sub = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: convertedKey
+        });
+      }
+
+      const headersArr: any = { "Content-Type": "application/json" };
+      const tok = activeUserToken || token;
+      if (tok) {
+        headersArr["Authorization"] = `Bearer ${tok}`;
+      }
+
+      await fetch("/api/notifications/subscribe", {
+        method: "POST",
+        headers: headersArr,
+        body: JSON.stringify({ subscription: sub })
+      });
+
+      console.log("[PWA Push] Dispositivo inscrito para receber alertas do Provedor ITLFibra.");
+    } catch (err) {
+      console.error("Erro ao gerenciar inscrição de notificações Web Push:", err);
+    }
+  };
+
+  React.useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'granted' && token) {
+      subscribeUserToPush();
+    }
+  }, [token]);
+
   // Sync caches from Express API
   const refreshAppData = async () => {
     try {
@@ -142,6 +221,18 @@ export default function App() {
 
       // 3. Fixtures combined with User Guesses (if token available)
       const gRes = await fetch("/api/jogos", { headers: headersArr });
+      if (gRes.status === 401) {
+        localStorage.removeItem('bolao_token');
+        localStorage.removeItem('bolao_usuario');
+        localStorage.removeItem('bolao_admin_token');
+        setToken(null);
+        setUsuario(null);
+        setAdminToken(null);
+        setAdminLogado(false);
+        setActiveTab('home');
+        showAlert("Sua sessão expirou. Por favor, faça login novamente.", true);
+        return;
+      }
       if (gRes.ok) {
         const gData = await gRes.json();
         setJogos(gData.jogos);
@@ -149,6 +240,10 @@ export default function App() {
         setDataServidor(gData.data_servidor);
         if (gData.configs_points) {
           setPointsConfig(gData.configs_points);
+        }
+        if (gData.usuario) {
+          setUsuario(gData.usuario);
+          localStorage.setItem('bolao_usuario', JSON.stringify(gData.usuario));
         }
       }
 
@@ -320,6 +415,31 @@ export default function App() {
               <X className="h-4 w-4" />
             </button>
           </div>
+        </div>
+      )}
+
+      {/* PWA Notifications opt-in banner */}
+      {usuario && notificationPermission !== 'granted' && (
+        <div className="bg-gradient-to-r from-slate-900 via-brand-blue-dark/15 to-slate-900 border-b border-brand-blue-light/10 py-3 px-4 flex flex-col md:flex-row gap-3 md:gap-0 items-start md:items-center justify-between text-xs font-sans relative z-30">
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-8 rounded-full bg-slate-950 border border-brand-blue/30 flex items-center justify-center shrink-0">
+              <span className="text-sm">🔔</span>
+            </div>
+            <div>
+              <p className="font-extrabold text-slate-200">
+                Ativar Alertas de Palpites Fechando ⚽
+              </p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Não fique de fora! Receba um alerta no celular 1 hora antes do encerramento dos palpites para não esquecer de responder!
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => subscribeUserToPush()}
+            className="w-full md:w-auto bg-brand-blue-light/35 hover:bg-brand-blue-light/50 border border-brand-blue-vibrant/40 text-brand-blue-vibrant hover:text-white font-bold px-4 py-1.5 rounded-lg text-xs transition duration-150 cursor-pointer text-center"
+          >
+            Ativar Notificações 🔔
+          </button>
         </div>
       )}
 

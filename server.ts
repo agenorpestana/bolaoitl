@@ -12,6 +12,7 @@ import jwt from "jsonwebtoken";
 import axios from "axios";
 import { PrismaClient } from "@prisma/client";
 import sharp from "sharp";
+import webpush from "web-push";
 
 import { 
   Usuario, 
@@ -28,6 +29,35 @@ import { enrichGameDetails, lookupRoster, generateGenericRoster } from "./src/ut
 
 const JWT_SECRET = process.env.JWT_SECRET || "copa-bolao-2026-super-secret-key-isp";
 
+// Initialize VAPID Keys dynamically or from environment
+let vapidKeys = {
+  publicKey: process.env.VAPID_PUBLIC_KEY || "",
+  privateKey: process.env.VAPID_PRIVATE_KEY || ""
+};
+
+if (!vapidKeys.publicKey || !vapidKeys.privateKey) {
+  try {
+    const generated = webpush.generateVAPIDKeys();
+    vapidKeys.publicKey = generated.publicKey;
+    vapidKeys.privateKey = generated.privateKey;
+    console.log("[PWA Push] Created dynamic transient VAPID keys for PWA notifications.");
+  } catch (err: any) {
+    console.error("[PWA Push] Failed to generate VAPID keys:", err.message);
+  }
+}
+
+if (vapidKeys.publicKey && vapidKeys.privateKey) {
+  try {
+    webpush.setVapidDetails(
+      "mailto:suporte@itlfibra.com.br",
+      vapidKeys.publicKey,
+      vapidKeys.privateKey
+    );
+  } catch (err: any) {
+    console.error("[PWA Push] setup error:", err.message);
+  }
+}
+
 // Ensure database file exists with initial structure
 const DB_FILE = path.join(process.cwd(), "database.json");
 
@@ -40,6 +70,12 @@ interface LocalDatabase {
   configs_football: ConfigFootballApi;
   logs: AuditLog[];
   admins: AdminUser[];
+  push_subscriptions?: Array<{
+    usuario_id: number | null;
+    subscription: any;
+    created_at: string;
+    alerted_games?: number[];
+  }>;
   configs_libertadores?: {
     ativo: boolean;
   };
@@ -1352,9 +1388,17 @@ function loadDatabase(): LocalDatabase {
       saveDatabase(cachedDb);
     }
     
+    if (!cachedDb.push_subscriptions) {
+      cachedDb.push_subscriptions = [];
+    }
+    
     return cachedDb;
   }
   cachedDb = loadDatabaseFromFile();
+
+  if (!cachedDb.push_subscriptions) {
+    cachedDb.push_subscriptions = [];
+  }
 
   if (cachedDb.configs_points && !cachedDb.configs_points.pontos_acertar_autor_gol) {
     cachedDb.configs_points.pontos_acertar_autor_gol = 7;
@@ -3002,16 +3046,20 @@ async function startServer() {
     if (authHeader && authHeader.startsWith("Bearer ")) {
       try {
         const token = authHeader.split(" ")[1];
-        const decoded = jwt.verify(token, JWT_SECRET) as any;
-        if (decoded) {
-          if (decoded.role === "ADMIN") {
-            isAdmin = true;
-            userId = 999999;
-          } else {
-            userId = decoded.id;
+        if (token && token !== "null" && token !== "undefined") {
+          const decoded = jwt.verify(token, JWT_SECRET) as any;
+          if (decoded) {
+            if (decoded.role === "ADMIN") {
+              isAdmin = true;
+              userId = 999999;
+            } else {
+              userId = decoded.id;
+            }
           }
         }
-      } catch (err) {}
+      } catch (err) {
+        return res.status(401).json({ error: "Sessão expirada. Por favor, faça login novamente." });
+      }
     }
 
     const isLibActive = db.configs_libertadores?.ativo === true;
@@ -3031,8 +3079,31 @@ async function startServer() {
     }
 
     let rawUserGuesses: Palpite[] = [];
+    let matchedUser: any = null;
+
     if (userId) {
       rawUserGuesses = db.palpites.filter(p => p.usuario_id === userId);
+      if (!isAdmin) {
+        const u = db.usuarios.find(user => user.id === userId);
+        if (u) {
+          matchedUser = {
+            id: u.id,
+            ixc_id: u.ixc_id,
+            nome: u.nome,
+            cpf_cnpj: u.cpf_cnpj,
+            telefone: u.telefone,
+            email: u.email,
+            cidade: u.cidade,
+            avatar: u.avatar || "⚽",
+            pontos_total: u.pontos_total,
+            acertos_exato: u.acertos_exato,
+            acertos_vencedor: u.acertos_vencedor,
+            erros: u.erros,
+            bloqueado: u.bloqueado,
+            created_at: u.created_at
+          };
+        }
+      }
     }
 
     const enriched = filteredGames.map(g => enrichGameDetails(g));
@@ -3040,6 +3111,7 @@ async function startServer() {
     res.json({
       jogos: enriched,
       palpites: rawUserGuesses,
+      usuario: matchedUser,
       configs_points: db.configs_points,
       data_servidor: new Date().toISOString()
     });
@@ -3670,6 +3742,98 @@ async function startServer() {
       ixc_offline_mode: db.configs_ixc.offline_mode,
       configs_logo: db.configs_logo || { has_custom_logo: false, timestamp: 0 },
       configs_favicon: db.configs_favicon || { has_custom_favicon: false, timestamp: 0 }
+    });
+  });
+
+  // Get PWA Push Notification Public VAPID Key
+  app.get("/api/notifications/vapid-public-key", (req, res) => {
+    res.json({ publicKey: vapidKeys.publicKey || null });
+  });
+
+  // Subscribe a user's browser device to PWA Web Push alerts
+  app.post("/api/notifications/subscribe", (req, res) => {
+    const { subscription } = req.body;
+    if (!subscription || !subscription.endpoint) {
+      return res.status(400).json({ error: "Inscrição inválida ou incompleta." });
+    }
+
+    const db = loadDatabase();
+    if (!db.push_subscriptions) {
+      db.push_subscriptions = [];
+    }
+
+    // Try parsing tenant token to associate subscription with a real user
+    let userId: number | null = null;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      try {
+        const token = authHeader.split(" ")[1];
+        if (token && token !== "null" && token !== "undefined") {
+          const decoded = jwt.verify(token, JWT_SECRET) as any;
+          if (decoded && decoded.id) {
+            userId = decoded.id;
+          }
+        }
+      } catch (e) {}
+    }
+
+    // Clean existing duplicate subscriptions for this exact endpoint to avoid spam
+    db.push_subscriptions = db.push_subscriptions.filter(sub => sub.subscription.endpoint !== subscription.endpoint);
+
+    db.push_subscriptions.push({
+      usuario_id: userId,
+      subscription,
+      created_at: new Date().toISOString(),
+      alerted_games: []
+    });
+
+    saveDatabase(db);
+    console.log(`[PWA Push] Registered new subscription successfully. Associated with User ID: ${userId || "Guest"}`);
+    res.json({ success: true, message: "Inscrição de alertas PWA registrada com sucesso!" });
+  });
+
+  // Admin control: trigger a test alert or manual sweep alert to all registered PWA browsers
+  app.post("/api/admin/notifications/broadcast", verifyAdminToken, (req: any, res) => {
+    const { title, message } = req.body;
+    const alertTitle = title || "Alerta Cartola ITL! ⚽";
+    const alertBody = message || "Não fique de fora faça seu palpite e concorra a prêmios!";
+
+    const db = loadDatabase();
+    if (!db.push_subscriptions || db.push_subscriptions.length === 0) {
+      return res.status(400).json({ error: "Nenhum dispositivo cadastrado para receber notificações de alerta." });
+    }
+
+    console.log(`[PWA Admin Push] Broadcasting message to ${db.push_subscriptions.length} devices: "${alertBody}"`);
+    let successCount = 0;
+    let failureCount = 0;
+
+    const payload = JSON.stringify({
+      title: alertTitle,
+      body: alertBody,
+      url: "/jogos"
+    });
+
+    const sendPromises = db.push_subscriptions.map(subRecord => {
+      return webpush.sendNotification(subRecord.subscription, payload)
+        .then(() => {
+          successCount++;
+        })
+        .catch((err: any) => {
+          failureCount++;
+          console.warn("[PWA Admin Push] Push failed for subscription:", err.message);
+          // Delete inactive subscriptions
+          if (err.statusCode === 410 || err.statusCode === 404) {
+            db.push_subscriptions = db.push_subscriptions?.filter(s => s.subscription.endpoint !== subRecord.subscription.endpoint);
+          }
+        });
+    });
+
+    Promise.all(sendPromises).finally(() => {
+      saveDatabase(db);
+      res.json({
+        success: true,
+        summary: `Envio concluído! Dispositivos alcançados com sucesso: ${successCount}, Falhas/Inativos descartados: ${failureCount}.`
+      });
     });
   });
 
@@ -5032,6 +5196,13 @@ async function startServer() {
     } catch (err: any) {
       console.error(`[Boot Cache Log Exception] Warmup error ignored:`, err.message);
     }
+    try {
+      console.log("[PWA Push Setup] Registering automated 1-hour PWA push notification alerts check daemon (every 5 minutes)...");
+      setInterval(runAutomatedPushAlertsCheck, 5 * 60 * 1000);
+      setTimeout(runAutomatedPushAlertsCheck, 10000); // run first check after 10 seconds of boot
+    } catch (err: any) {
+      console.error("[PWA Push Worker Init Err] Failed to initialize worker daemon:", err.message);
+    }
   });
 }
 
@@ -5344,4 +5515,69 @@ function getFallbackPlayerName(teamName: string, index: number, seed: number): s
   const idx = Math.abs(Math.floor(seed + index)) % names.length;
   return names[idx];
 }
+
+async function runAutomatedPushAlertsCheck() {
+  try {
+    const db = loadDatabase();
+    if (!db.push_subscriptions || db.push_subscriptions.length === 0) return;
+    
+    // Find games starting in (1 hr to 2 hr) from now
+    const nowMs = Date.now();
+    const minDiff = 1 * 60 * 60 * 1000; // 1 hour
+    const maxDiff = 2 * 60 * 60 * 1000; // 2 hours
+    
+    const gamesClosingSoon = db.jogos.filter(jogo => {
+      const kickoff = new Date(jogo.data_jogo).getTime();
+      const diff = kickoff - nowMs;
+      // Also must be locked status === "PENDENTE"
+      return jogo.status === "PENDENTE" && diff > minDiff && diff <= maxDiff;
+    });
+    
+    if (gamesClosingSoon.length === 0) return;
+    
+    console.log(`[PWA Push Worker] Found ${gamesClosingSoon.length} matches closing soon. Scanning subscribers...`);
+    
+    let dbUpdated = false;
+    
+    for (const subRecord of db.push_subscriptions) {
+      if (!subRecord.alerted_games) {
+        subRecord.alerted_games = [];
+      }
+      
+      // Determine if there is any closing match for which this subscription has NOT been alerted yet
+      const unalertedMatches = gamesClosingSoon.filter(g => !subRecord.alerted_games!.includes(g.id));
+      
+      if (unalertedMatches.length > 0) {
+        const matchesText = unalertedMatches.map(g => `${g.time_casa} x ${g.time_fora}`).join(", ");
+        const payload = JSON.stringify({
+          title: "Não fique de fora! ⚽",
+          body: `Seu palpite para mais de um jogo encerra em breve (menos de 1 hora restantes para salvar!). Não fique de fora faça seu palpite e concorra a prêmios!`,
+          url: "/jogos"
+        });
+        
+        webpush.sendNotification(subRecord.subscription, payload)
+          .then(() => {
+            console.log(`[PWA Push Worker] Push alert dispatched successfully to subscriber.`);
+          })
+          .catch((err: any) => {
+            console.warn(`[PWA Push Worker] Push failed for subscriber (might be expired or revoked):`, err.message);
+            if (err.statusCode === 410 || err.statusCode === 404) {
+              db.push_subscriptions = db.push_subscriptions?.filter(s => s.subscription.endpoint !== subRecord.subscription.endpoint);
+              dbUpdated = true;
+            }
+          });
+          
+        unalertedMatches.forEach(g => subRecord.alerted_games!.push(g.id));
+        dbUpdated = true;
+      }
+    }
+    
+    if (dbUpdated) {
+      saveDatabase(db);
+    }
+  } catch (err: any) {
+    console.error("[PWA Push Worker] Runner error:", err.message);
+  }
+}
+
 

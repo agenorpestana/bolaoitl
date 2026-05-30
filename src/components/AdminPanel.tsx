@@ -19,6 +19,43 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
   const [calendarioMode, setCalendarioMode] = React.useState<'COPA_2026' | 'LIBERTADORES' | 'BRASILEIRAO' | 'FUTURAS'>('COPA_2026');
   const [apiFutebolMode, setApiFutebolMode] = React.useState<'COPA_2026' | 'LIBERTADORES' | 'BRASILEIRAO' | 'FUTURAS'>('COPA_2026');
 
+  // PWA push campaign form states
+  const [pwaPushTitle, setPwaPushTitle] = React.useState("Cartola ITL ⚽");
+  const [pwaPushMsg, setPwaPushMsg] = React.useState("Não fique de fora faça seu palpite e concorra a prêmios!");
+  const [pwaPushSending, setPwaPushSending] = React.useState(false);
+  const [pwaPushResult, setPwaPushResult] = React.useState<string | null>(null);
+
+  const handleSendPwaPush = async () => {
+    if (!token) return;
+    setPwaPushSending(true);
+    setPwaPushResult(null);
+    try {
+      const res = await fetch("/api/admin/notifications/broadcast", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          title: pwaPushTitle,
+          message: pwaPushMsg
+        })
+      });
+      
+      const data = await res.json();
+      if (res.ok) {
+        setPwaPushResult(data.summary || "Envio de alertas disparado com sucesso!");
+        showFeedback("Mensagem push disparada com sucesso!");
+      } else {
+        setPwaPushResult("Erro: " + (data.error || "Erro ao tentar disparar notificações."));
+      }
+    } catch (err: any) {
+      setPwaPushResult("Erro de conexão com o servidor: " + err.message);
+    } finally {
+      setPwaPushSending(false);
+    }
+  };
+
   // Custom System Logo upload state hooks
   const [isDragging, setIsDragging] = React.useState(false);
   const [logoPreview, setLogoPreview] = React.useState<string | null>(null);
@@ -1134,6 +1171,57 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
               </div>
             </div>
 
+          </div>
+
+          {/* Bento Grid: Campanhas de Alerta PWA */}
+          <div className="bg-slate-900/45 border border-slate-800/80 rounded-2xl p-5 space-y-4 shadow-xl">
+            <div className="flex items-center gap-2.5">
+              <span className="text-xl">📢</span>
+              <div className="text-left">
+                <h3 className="text-xs font-black uppercase text-slate-200 tracking-wider">Campanhas de Alerta de Palpite PWA</h3>
+                <p className="text-[10px] text-slate-400 mt-0.5">Disparar lembrete Push instantâneo para todos os dispositivos inscritos no Provedor ITLFibra</p>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-1.5 text-left">
+                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Título da Notificação</label>
+                <input
+                  type="text"
+                  value={pwaPushTitle}
+                  onChange={(e) => setPwaPushTitle(e.target.value)}
+                  placeholder="Ex: Cartola ITL! ⚽"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-brand-blue-accent/60"
+                />
+              </div>
+
+              <div className="space-y-1.5 text-left">
+                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Mensagem de Alerta (Corpo)</label>
+                <input
+                  type="text"
+                  value={pwaPushMsg}
+                  onChange={(e) => setPwaPushMsg(e.target.value)}
+                  placeholder="Ex: Não fique de fora faça seu palpite e concorra a prêmios!"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-brand-blue-accent/60"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+              <button
+                onClick={handleSendPwaPush}
+                disabled={pwaPushSending}
+                className="w-full sm:w-auto bg-gradient-to-r from-yellow-500 to-yellow-600 hover:scale-102 text-slate-950 font-black px-5 py-2.5 rounded-xl text-xs uppercase tracking-wider transition disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-yellow-500/10"
+              >
+                {pwaPushSending ? "Disparando..." : "Disparar Alerta PWA por Push 🚀"}
+              </button>
+
+              {pwaPushResult && (
+                <div className="text-[10px] sm:text-[11px] font-mono text-yellow-500 bg-yellow-950/25 border border-yellow-800/30 px-3 py-1.5 rounded-xl flex-1 text-center sm:text-right">
+                  {pwaPushResult}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Quick audit feed */}
