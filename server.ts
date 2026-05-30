@@ -2314,7 +2314,7 @@ function calculatePointsForBet(palpite: Palpite, jogo: Jogo, points_cfg: ConfigP
 
       let matchedActualGoals = 0;
       for (const [evtName, goalsScored] of Object.entries(actualGoals)) {
-        if (evtName.includes(gNameNormal) || gNameNormal.includes(evtName)) {
+        if (evtName && gNameNormal && (evtName.includes(gNameNormal) || gNameNormal.includes(evtName))) {
           matchedActualGoals = goalsScored;
           break;
         }

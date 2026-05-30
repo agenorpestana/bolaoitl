@@ -98,7 +98,7 @@ export default function GuessesHistory({ jogos, palpites, usuarioNome, isCompact
           const gNameNormal = normalizePlayerName(sg.jogador);
           let matchedActualGoals = 0;
           for (const [evtName, goalsScored] of Object.entries(actualGoals)) {
-            if (evtName.includes(gNameNormal) || gNameNormal.includes(evtName)) {
+            if (evtName && gNameNormal && (evtName.includes(gNameNormal) || gNameNormal.includes(evtName))) {
               matchedActualGoals = goalsScored;
               break;
             }
@@ -299,7 +299,7 @@ export default function GuessesHistory({ jogos, palpites, usuarioNome, isCompact
                         
                         let matchedActualGoals = 0;
                         for (const [evtName, goalsScored] of Object.entries(actualGoals)) {
-                          if (evtName.includes(gNameNormal) || gNameNormal.includes(evtName)) {
+                          if (evtName && gNameNormal && (evtName.includes(gNameNormal) || gNameNormal.includes(evtName))) {
                             matchedActualGoals = goalsScored;
                             break;
                           }
