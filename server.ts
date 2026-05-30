@@ -2320,13 +2320,69 @@ function calculatePointsForBet(palpite: Palpite, jogo: Jogo, points_cfg: ConfigP
         }
       }
 
-      if (matchedActualGoals >= guessedGoals) {
-        scorerPoints += guessedGoals * pointsPerGoal;
+      const creditGoals = Math.min(matchedActualGoals, guessedGoals);
+      if (creditGoals > 0) {
+        scorerPoints += creditGoals * pointsPerGoal;
       }
     });
   }
 
   return basePoints + scorerPoints;
+}
+
+// Background helper to fetch and synchronize real goals/cards events from Football API-Sports for live and recently-finished matches
+async function syncLiveMatchEvents(db: LocalDatabase) {
+  const apiKey = db.configs_football?.key;
+  const apiUrl = db.configs_football?.url || "https://v3.football.api-sports.io";
+  const isRealApi = apiKey && apiKey.trim() !== "" && !apiKey.toLowerCase().includes("dummy") && apiKey.length > 10;
+
+  if (!isRealApi) return;
+
+  const nowMs = Date.now();
+  const activeGames = db.jogos.filter(jogo => {
+    const isLive = jogo.status === 'AO_VIVO';
+    const isConcluded = jogo.status === 'ENCERRADO';
+    const gameMs = new Date(jogo.data_jogo).getTime();
+    const isRecent = (nowMs - gameMs) < 24 * 60 * 60 * 1000; // last 24 hours
+    return (isLive || (isConcluded && isRecent)) && jogo.api_id;
+  });
+
+  if (activeGames.length === 0) return;
+
+  console.log(`[PWA Event Sync] Scanning real-time events for ${activeGames.length} active/recent games...`);
+  let dbUpdated = false;
+
+  for (const jogo of activeGames) {
+    let fixtureId: number | null = null;
+    const match = jogo.api_id!.match(/^(?:football_api_|libertadores_soccer_|brasileirao_soccer_|soccer_)?(\d+)$/);
+    if (match) fixtureId = parseInt(match[1]);
+
+    if (fixtureId) {
+      try {
+        console.log(`[PWA Event Sync] Fetching events for game ${jogo.time_casa} x ${jogo.time_fora} (Fixture: ${fixtureId})...`);
+        const response = await axios.get(`${apiUrl}/fixtures/events`, {
+          params: { fixture: fixtureId },
+          headers: { "x-apisports-key": apiKey },
+          timeout: 5000
+        });
+
+        if (response.data && response.data.response && Array.isArray(response.data.response)) {
+          jogo.real_events = response.data.response;
+          dbUpdated = true;
+          console.log(`[PWA Event Sync] Successfully updated events for ${jogo.time_casa} x ${jogo.time_fora}. Found ${response.data.response.length} events.`);
+        }
+        // sleep 500ms to avoid API rate limits
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } catch (err: any) {
+        console.error(`[PWA Event Sync Error] Failed to sync events for fixture ${fixtureId}:`, err.message);
+      }
+    }
+  }
+
+  if (dbUpdated) {
+    saveDatabase(db);
+    refreshLeaderboard();
+  }
 }
 
 // Recalculates whole database user tallies based on existing games and bets
@@ -2443,6 +2499,13 @@ async function startServer() {
             } catch (apiErr: any) {
               console.error(`[Auto-Sync Cron Exception] Brasileirão (League 71) sync failed:`, apiErr.message);
             }
+          }
+
+          // 4. Sync live/concluded match events to update scorer predictions with actual goals
+          try {
+            await syncLiveMatchEvents(db);
+          } catch (apiErr: any) {
+            console.error(`[Auto-Sync Cron Exception] Live match events sync failed:`, apiErr.message);
           }
 
           lastGlobalSyncTime = nowMs;
@@ -3083,6 +3146,14 @@ async function startServer() {
 
     if (userId) {
       rawUserGuesses = db.palpites.filter(p => p.usuario_id === userId);
+      // Recalculate on-the-fly to ensure the client gets accurate temporary marks instantly
+      const points_cfg = db.configs_points;
+      rawUserGuesses.forEach(p => {
+        const gameObj = db.jogos.find(jg => jg.id === p.jogo_id);
+        if (gameObj && (gameObj.status === 'AO_VIVO' || gameObj.status === 'ENCERRADO')) {
+          p.pontos = calculatePointsForBet(p, gameObj, points_cfg);
+        }
+      });
       if (!isAdmin) {
         const u = db.usuarios.find(user => user.id === userId);
         if (u) {
@@ -3511,6 +3582,9 @@ async function startServer() {
           });
 
           if (response.data && response.data.response && response.data.response.length > 0) {
+            jogo.real_events = response.data.response;
+            saveDatabase(db);
+            refreshLeaderboard();
             return res.json({ source: "api", data: response.data.response });
           }
         } catch (err: any) {
