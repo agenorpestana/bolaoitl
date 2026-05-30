@@ -2194,6 +2194,15 @@ async function initializeDatabase() {
     
     // Auto-populate custom manual groups schedule if missing from synced MySQL database
     loadDatabase();
+
+    // Recalculate leaderboard / rankings scores for all users and games on startup
+    // to correct any legacy scoring defects instantly!
+    console.log("[Setup Startup Reset] Restoring and recalculating clean, precise player goals leaderboard points...");
+    try {
+      refreshLeaderboard();
+    } catch (err: any) {
+      console.error("[Setup Startup Reset] Leaderboard auto-refresh failed:", err.message);
+    }
   }
 }
 
@@ -2259,7 +2268,18 @@ function getGoalsFromGameEvents(jogo: Jogo): { [playerName: string]: number } {
   rawEvents.forEach(evt => {
     if (evt.type === "Goal" && evt.player && evt.player.name) {
       const pName = normalizePlayerName(evt.player.name);
-      goalsMap[pName] = (goalsMap[pName] || 0) + 1;
+      
+      let side: "casa" | "fora" = "casa";
+      if (evt.team && evt.team.name) {
+        const teamEventName = evt.team.name.toLowerCase();
+        const teamFora = jogo.time_fora.toLowerCase();
+        if (teamEventName === teamFora || teamFora.includes(teamEventName) || teamEventName.includes(teamFora)) {
+          side = "fora";
+        }
+      }
+      
+      const key = `${pName}_${side}`;
+      goalsMap[key] = (goalsMap[key] || 0) + 1;
     }
   });
   return goalsMap;
@@ -2310,13 +2330,36 @@ function calculatePointsForBet(palpite: Palpite, jogo: Jogo, points_cfg: ConfigP
     palpite.palpites_gols_jogadores.forEach(p_guess => {
       const gNameNormal = normalizePlayerName(p_guess.jogador);
       const guessedGoals = Number(p_guess.gols) || 0;
+      const guessSide = p_guess.time_lado || "casa";
       if (guessedGoals <= 0 || !gNameNormal) return;
 
       let matchedActualGoals = 0;
-      for (const [evtName, goalsScored] of Object.entries(actualGoals)) {
-        if (evtName && gNameNormal && (evtName.includes(gNameNormal) || gNameNormal.includes(evtName))) {
-          matchedActualGoals = goalsScored;
-          break;
+      let highestScore = 0;
+
+      for (const [evtNameWithSide, goalsScored] of Object.entries(actualGoals)) {
+        const parts = evtNameWithSide.split("_");
+        const evtName = parts[0];
+        const evtSide = parts[1] || guessSide;
+
+        if (evtName && gNameNormal && evtSide === guessSide) {
+          let score = 0;
+          if (evtName === gNameNormal) {
+            score = 100; // Perfect match
+          } else {
+            const evtWords = evtName.split(" ").filter(Boolean);
+            const guessWords = gNameNormal.split(" ").filter(Boolean);
+            
+            const commonWords = evtWords.filter(w => guessWords.includes(w));
+            if (commonWords.length > 0) {
+              const overlap = commonWords.length / Math.max(evtWords.length, guessWords.length);
+              score = overlap * 80; // High matching score for strong subsets
+            }
+          }
+
+          if (score > highestScore && score >= 20) {
+            highestScore = score;
+            matchedActualGoals = goalsScored;
+          }
         }
       }
 

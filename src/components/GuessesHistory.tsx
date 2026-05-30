@@ -13,13 +13,24 @@ function normalizePlayerName(name: string): string {
   return n.trim();
 }
 
-function getGoalsFromGameEvents(jogo: Jogo): { [playerName: string]: number } {
-  const goalsMap: { [playerName: string]: number } = {};
+function getGoalsFromGameEvents(jogo: Jogo): { [playerKey: string]: number } {
+  const goalsMap: { [playerKey: string]: number } = {};
   if (jogo.real_events && Array.isArray(jogo.real_events)) {
     jogo.real_events.forEach(evt => {
       if (evt.type === "Goal" && evt.player && evt.player.name) {
         const pName = normalizePlayerName(evt.player.name);
-        goalsMap[pName] = (goalsMap[pName] || 0) + 1;
+        
+        let side: "casa" | "fora" = "casa";
+        if (evt.team && evt.team.name) {
+          const teamEventName = evt.team.name.toLowerCase();
+          const teamFora = jogo.time_fora.toLowerCase();
+          if (teamEventName === teamFora || teamFora.includes(teamEventName) || teamEventName.includes(teamFora)) {
+            side = "fora";
+          }
+        }
+        
+        const key = `${pName}_${side}`;
+        goalsMap[key] = (goalsMap[key] || 0) + 1;
       }
     });
   }
@@ -96,13 +107,36 @@ export default function GuessesHistory({ jogos, palpites, usuarioNome, isCompact
         const actualGoals = getGoalsFromGameEvents(item.jogo);
         item.palpite.palpites_gols_jogadores.forEach(sg => {
           const gNameNormal = normalizePlayerName(sg.jogador);
+          const guessSide = sg.time_lado || "casa";
           let matchedActualGoals = 0;
-          for (const [evtName, goalsScored] of Object.entries(actualGoals)) {
-            if (evtName && gNameNormal && (evtName.includes(gNameNormal) || gNameNormal.includes(evtName))) {
-              matchedActualGoals = goalsScored;
-              break;
+          let highestScore = 0;
+
+          for (const [evtNameWithSide, goalsScored] of Object.entries(actualGoals)) {
+            const parts = evtNameWithSide.split("_");
+            const evtName = parts[0];
+            const evtSide = parts[1] || guessSide;
+
+            if (evtName && gNameNormal && evtSide === guessSide) {
+              let score = 0;
+              if (evtName === gNameNormal) {
+                score = 100;
+              } else {
+                const evtWords = evtName.split(" ").filter(Boolean);
+                const guessWords = gNameNormal.split(" ").filter(Boolean);
+                const commonWords = evtWords.filter(w => guessWords.includes(w));
+                if (commonWords.length > 0) {
+                  const overlap = commonWords.length / Math.max(evtWords.length, guessWords.length);
+                  score = overlap * 80;
+                }
+              }
+
+              if (score > highestScore && score >= 20) {
+                highestScore = score;
+                matchedActualGoals = goalsScored;
+              }
             }
           }
+
           if (matchedActualGoals >= sg.gols) {
             acertosArtilheiro++;
           }
@@ -296,12 +330,34 @@ export default function GuessesHistory({ jogos, palpites, usuarioNome, isCompact
                       {palpite.palpites_gols_jogadores.map((sg, sgIdx) => {
                         const actualGoals = getGoalsFromGameEvents(jogo);
                         const gNameNormal = normalizePlayerName(sg.jogador);
+                        const guessSide = sg.time_lado || "casa";
                         
                         let matchedActualGoals = 0;
-                        for (const [evtName, goalsScored] of Object.entries(actualGoals)) {
-                          if (evtName && gNameNormal && (evtName.includes(gNameNormal) || gNameNormal.includes(evtName))) {
-                            matchedActualGoals = goalsScored;
-                            break;
+                        let highestScore = 0;
+
+                        for (const [evtNameWithSide, goalsScored] of Object.entries(actualGoals)) {
+                          const parts = evtNameWithSide.split("_");
+                          const evtName = parts[0];
+                          const evtSide = parts[1] || guessSide;
+
+                          if (evtName && gNameNormal && evtSide === guessSide) {
+                            let score = 0;
+                            if (evtName === gNameNormal) {
+                              score = 100;
+                            } else {
+                              const evtWords = evtName.split(" ").filter(Boolean);
+                              const guessWords = gNameNormal.split(" ").filter(Boolean);
+                              const commonWords = evtWords.filter(w => guessWords.includes(w));
+                              if (commonWords.length > 0) {
+                                const overlap = commonWords.length / Math.max(evtWords.length, guessWords.length);
+                                score = overlap * 80;
+                              }
+                            }
+
+                            if (score > highestScore && score >= 20) {
+                              highestScore = score;
+                              matchedActualGoals = goalsScored;
+                            }
                           }
                         }
 
