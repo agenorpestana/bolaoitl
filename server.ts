@@ -2171,39 +2171,6 @@ async function initializeDatabase() {
   if (cachedDb) {
     ensureCustomLogoAndFaviconStatus(cachedDb);
 
-    // -------------------------------------------------------------
-    // DATABASE MIGRATION: FIX ERRONEUS LIBERTADORES ROUND OF 16 GAME
-    // "Cerro Porteño x Palmeiras" -> "Cruzeiro x Flamengo"
-    // -------------------------------------------------------------
-    try {
-      let migratedCount = 0;
-      cachedDb.jogos.forEach(j => {
-        const isLibGame = j.api_id?.toLowerCase().includes("libertadores") || getGameCampeonato(j) === "LIBERTADORES";
-        if (isLibGame && (j.rodada === 7 || j.rodada === 5)) {
-          const homeNormalized = j.time_casa.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-          const awayNormalized = j.time_fora.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-          if (
-            (homeNormalized.includes("cerro") && awayNormalized.includes("palmeiras")) ||
-            (j.time_casa === "Cerro Porteño" && j.time_fora === "Palmeiras")
-          ) {
-            console.log(`[Database Migration] Migrating incorrect game ID ${j.id}: ${j.time_casa} x ${j.time_fora} -> Cruzeiro x Flamengo`);
-            j.time_casa = "Cruzeiro";
-            j.time_fora = "Flamengo";
-            j.time_casa_bandeira = "🇧🇷";
-            j.time_fora_bandeira = "🇧🇷";
-            migratedCount++;
-          }
-        }
-      });
-
-      if (migratedCount > 0) {
-        console.log(`[Database Migration] Successfully migrated ${migratedCount} game(s) to Cruzeiro x Flamengo.`);
-        saveDatabase(cachedDb);
-      }
-    } catch (migErr: any) {
-      console.error("[Database Migration] Failed to run oitavas migration:", migErr.message);
-    }
-
     const adminUserExists = cachedDb.usuarios.some(u => u.id === 999999);
     if (!adminUserExists) {
       console.log("[MySql Sync] Registering admin testing user profile with ID 999999...");
@@ -4684,18 +4651,6 @@ async function startServer() {
         let timeFora = item.teams.away.name;
         let timeCasaBandeira = item.teams.home.logo || "🏳️";
         let timeForaBandeira = item.teams.away.logo || "🏳️";
-
-        // Intercept/redirect erroneous oitavas game (Cerro Porteño vs Palmeiras -> Cruzeiro vs Flamengo)
-        if (mappedRound === 7 || mappedRound === 5) {
-          const normCasa = timeCasa.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-          const normFora = timeFora.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-          if (normCasa.includes("cerro") && normFora.includes("palmeiras")) {
-            timeCasa = "Cruzeiro";
-            timeFora = "Flamengo";
-            timeCasaBandeira = "🇧🇷";
-            timeForaBandeira = "🇧🇷";
-          }
-        }
 
         const dataJogoStr = item.fixture.date;
         let placarCasa: number | null = null;

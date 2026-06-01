@@ -56,6 +56,49 @@ export function getGameCampeonato(jogo: Jogo): 'COPA_MUNDO' | 'LIBERTADORES' | '
   return 'COPA_MUNDO';
 }
 
+export function parseLibertadoresPlayoffGame(j: Jogo): { showdownIdx: number; leg: 'ida' | 'volta' } | null {
+  const home = j.time_casa?.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") || "";
+  const away = j.time_fora?.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") || "";
+
+  // Helper to match a team name
+  const isTeam = (name: string, keyword: string) => name.includes(keyword);
+
+  // 1: Estudiantes vs Universidad Católica
+  if ((isTeam(home, "estudiantes") && isTeam(away, "catol")) || (isTeam(home, "catol") && isTeam(away, "estudiantes"))) {
+    return { showdownIdx: 0, leg: isTeam(home, "estudiantes") ? 'ida' : 'volta' };
+  }
+  // 2: Rosario Central vs Corinthians
+  if ((isTeam(home, "rosario") && isTeam(away, "corinth")) || (isTeam(home, "corinth") && isTeam(away, "rosario"))) {
+    return { showdownIdx: 1, leg: isTeam(home, "rosario") ? 'ida' : 'volta' };
+  }
+  // 3: Cruzeiro vs Flamengo
+  if ((isTeam(home, "cruzeiro") && isTeam(away, "flamengo")) || (isTeam(home, "flamengo") && isTeam(away, "cruzeiro"))) {
+    return { showdownIdx: 2, leg: isTeam(home, "cruzeiro") ? 'ida' : 'volta' };
+  }
+  // 4: Tolima vs Independiente del Valle
+  if ((isTeam(home, "tolima") && isTeam(away, "valle")) || (isTeam(home, "valle") && isTeam(away, "tolima"))) {
+    return { showdownIdx: 3, leg: isTeam(home, "tolima") ? 'ida' : 'volta' };
+  }
+  // 5: Mirassol vs LDU
+  if ((isTeam(home, "mirassol") && isTeam(away, "ldu")) || (isTeam(home, "ldu") && isTeam(away, "mirassol"))) {
+    return { showdownIdx: 4, leg: isTeam(home, "mirassol") ? 'ida' : 'volta' };
+  }
+  // 6: Palmeiras vs Cerro Porteño
+  if ((isTeam(home, "palmeiras") && isTeam(away, "cerro")) || (isTeam(home, "cerro") && isTeam(away, "palmeiras"))) {
+    return { showdownIdx: 5, leg: isTeam(home, "palmeiras") ? 'ida' : 'volta' };
+  }
+  // 7: Platense vs Coquimbo Unido
+  if ((isTeam(home, "platense") && isTeam(away, "coquimbo")) || (isTeam(home, "coquimbo") && isTeam(away, "platense"))) {
+    return { showdownIdx: 6, leg: isTeam(home, "platense") ? 'ida' : 'volta' };
+  }
+  // 8: Fluminense vs Independiente Rivadavia
+  if ((isTeam(home, "fluminense") && isTeam(away, "rivadavia")) || (isTeam(home, "rivadavia") && isTeam(away, "fluminense"))) {
+    return { showdownIdx: 7, leg: isTeam(home, "fluminense") ? 'ida' : 'volta' };
+  }
+
+  return null;
+}
+
 interface MatchesSectionProps {
   jogos: Jogo[];
   palpites: Palpite[];
@@ -1631,12 +1674,45 @@ export default function MatchesSection({
 
   const playOffsByRound = React.useMemo(() => {
     if (selectedCampeonato === 'LIBERTADORES') {
+      const oitavas = currentChampionshipGames.filter(j => j.rodada === 7);
+      const oitavasIdaList: (Jogo | undefined)[] = Array.from({ length: 8 });
+      const oitavasVoltaList: (Jogo | undefined)[] = Array.from({ length: 8 });
+
+      // Helper to parse oitavas game pairing and leg
+      oitavas.forEach(j => {
+        const parsed = parseLibertadoresPlayoffGame(j);
+        if (parsed) {
+          if (parsed.leg === 'ida') {
+            oitavasIdaList[parsed.showdownIdx] = j;
+          } else {
+            oitavasVoltaList[parsed.showdownIdx] = j;
+          }
+        }
+      });
+
+      // Gracefully map any remaining unmapped games
+      oitavas.forEach(j => {
+        const parsed = parseLibertadoresPlayoffGame(j);
+        if (!parsed) {
+          const emptyIdaIdx = oitavasIdaList.findIndex(x => x === undefined);
+          if (emptyIdaIdx !== -1) {
+            oitavasIdaList[emptyIdaIdx] = j;
+          } else {
+            const emptyVoltaIdx = oitavasVoltaList.findIndex(x => x === undefined);
+            if (emptyVoltaIdx !== -1) {
+              oitavasVoltaList[emptyVoltaIdx] = j;
+            }
+          }
+        }
+      });
+
       return {
-        7: currentChampionshipGames.filter(j => j.rodada === 7).sort((a,b) => a.id - b.id), // Oitavas (8 games)
+        oitavasIda: oitavasIdaList,
+        oitavasVolta: oitavasVoltaList,
         8: currentChampionshipGames.filter(j => j.rodada === 8).sort((a,b) => a.id - b.id), // Quartas (4 games)
         9: currentChampionshipGames.filter(j => j.rodada === 9).sort((a,b) => a.id - b.id), // Semifinais (2 games)
         10: currentChampionshipGames.filter(j => j.rodada === 10).sort((a,b) => a.id - b.id), // Finals (1 game)
-      };
+      } as any;
     }
     return {
       4: currentChampionshipGames.filter(j => j.rodada === 4).sort((a,b) => a.id - b.id), // 16 Avos (16 games)
@@ -2162,6 +2238,94 @@ export default function MatchesSection({
                       </div>
 
                     </div>
+                  ) : selectedCampeonato === 'LIBERTADORES' ? (
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-6 select-none min-w-[1250px] py-2">
+                      
+                      {/* Column 1: Oitavas de Final - Ida */}
+                      <div className="space-y-4">
+                        <div className="text-[10px] font-black uppercase text-brand-blue-accent tracking-widest text-center border-b border-slate-900 pb-2">
+                          Oitavas de Final - Ida
+                        </div>
+                        <div className="space-y-3">
+                          {Array.from({ length: 8 }).map((_, idx) => {
+                            const game = playOffsByRound.oitavasIda?.[idx];
+                            return (
+                              <React.Fragment key={idx}>
+                                {renderBracketMatchBox(game, `Confronto #${idx + 1} - Ida`)}
+                              </React.Fragment>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Column 2: Oitavas de Final - Volta */}
+                      <div className="space-y-4">
+                        <div className="text-[10px] font-black uppercase text-brand-blue-accent tracking-widest text-center border-b border-slate-900 pb-2">
+                          Oitavas de Final - Volta
+                        </div>
+                        <div className="space-y-3">
+                          {Array.from({ length: 8 }).map((_, idx) => {
+                            const game = playOffsByRound.oitavasVolta?.[idx];
+                            return (
+                              <React.Fragment key={idx}>
+                                {renderBracketMatchBox(game, `Confronto #${idx + 1} - Volta`)}
+                              </React.Fragment>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Column 3: Quartas de Final */}
+                      <div className="space-y-4 flex flex-col justify-around">
+                        <div>
+                          <div className="text-[10px] font-black uppercase text-brand-blue-vibrant tracking-widest text-center border-b border-slate-900 pb-2">
+                            Quartas de Final
+                          </div>
+                        </div>
+                        <div className="space-y-16">
+                          {Array.from({ length: 4 }).map((_, idx) => {
+                            const game = playOffsByRound[8]?.[idx];
+                            return (
+                              <React.Fragment key={idx}>
+                                {renderBracketMatchBox(game, `Quartas #${idx + 1}`)}
+                              </React.Fragment>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Column 4: Semifinais */}
+                      <div className="space-y-4 flex flex-col justify-around">
+                        <div>
+                          <div className="text-[10px] font-black uppercase text-yellow-500 tracking-widest text-center border-b border-slate-900 pb-2">
+                            Semifinal
+                          </div>
+                        </div>
+                        <div className="space-y-32">
+                          {Array.from({ length: 2 }).map((_, idx) => {
+                            const game = playOffsByRound[9]?.[idx];
+                            return (
+                              <React.Fragment key={idx}>
+                                {renderBracketMatchBox(game, `Semifinal #${idx + 1}`)}
+                              </React.Fragment>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Column 5: GRANDE FINAL */}
+                      <div className="space-y-4 flex flex-col justify-center">
+                        <div>
+                          <div className="text-[10px] font-black uppercase text-emerald-400 tracking-widest text-center border-b border-slate-900 pb-2 mb-8">
+                            Grande Final
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          {renderBracketMatchBox(playOffsByRound[10]?.[0], "Grande Final")}
+                        </div>
+                      </div>
+
+                    </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6 select-none min-w-[900px] py-2">
                       
@@ -2172,7 +2336,7 @@ export default function MatchesSection({
                         </div>
                         <div className="space-y-3">
                           {Array.from({ length: 8 }).map((_, idx) => {
-                            const game = playOffsByRound[selectedCampeonato === 'LIBERTADORES' ? 7 : 5]?.[idx];
+                            const game = playOffsByRound[5]?.[idx];
                             return (
                               <React.Fragment key={idx}>
                                 {renderBracketMatchBox(game, `Confronto #${idx + 1}`)}
@@ -2191,7 +2355,7 @@ export default function MatchesSection({
                         </div>
                         <div className="space-y-16">
                           {Array.from({ length: 4 }).map((_, idx) => {
-                            const game = playOffsByRound[selectedCampeonato === 'LIBERTADORES' ? 8 : 6]?.[idx];
+                            const game = playOffsByRound[6]?.[idx];
                             return (
                               <React.Fragment key={idx}>
                                 {renderBracketMatchBox(game, `Quartas #${idx + 1}`)}
@@ -2210,7 +2374,7 @@ export default function MatchesSection({
                         </div>
                         <div className="space-y-32">
                           {Array.from({ length: 2 }).map((_, idx) => {
-                            const game = playOffsByRound[selectedCampeonato === 'LIBERTADORES' ? 9 : 7]?.[idx];
+                            const game = playOffsByRound[7]?.[idx];
                             return (
                               <React.Fragment key={idx}>
                                 {renderBracketMatchBox(game, `Semifinal #${idx + 1}`)}
@@ -2228,7 +2392,7 @@ export default function MatchesSection({
                           </div>
                         </div>
                         <div className="space-y-2">
-                          {renderBracketMatchBox(playOffsByRound[selectedCampeonato === 'LIBERTADORES' ? 10 : 8]?.[0], "Grande Final")}
+                          {renderBracketMatchBox(playOffsByRound[8]?.[0], "Grande Final")}
                         </div>
                       </div>
 
