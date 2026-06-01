@@ -104,6 +104,9 @@ interface LocalDatabase {
     header_description?: string;
     regras?: Array<{ id: number; titulo: string; texto: string }>;
     premiacoes?: Array<{ posicao: string; premio: string; detalhes: string }>;
+    recaptcha_active?: boolean;
+    recaptcha_site_key?: string;
+    recaptcha_secret_key?: string;
   };
 }
 
@@ -1456,6 +1459,15 @@ function ensureCustomConfigs(db: LocalDatabase | null) {
         detalhes: "Para o terceiro colocado de cada rodada individual."
       }
     ];
+  }
+  if (db.configs_custom.recaptcha_active === undefined) {
+    db.configs_custom.recaptcha_active = true;
+  }
+  if (db.configs_custom.recaptcha_site_key === undefined) {
+    db.configs_custom.recaptcha_site_key = "6Lf4qjAsAAAAAXVXGhzCDJpaV1VtWDZOdWl4jI";
+  }
+  if (db.configs_custom.recaptcha_secret_key === undefined) {
+    db.configs_custom.recaptcha_secret_key = "6Lf4qjAsAAAAAC3zwCjx0i7k_UNzaiPSUKw34AOy";
   }
 }
 
@@ -3016,10 +3028,41 @@ async function startServer() {
 
   // CPF/CNPJ verification and integration with simulated/real IXC Soft
   app.post("/api/auth/ixc-validate", async (req, res) => {
-    const { cpf_cnpj, nome_complementar, telefone, email, cidade } = req.body;
+    const { cpf_cnpj, nome_complementar, telefone, email, cidade, recaptchaToken } = req.body;
     
     if (!cpf_cnpj) {
       return res.status(400).json({ error: "Informe o CPF ou CNPJ cadastrado no provedor." });
+    }
+
+    const db = loadDatabase();
+
+    // Verify reCAPTCHA if enabled
+    const configCustom = db.configs_custom || {};
+    if (configCustom.recaptcha_active && configCustom.recaptcha_secret_key) {
+      if (!recaptchaToken) {
+        return res.status(400).json({ error: "Verificação reCAPTCHA obrigatória não fornecida." });
+      }
+
+      try {
+        const verifyUrl = "https://www.google.com/recaptcha/api/siteverify";
+        const params = new URLSearchParams();
+        params.append("secret", configCustom.recaptcha_secret_key);
+        params.append("response", recaptchaToken);
+
+        const recaptchaRes = await axios.post(verifyUrl, params, {
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded"
+          }
+        });
+
+        if (!recaptchaRes.data || !recaptchaRes.data.success) {
+          console.error("reCAPTCHA validation failed:", recaptchaRes.data);
+          return res.status(400).json({ error: "Falha na verificação de segurança reCAPTCHA. Tente novamente." });
+        }
+      } catch (err: any) {
+        console.error("Erro ao validar reCAPTCHA:", err.message);
+        return res.status(500).json({ error: "Erro interno ao validar verificação de segurança reCAPTCHA: " + err.message });
+      }
     }
 
     // Clean formatting characters to ensure uniformity
@@ -3028,7 +3071,6 @@ async function startServer() {
       return res.status(400).json({ error: "O documento deve conter no mínimo 11 dígitos numéricos." });
     }
 
-    const db = loadDatabase();
     const isOfflineMode = db.configs_ixc.offline_mode;
 
     let customerFoundFromIxc = null;
@@ -5551,7 +5593,7 @@ async function startServer() {
         return res.status(403).json({ error: "Sua conta de administrador não possui permissão para alterar as configurações do site." });
       }
 
-      const { header_title_1, header_title_2, header_description, regras, premiacoes } = req.body;
+      const { header_title_1, header_title_2, header_description, regras, premiacoes, recaptcha_active, recaptcha_site_key, recaptcha_secret_key } = req.body;
       const db = loadDatabase();
 
       if (!db.configs_custom) {
@@ -5563,9 +5605,12 @@ async function startServer() {
       if (header_description !== undefined) db.configs_custom.header_description = header_description;
       if (regras !== undefined) db.configs_custom.regras = regras;
       if (premiacoes !== undefined) db.configs_custom.premiacoes = premiacoes;
+      if (recaptcha_active !== undefined) db.configs_custom.recaptcha_active = recaptcha_active;
+      if (recaptcha_site_key !== undefined) db.configs_custom.recaptcha_site_key = recaptcha_site_key;
+      if (recaptcha_secret_key !== undefined) db.configs_custom.recaptcha_secret_key = recaptcha_secret_key;
 
       saveDatabase(db);
-      addLog("Admin (Suporte)", "ATUALIZA_DADOS_PERSONALIZADOS", "Textos e tabelas de funcionamento da página inicial atualizados.", req);
+      addLog("Admin (Suporte)", "ATUALIZA_DADOS_PERSONALIZADOS", "Textos, tabelas e configurações de reCAPTCHA atualizadas.", req);
 
       return res.json({ success: true, configs_custom: db.configs_custom });
     } catch (err: any) {

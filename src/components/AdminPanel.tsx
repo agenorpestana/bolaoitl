@@ -26,6 +26,9 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
   const [customBgBase64, setCustomBgBase64] = React.useState("");
   const [customAdBase64, setCustomAdBase64] = React.useState("");
   const [isSavingCustom, setIsSavingCustom] = React.useState(false);
+  const [recaptchaActive, setRecaptchaActive] = React.useState(false);
+  const [recaptchaSiteKey, setRecaptchaSiteKey] = React.useState("");
+  const [recaptchaSecretKey, setRecaptchaSecretKey] = React.useState("");
   const [calendarioMode, setCalendarioMode] = React.useState<'COPA_2026' | 'LIBERTADORES' | 'BRASILEIRAO' | 'FUTURAS'>('COPA_2026');
   const [apiFutebolMode, setApiFutebolMode] = React.useState<'COPA_2026' | 'LIBERTADORES' | 'BRASILEIRAO' | 'FUTURAS'>('COPA_2026');
 
@@ -451,6 +454,9 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
           setPremiacoesCustom(data.configs_custom.premiacoes || []);
           setCustomBgBase64(data.configs_custom.background_image || "");
           setCustomAdBase64(data.configs_custom.ad_image || "");
+          setRecaptchaActive(!!data.configs_custom.recaptcha_active);
+          setRecaptchaSiteKey(data.configs_custom.recaptcha_site_key || "");
+          setRecaptchaSecretKey(data.configs_custom.recaptcha_secret_key || "");
         }
       }
     } catch (err) {}
@@ -509,7 +515,10 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
           header_title_2: headerTitle2,
           header_description: headerDescription,
           regras: regrasCustom,
-          premiacoes: premiacoesCustom
+          premiacoes: premiacoesCustom,
+          recaptcha_active: recaptchaActive,
+          recaptcha_site_key: recaptchaSiteKey,
+          recaptcha_secret_key: recaptchaSecretKey
         })
       });
       const data = await response.json();
@@ -1692,6 +1701,60 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
                 className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-300 text-xs focus:border-yellow-500 outline-none leading-relaxed"
               />
             </div>
+          </div>
+
+          {/* Configurações Google reCAPTCHA Section */}
+          <div className="space-y-4 bg-slate-950/40 p-5 border border-slate-800/80 rounded-xl">
+            <div className="border-b border-slate-800/80 pb-2 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-slate-200">Segurança de Acesso (Google reCAPTCHA v2)</h3>
+                <p className="text-xs text-slate-400">
+                  Proteja a autenticação dos participantes com verificação via Captcha de segurança dinâmico.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-slate-300">{recaptchaActive ? "Ativado" : "Desativado"}</span>
+                <button
+                  type="button"
+                  onClick={() => setRecaptchaActive(!recaptchaActive)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${recaptchaActive ? 'bg-yellow-500' : 'bg-slate-850'}`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${recaptchaActive ? 'translate-x-5' : 'translate-x-0'}`}
+                  />
+                </button>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Chave de Site (Site Key)</label>
+                <input
+                  type="text"
+                  value={recaptchaSiteKey}
+                  onChange={(e) => setRecaptchaSiteKey(e.target.value)}
+                  placeholder="Cole a chave pública do Site fornecida pelo Google"
+                  className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 text-xs font-mono focus:border-yellow-500 outline-none"
+                  disabled={!recaptchaActive}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Chave Secreta (Secret Key)</label>
+                <input
+                  type="password"
+                  value={recaptchaSecretKey}
+                  onChange={(e) => setRecaptchaSecretKey(e.target.value)}
+                  placeholder="Cole a chave oculta do Servidor (criptografada)"
+                  className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 text-xs font-mono focus:border-yellow-500 outline-none"
+                  disabled={!recaptchaActive}
+                />
+              </div>
+            </div>
+            
+            <p className="text-[11px] text-slate-400 leading-normal">
+              💡 Para habilitar, registre seu domínio no <a href="https://www.google.com/recaptcha/admin" target="_blank" rel="noopener noreferrer" className="text-yellow-500 hover:underline">Google reCAPTCHA Admin Console</a> escolhendo o tipo <strong>Invisível v2</strong> para evitar atrito durante o login de participantes.
+            </p>
           </div>
 
           {/* Media & Images Management Section */}

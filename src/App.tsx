@@ -516,6 +516,7 @@ export default function App() {
                 onAdminLoginSuccess={handleAdminLoginSuccess}
                 dataServidor={dataServidor}
                 ixcOfflineMode={ixcOfflineMode}
+                configsCustom={configsCustom}
               />
             )}
 

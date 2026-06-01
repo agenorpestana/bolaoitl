@@ -7,9 +7,10 @@ interface ParticipantLoginProps {
   onAdminLoginSuccess: (token: string, admin: any) => void;
   dataServidor: string;
   ixcOfflineMode?: boolean;
+  configsCustom?: any;
 }
 
-export default function ParticipantLogin({ onLoginSuccess, onAdminLoginSuccess, dataServidor, ixcOfflineMode = true }: ParticipantLoginProps) {
+export default function ParticipantLogin({ onLoginSuccess, onAdminLoginSuccess, dataServidor, ixcOfflineMode = true, configsCustom = null }: ParticipantLoginProps) {
   const [isAdminForm, setIsAdminForm] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
@@ -27,6 +28,57 @@ export default function ParticipantLogin({ onLoginSuccess, onAdminLoginSuccess, 
   // Administrative Form States
   const [adminEmail, setAdminEmail] = React.useState("");
   const [adminPassword, setAdminPassword] = React.useState("");
+
+  const recaptchaWidgetRef = React.useRef<number | null>(null);
+
+  // Load and render reCAPTCHA dynamically if active
+  React.useEffect(() => {
+    if (configsCustom?.recaptcha_active && configsCustom?.recaptcha_site_key) {
+      const initRecaptcha = () => {
+        if ((window as any).grecaptcha && (window as any).grecaptcha.render) {
+          try {
+            const container = document.getElementById("recaptcha-wrapper-container");
+            if (container && recaptchaWidgetRef.current === null) {
+              recaptchaWidgetRef.current = (window as any).grecaptcha.render("recaptcha-wrapper-container", {
+                sitekey: configsCustom.recaptcha_site_key,
+                size: "invisible",
+                callback: (token: string) => {
+                  submitLoginForm(token);
+                }
+              });
+            }
+          } catch (err) {
+            console.error("Erro ao renderizar reCAPTCHA:", err);
+          }
+        }
+      };
+
+      const existingScript = document.getElementById("recaptcha-script");
+      if (!existingScript) {
+        const script = document.createElement("script");
+        script.id = "recaptcha-script";
+        script.src = "https://www.google.com/recaptcha/api.js?render=explicit";
+        script.async = true;
+        script.defer = true;
+        script.onload = () => {
+          const checkInterval = setInterval(() => {
+            if ((window as any).grecaptcha && (window as any).grecaptcha.render) {
+              clearInterval(checkInterval);
+              initRecaptcha();
+            }
+          }, 100);
+        };
+        document.body.appendChild(script);
+      } else {
+        const checkInterval = setInterval(() => {
+          if ((window as any).grecaptcha && (window as any).grecaptcha.render) {
+            clearInterval(checkInterval);
+            initRecaptcha();
+          }
+        }, 100);
+      }
+    }
+  }, [configsCustom]);
 
   const formatCpfCnpj = (value: string) => {
     // Only numbers
@@ -57,17 +109,7 @@ export default function ParticipantLogin({ onLoginSuccess, onAdminLoginSuccess, 
     setCpf(formatCpfCnpj(raw));
   };
 
-  // Perform Client authentication lookup
-  const handleClientSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMsg(null);
-
-    const cleanCpf = cpf.replace(/\D/g, "");
-    if (cleanCpf.length < 11) {
-      setErrorMsg("O documento CPF deve possuir 11 dígitos, ou 14 dígitos para CNPJ.");
-      return;
-    }
-
+  const submitLoginForm = async (recaptchaToken?: string) => {
     setLoading(true);
     try {
       const response = await fetch("/api/auth/ixc-validate", {
@@ -78,7 +120,8 @@ export default function ParticipantLogin({ onLoginSuccess, onAdminLoginSuccess, 
           nome_complementar: nome,
           telefone: tel,
           email: email,
-          cidade: cidade
+          cidade: cidade,
+          recaptchaToken: recaptchaToken
         })
       });
 
@@ -94,6 +137,38 @@ export default function ParticipantLogin({ onLoginSuccess, onAdminLoginSuccess, 
       setErrorMsg(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Perform Client authentication lookup with captcha gate
+  const handleClientSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+
+    const cleanCpf = cpf.replace(/\D/g, "");
+    if (cleanCpf.length < 11) {
+      setErrorMsg("O documento CPF deve possuir 11 dígitos, ou 14 dígitos para CNPJ.");
+      return;
+    }
+
+    if (configsCustom?.recaptcha_active && configsCustom?.recaptcha_site_key) {
+      setLoading(true);
+      if ((window as any).grecaptcha) {
+        try {
+          if (recaptchaWidgetRef.current !== null) {
+            (window as any).grecaptcha.reset(recaptchaWidgetRef.current);
+          }
+          (window as any).grecaptcha.execute(recaptchaWidgetRef.current);
+        } catch (err: any) {
+          setLoading(false);
+          setErrorMsg("Erro ao iniciar validação de segurança. Por favor, tente novamente.");
+        }
+      } else {
+        setLoading(false);
+        setErrorMsg("Serviço de segurança do reCAPTCHA ainda não carregou totalmente. Aguarde alguns instantes.");
+      }
+    } else {
+      submitLoginForm();
     }
   };
 
@@ -279,6 +354,10 @@ export default function ParticipantLogin({ onLoginSuccess, onAdminLoginSuccess, 
                     </div>
                   )}
                 </div>
+              )}
+
+              {configsCustom?.recaptcha_active && configsCustom?.recaptcha_site_key && (
+                <div id="recaptcha-wrapper-container" className="my-2 flex justify-center"></div>
               )}
 
               <button

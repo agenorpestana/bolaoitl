@@ -143,4 +143,7 @@ export interface ConfigCustom {
   header_description?: string;
   regras?: RuleItem[];
   premiacoes?: PrizeItem[];
+  recaptcha_active?: boolean;
+  recaptcha_site_key?: string;
+  recaptcha_secret_key?: string;
 }
