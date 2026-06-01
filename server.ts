@@ -676,6 +676,26 @@ function getGameCampeonato(jogo: Jogo): 'COPA_MUNDO' | 'LIBERTADORES' | 'BRASILE
       return 'BRASILEIRAO';
     }
   }
+
+  const homeLower = (jogo.time_casa || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+  const awayLower = (jogo.time_fora || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+
+  const knownClubs = [
+    "flamengo", "cruzeiro", "palmeiras", "corinthians", "vasco", "bahia", 
+    "fluminense", "botafogo", "gremio", "internacional", "atletico", "santos",
+    "estudiantes", "catolica", "rosario", "tolima", "valle", "mirassol", "ldu",
+    "cerro", "peñarol", "penarol", "junior", "cristal", "lanus", "always",
+    "platense", "coquimbo", "rivadavia", "boca"
+  ];
+
+  const hasClub = knownClubs.some(c => homeLower.includes(c) || awayLower.includes(c));
+  if (hasClub) {
+    if (jogo.rodada >= 11 && jogo.rodada <= 38) {
+      return 'BRASILEIRAO';
+    }
+    return 'LIBERTADORES';
+  }
+
   return 'COPA_MUNDO';
 }
 
@@ -2195,6 +2215,53 @@ async function initializeDatabase() {
     
     // Auto-populate custom manual groups schedule if missing from synced MySQL database
     loadDatabase();
+
+    // Ensure accurate Oitavas de Final matches for Cruzeiro vs Flamengo are present
+    const idIda = "libertadores_manual_cru_fla_ida";
+    const idVolta = "libertadores_manual_cru_fla_volta";
+    let hasModifiedDb = false;
+
+    if (!cachedDb.jogos.some(j => j.api_id === idIda)) {
+      console.log(`[Startup Seeder] Seeding Oitavas de Final - Ida: Cruzeiro x Flamengo`);
+      const newId = cachedDb.jogos.length > 0 ? Math.max(...cachedDb.jogos.map(j => j.id)) + 1 : 1;
+      cachedDb.jogos.push({
+        id: newId,
+        api_id: idIda,
+        time_casa: "Cruzeiro",
+        time_fora: "Flamengo",
+        time_casa_bandeira: "https://media.api-sports.io/football/teams/122.png",
+        time_fora_bandeira: "https://media.api-sports.io/football/teams/127.png",
+        data_jogo: "2026-08-11T21:30:00Z",
+        placar_casa: null,
+        placar_fora: null,
+        status: "PENDENTE",
+        rodada: 7
+      });
+      hasModifiedDb = true;
+    }
+
+    if (!cachedDb.jogos.some(j => j.api_id === idVolta)) {
+      console.log(`[Startup Seeder] Seeding Oitavas de Final - Volta: Flamengo x Cruzeiro`);
+      const newId = cachedDb.jogos.length > 0 ? Math.max(...cachedDb.jogos.map(j => j.id)) + 1 : 1;
+      cachedDb.jogos.push({
+        id: newId,
+        api_id: idVolta,
+        time_casa: "Flamengo",
+        time_fora: "Cruzeiro",
+        time_casa_bandeira: "https://media.api-sports.io/football/teams/127.png",
+        time_fora_bandeira: "https://media.api-sports.io/football/teams/122.png",
+        data_jogo: "2026-08-18T21:30:00Z",
+        placar_casa: null,
+        placar_fora: null,
+        status: "PENDENTE",
+        rodada: 7
+      });
+      hasModifiedDb = true;
+    }
+
+    if (hasModifiedDb) {
+      saveDatabase(cachedDb);
+    }
 
     // Recalculate leaderboard / rankings scores for all users and games on startup
     // to correct any legacy scoring defects instantly!

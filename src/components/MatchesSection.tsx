@@ -53,6 +53,26 @@ export function getGameCampeonato(jogo: Jogo): 'COPA_MUNDO' | 'LIBERTADORES' | '
       return 'BRASILEIRAO';
     }
   }
+
+  const homeLower = (jogo.time_casa || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+  const awayLower = (jogo.time_fora || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+
+  const knownClubs = [
+    "flamengo", "cruzeiro", "palmeiras", "corinthians", "vasco", "bahia", 
+    "fluminense", "botafogo", "gremio", "internacional", "atletico", "santos",
+    "estudiantes", "catolica", "rosario", "tolima", "valle", "mirassol", "ldu",
+    "cerro", "peñarol", "penarol", "junior", "cristal", "lanus", "always",
+    "platense", "coquimbo", "rivadavia", "boca"
+  ];
+
+  const hasClub = knownClubs.some(c => homeLower.includes(c) || awayLower.includes(c));
+  if (hasClub) {
+    if (jogo.rodada >= 11 && jogo.rodada <= 38) {
+      return 'BRASILEIRAO';
+    }
+    return 'LIBERTADORES';
+  }
+
   return 'COPA_MUNDO';
 }
 
@@ -1678,30 +1698,51 @@ export default function MatchesSection({
       const oitavasIdaList: (Jogo | undefined)[] = Array.from({ length: 8 });
       const oitavasVoltaList: (Jogo | undefined)[] = Array.from({ length: 8 });
 
-      // Helper to parse oitavas game pairing and leg
+      // Group games by showdownIdx
+      const matchesByShowdown: { [key: number]: Jogo[] } = {};
+      const unmappedGames: Jogo[] = [];
+
       oitavas.forEach(j => {
         const parsed = parseLibertadoresPlayoffGame(j);
         if (parsed) {
-          if (parsed.leg === 'ida') {
-            oitavasIdaList[parsed.showdownIdx] = j;
-          } else {
-            oitavasVoltaList[parsed.showdownIdx] = j;
+          const sIdx = parsed.showdownIdx;
+          if (!matchesByShowdown[sIdx]) {
+            matchesByShowdown[sIdx] = [];
           }
+          matchesByShowdown[sIdx].push(j);
+        } else {
+          unmappedGames.push(j);
         }
       });
 
-      // Gracefully map any remaining unmapped games
-      oitavas.forEach(j => {
-        const parsed = parseLibertadoresPlayoffGame(j);
-        if (!parsed) {
-          const emptyIdaIdx = oitavasIdaList.findIndex(x => x === undefined);
-          if (emptyIdaIdx !== -1) {
-            oitavasIdaList[emptyIdaIdx] = j;
+      // Map games to Ida / Volta slots
+      for (let sIdx = 0; sIdx < 8; sIdx++) {
+        const games = matchesByShowdown[sIdx] || [];
+        if (games.length === 1) {
+          const game = games[0];
+          const parsed = parseLibertadoresPlayoffGame(game)!;
+          if (parsed.leg === 'ida') {
+            oitavasIdaList[sIdx] = game;
           } else {
-            const emptyVoltaIdx = oitavasVoltaList.findIndex(x => x === undefined);
-            if (emptyVoltaIdx !== -1) {
-              oitavasVoltaList[emptyVoltaIdx] = j;
-            }
+            oitavasVoltaList[sIdx] = game;
+          }
+        } else if (games.length >= 2) {
+          // Sort chronologically by date
+          const sorted = [...games].sort((a, b) => new Date(a.data_jogo).getTime() - new Date(b.data_jogo).getTime());
+          oitavasIdaList[sIdx] = sorted[0];
+          oitavasVoltaList[sIdx] = sorted[1];
+        }
+      }
+
+      // Gracefully map any remaining unmapped games
+      unmappedGames.forEach(j => {
+        const emptyIdaIdx = oitavasIdaList.findIndex(x => x === undefined);
+        if (emptyIdaIdx !== -1) {
+          oitavasIdaList[emptyIdaIdx] = j;
+        } else {
+          const emptyVoltaIdx = oitavasVoltaList.findIndex(x => x === undefined);
+          if (emptyVoltaIdx !== -1) {
+            oitavasVoltaList[emptyVoltaIdx] = j;
           }
         }
       });
