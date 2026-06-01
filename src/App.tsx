@@ -44,6 +44,7 @@ export default function App() {
   const [pointsConfig, setPointsConfig] = React.useState<any>(null);
   const [dataServidor, setDataServidor] = React.useState<string>(new Date().toISOString());
   const [ixcOfflineMode, setIxcOfflineMode] = React.useState<boolean>(true);
+  const [configsCustom, setConfigsCustom] = React.useState<any | null>(null);
 
   // Global flash messages
   const [alertInfo, setAlertInfo] = React.useState<{ msg: string; isErr: boolean } | null>(null);
@@ -241,6 +242,9 @@ export default function App() {
         if (gData.configs_points) {
           setPointsConfig(gData.configs_points);
         }
+        if (gData.configs_custom) {
+          setConfigsCustom(gData.configs_custom);
+        }
         if (gData.usuario) {
           setUsuario(gData.usuario);
           localStorage.setItem('bolao_usuario', JSON.stringify(gData.usuario));
@@ -348,6 +352,17 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 font-sans text-slate-100 flex flex-col selection:bg-brand-blue-accent selection:text-white relative">
+      {configsCustom?.background_image && (
+        <div 
+          className="fixed inset-0 z-0 pointer-events-none opacity-[0.04]"
+          style={{
+            backgroundImage: `url(${configsCustom.background_image})`,
+            backgroundPosition: 'center',
+            backgroundSize: 'cover',
+            backgroundRepeat: 'no-repeat'
+          }}
+        />
+      )}
       
       {/* Dynamic Upper Custom Alerts Alert */}
       {alertInfo && (
@@ -467,6 +482,7 @@ export default function App() {
                 jogos={jogos}
                 vencedoresRodadas={vencedoresRodadas}
                 usuarioLogado={usuario}
+                configsCustom={configsCustom}
               />
             )}
 

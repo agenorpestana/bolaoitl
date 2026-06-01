@@ -122,3 +122,25 @@ export interface AdminUser {
   podeEditar?: boolean;
   podeAtivarCampeonato?: boolean;
 }
+
+export interface RuleItem {
+  id: number;
+  titulo: string;
+  texto: string;
+}
+
+export interface PrizeItem {
+  posicao: string;
+  premio: string;
+  detalhes: string;
+}
+
+export interface ConfigCustom {
+  background_image?: string;
+  ad_image?: string;
+  header_title_1?: string;
+  header_title_2?: string;
+  header_description?: string;
+  regras?: RuleItem[];
+  premiacoes?: PrizeItem[];
+}

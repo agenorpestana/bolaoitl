@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
   Sliders, Users, Shield, Database, Activity, FileSpreadsheet, PlusCircle, Trash2, 
-  Save, RefreshCw, Check, Search, Download, Trash, Edit2, Play, Power, AlertTriangle, ShieldCheck, Trophy, Key, Eye
+  Save, RefreshCw, Check, Search, Download, Trash, Edit2, Play, Power, AlertTriangle, ShieldCheck, Trophy, Key, Eye, Palette
 } from 'lucide-react';
 import { Usuario, Jogo, ConfigPoints, ConfigIXC, ConfigFootballApi, AuditLog } from '../types';
 import { CIDADES_ATENDIDAS } from '../data';
@@ -15,7 +15,17 @@ interface AdminPanelProps {
 }
 
 export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelProps) {
-  const [activeSubTab, setActiveSubTab] = React.useState<'METRICAS' | 'IXC' | 'REGRAS' | 'SOCCER_API' | 'JOGADORES' | 'JOGOS' | 'RELATORIOS' | 'LOGS' | 'ADMINS'>('METRICAS');
+  const [activeSubTab, setActiveSubTab] = React.useState<'METRICAS' | 'IXC' | 'REGRAS' | 'SOCCER_API' | 'JOGADORES' | 'JOGOS' | 'RELATORIOS' | 'LOGS' | 'ADMINS' | 'BRANDS'>('METRICAS');
+  
+  // Custom Site Branding state managers
+  const [headerTitle1, setHeaderTitle1] = React.useState("CARTOLA ITL");
+  const [headerTitle2, setHeaderTitle2] = React.useState("PROVEDOR ITLFIBRA");
+  const [headerDescription, setHeaderDescription] = React.useState("");
+  const [regrasCustom, setRegrasCustom] = React.useState<any[]>([]);
+  const [premiacoesCustom, setPremiacoesCustom] = React.useState<any[]>([]);
+  const [customBgBase64, setCustomBgBase64] = React.useState("");
+  const [customAdBase64, setCustomAdBase64] = React.useState("");
+  const [isSavingCustom, setIsSavingCustom] = React.useState(false);
   const [calendarioMode, setCalendarioMode] = React.useState<'COPA_2026' | 'LIBERTADORES' | 'BRASILEIRAO' | 'FUTURAS'>('COPA_2026');
   const [apiFutebolMode, setApiFutebolMode] = React.useState<'COPA_2026' | 'LIBERTADORES' | 'BRASILEIRAO' | 'FUTURAS'>('COPA_2026');
 
@@ -432,6 +442,16 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
         if (data.configs_brasileirao) {
           setBrasileiraoAtivo(data.configs_brasileirao.ativo);
         }
+
+        if (data.configs_custom) {
+          setHeaderTitle1(data.configs_custom.header_title_1 || "CARTOLA ITL");
+          setHeaderTitle2(data.configs_custom.header_title_2 || "PROVEDOR ITLFIBRA");
+          setHeaderDescription(data.configs_custom.header_description || "");
+          setRegrasCustom(data.configs_custom.regras || []);
+          setPremiacoesCustom(data.configs_custom.premiacoes || []);
+          setCustomBgBase64(data.configs_custom.background_image || "");
+          setCustomAdBase64(data.configs_custom.ad_image || "");
+        }
       }
     } catch (err) {}
   };
@@ -472,6 +492,157 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
       setFeedbackSuccess(msg);
       setTimeout(() => setFeedbackSuccess(null), 4000);
     }
+  };
+
+  const handleSaveCustomTextsAndTables = async () => {
+    if (!token) return;
+    setIsSavingCustom(true);
+    try {
+      const response = await fetch("/api/admin/configs/custom", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          header_title_1: headerTitle1,
+          header_title_2: headerTitle2,
+          header_description: headerDescription,
+          regras: regrasCustom,
+          premiacoes: premiacoesCustom
+        })
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        showFeedback("Configurações visuais e tabelas atualizadas com sucesso!");
+        onRefreshLeaderboard();
+      } else {
+        showFeedback("Erro ao atualizar dados: " + (data.error || "Tente novamente."), true);
+      }
+    } catch (err: any) {
+      showFeedback("Erro de rede: " + err.message, true);
+    } finally {
+      setIsSavingCustom(false);
+    }
+  };
+
+  const handleUploadBackground = async (base64: string, remove = false) => {
+    if (!token) return;
+    setIsSavingCustom(true);
+    try {
+      const response = await fetch("/api/admin/upload-background", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ base64Data: base64, remove })
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setCustomBgBase64(remove ? "" : base64);
+        showFeedback(remove ? "Imagem de fundo removida!" : "Imagem de fundo atualizada com sucesso!");
+        onRefreshLeaderboard();
+      } else {
+        showFeedback("Erro ao atualizar imagem de fundo: " + (data.error || "Tente novamente."), true);
+      }
+    } catch (err: any) {
+      showFeedback("Erro de rede: " + err.message, true);
+    } finally {
+      setIsSavingCustom(false);
+    }
+  };
+
+  const handleUploadAdBanner = async (base64: string, remove = false) => {
+    if (!token) return;
+    setIsSavingCustom(true);
+    try {
+      const response = await fetch("/api/admin/upload-ad-banner", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ base64Data: base64, remove })
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setCustomAdBase64(remove ? "" : base64);
+        showFeedback(remove ? "Banner de propaganda removido!" : "Banner de propaganda atualizado com sucesso!");
+        onRefreshLeaderboard();
+      } else {
+        showFeedback("Erro ao atualizar propaganda: " + (data.error || "Tente novamente."), true);
+      }
+    } catch (err: any) {
+      showFeedback("Erro de rede: " + err.message, true);
+    } finally {
+      setIsSavingCustom(false);
+    }
+  };
+
+  const onBgFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      showFeedback("Por favor selecione uma imagem válida.", true);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const b64 = reader.result as string;
+      handleUploadBackground(b64, false);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const onAdFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      showFeedback("Por favor selecione uma imagem válida.", true);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const b64 = reader.result as string;
+      handleUploadAdBanner(b64, false);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleAddRule = () => {
+    const nextId = regrasCustom.length > 0 ? Math.max(...regrasCustom.map(r => r.id)) + 1 : 1;
+    setRegrasCustom([...regrasCustom, { id: nextId, titulo: "Nova Regra", texto: "Descreva a nova regra do bolão aqui..." }]);
+  };
+
+  const handleUpdateRule = (index: number, key: string, val: string) => {
+    const copy = [...regrasCustom];
+    copy[index] = { ...copy[index], [key]: val };
+    setRegrasCustom(copy);
+  };
+
+  const handleRemoveRule = (index: number) => {
+    const copy = [...regrasCustom];
+    copy.splice(index, 1);
+    // Renumber IDs for visual consistency
+    const renumbered = copy.map((item, idx) => ({ ...item, id: idx + 1 }));
+    setRegrasCustom(renumbered);
+  };
+
+  const handleAddPrize = () => {
+    setPremiacoesCustom([...premiacoesCustom, { posicao: "Novo Posto", premio: "Descrição do Prêmio", detalhes: "Mais informações..." }]);
+  };
+
+  const handleUpdatePrize = (index: number, key: string, val: string) => {
+    const copy = [...premiacoesCustom];
+    copy[index] = { ...copy[index], [key]: val };
+    setPremiacoesCustom(copy);
+  };
+
+  const handleRemovePrize = (index: number) => {
+    const copy = [...premiacoesCustom];
+    copy.splice(index, 1);
+    setPremiacoesCustom(copy);
   };
 
   // IXC Connection Test Action 
@@ -1059,6 +1230,7 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
           { id: 'METRICAS', label: 'Estatísticas', icon: Activity },
           { id: 'IXC', label: 'Integração IXC', icon: Database },
           { id: 'REGRAS', label: 'Regras de Pontos', icon: Sliders },
+          { id: 'BRANDS', label: 'Personalizar Site', icon: Palette },
           { id: 'SOCCER_API', label: 'API Futebol', icon: Play },
           { id: 'JOGADORES', label: 'Participantes', icon: Users },
           { id: 'JOGOS', label: 'Calendário', icon: PlusCircle },
@@ -1468,6 +1640,301 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
             >
               <Save className="h-4 w-4" />
               Salvar Regras de Pontos
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* CUSTOM SITE BRANDING AND LAYOUT */}
+      {activeSubTab === 'BRANDS' && (
+        <div className="bg-slate-900/40 border border-slate-800/80 p-6 rounded-2xl space-y-8 text-left">
+          
+          {/* Header Title & Description Section */}
+          <div className="space-y-4">
+            <div className="border-b border-slate-800/80 pb-2">
+              <h3 className="text-base font-bold text-slate-200">Textos Principais da Página inicial</h3>
+              <p className="text-xs text-slate-400">
+                Altere os títulos e descrições exibidos no topo do portal (Hero Banner).
+              </p>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Título Principal 1</label>
+                <input
+                  type="text"
+                  value={headerTitle1}
+                  onChange={(e) => setHeaderTitle1(e.target.value)}
+                  placeholder="Ex: CARTOLA ITL"
+                  className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 text-sm font-bold focus:border-yellow-500 outline-none"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Título Principal 2 (Em Destaque)</label>
+                <input
+                  type="text"
+                  value={headerTitle2}
+                  onChange={(e) => setHeaderTitle2(e.target.value)}
+                  placeholder="Ex: PROVEDOR ITLFIBRA"
+                  className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 text-sm font-bold focus:border-yellow-500 outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Frase / Texto de Boas-Vindas</label>
+              <textarea
+                value={headerDescription}
+                onChange={(e) => setHeaderDescription(e.target.value)}
+                rows={3}
+                placeholder="Ex e padrão: Mostre suas habilidades de palpite, crave placares..."
+                className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-300 text-xs focus:border-yellow-500 outline-none leading-relaxed"
+              />
+            </div>
+          </div>
+
+          {/* Media & Images Management Section */}
+          <div className="grid gap-6 md:grid-cols-2">
+            
+            {/* Background Watermark Section */}
+            <div className="bg-slate-950/60 p-5 border border-slate-800/80 rounded-xl space-y-4">
+              <div>
+                <h4 className="text-sm font-bold text-slate-200">Imagem de Fundo (Marca d'água)</h4>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Carregue uma imagem de fundo (ex: estádio de futebol, fumaça, luzes) que será aplicada em baixa opacidade (marca d'água) em todo o site.
+                </p>
+              </div>
+
+              {customBgBase64 ? (
+                <div className="space-y-3">
+                  <div className="relative h-28 rounded-lg overflow-hidden border border-slate-800 bg-slate-900 group">
+                    <img 
+                      src={customBgBase64} 
+                      alt="Watermark Fundo" 
+                      className="w-full h-full object-cover opacity-60"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 to-transparent flex items-end p-2">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Imagem de fundo ativa</span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleUploadBackground("", true)}
+                    className="w-full py-2 bg-red-950/40 hover:bg-red-950/65 border border-red-900/60 text-red-400 hover:text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer"
+                  >
+                    <Trash className="h-3.5 w-3.5" /> Remover Imagem de Fundo
+                  </button>
+                </div>
+              ) : (
+                <div className="border border-dashed border-slate-850 rounded-lg py-8 px-4 flex flex-col items-center justify-center bg-slate-950">
+                  <span className="text-2xl mb-1">🖼️</span>
+                  <span className="text-xs text-slate-400 font-bold mb-3">Nenhuma imagem ativa (Fundo Escuro Padrão)</span>
+                  <label className="px-4 py-2 bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-200 hover:text-white text-xs font-bold rounded-lg cursor-pointer transition">
+                    Escolher Imagem
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      className="hidden" 
+                      onChange={onBgFileSelect} 
+                    />
+                  </label>
+                </div>
+              )}
+            </div>
+
+            {/* Propaganda Ad Banner Section */}
+            <div className="bg-slate-950/60 p-5 border border-slate-800/80 rounded-xl space-y-4">
+              <div>
+                <h4 className="text-sm font-bold text-slate-200">Banner de Propaganda</h4>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Banner retangular para promoção, exibido em destaque na página inicial abaixo de "EXCLUSIVO PARA CLIENTES DO PROVEDOR".
+                </p>
+              </div>
+
+              {customAdBase64 ? (
+                <div className="space-y-3">
+                  <div className="relative h-28 rounded-lg overflow-hidden border border-slate-800 bg-slate-900 text-center">
+                    <img 
+                      src={customAdBase64} 
+                      alt="Banner Propaganda" 
+                      className="w-full h-full object-contain"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="absolute inset-y-0 right-0 left-0 bg-slate-950/20" />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleUploadAdBanner("", true)}
+                    className="w-full py-2 bg-red-950/40 hover:bg-red-950/65 border border-red-900/60 text-red-400 hover:text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer"
+                  >
+                    <Trash className="h-3.5 w-3.5" /> Remover Propaganda
+                  </button>
+                </div>
+              ) : (
+                <div className="border border-dashed border-slate-850 rounded-lg py-8 px-4 flex flex-col items-center justify-center bg-slate-950">
+                  <span className="text-2xl mb-1">📢</span>
+                  <span className="text-xs text-slate-400 font-bold mb-3">Nenhum banner ativo no momento</span>
+                  <label className="px-4 py-2 bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-200 hover:text-white text-xs font-bold rounded-lg cursor-pointer transition">
+                    Escolher Imagem de Propaganda
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      className="hidden" 
+                      onChange={onAdFileSelect} 
+                    />
+                  </label>
+                </div>
+              )}
+            </div>
+
+          </div>
+
+          {/* Rules Editor section */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+              <div>
+                <h3 className="text-base font-bold text-slate-200">Critérios de Funcionamento</h3>
+                <p className="text-xs text-slate-400">
+                  Gerencie as regras listadas na página principal para os concorrentes.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleAddRule}
+                className="px-3.5 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-slate-950 text-xs font-black rounded-lg transition inline-flex items-center gap-1 cursor-pointer"
+              >
+                + Adicionar Regra
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {regrasCustom.map((reg, idx) => (
+                <div key={idx} className="bg-slate-950/40 border border-slate-850 p-4 rounded-xl space-y-3 relative">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-yellow-500 font-mono">Regra #{idx + 1}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveRule(idx)}
+                      className="text-red-500 hover:text-red-400 p-1 rounded hover:bg-slate-905 transition cursor-pointer"
+                      title="Deletar Regra"
+                    >
+                      <Trash className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="sm:col-span-1 space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">Título da Regra</label>
+                      <input
+                        type="text"
+                        value={reg.titulo}
+                        onChange={(e) => handleUpdateRule(idx, "titulo", e.target.value)}
+                        className="w-full p-2 bg-slate-900/80 border border-slate-800 rounded text-slate-200 font-bold text-xs"
+                      />
+                    </div>
+                    <div className="sm:col-span-2 space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">Texto Informativo</label>
+                      <input
+                        type="text"
+                        value={reg.texto}
+                        onChange={(e) => handleUpdateRule(idx, "texto", e.target.value)}
+                        className="w-full p-2 bg-slate-905/80 border border-slate-800 rounded text-slate-300 text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {regrasCustom.length === 0 && (
+                <div className="text-center py-6 text-xs text-slate-500 font-bold border border-slate-800 border-dashed rounded-xl">
+                  Nenhuma regra customizada cadastrada. Adicione para personalizar!
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Prizes Editor section */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+              <div>
+                <h3 className="text-base font-bold text-slate-200">Prêmios para a Competição</h3>
+                <p className="text-xs text-slate-400">
+                  Defina os prêmios da sua competição e as formas de premiação.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleAddPrize}
+                className="px-3.5 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-slate-950 text-xs font-black rounded-lg transition inline-flex items-center gap-1 cursor-pointer"
+              >
+                + Adicionar Prêmio
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {premiacoesCustom.map((prem, idx) => (
+                <div key={idx} className="bg-slate-950/40 border border-slate-850 p-4 rounded-xl space-y-3 relative">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-yellow-500 font-mono">Prêmio #{idx + 1}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemovePrize(idx)}
+                      className="text-red-500 hover:text-red-400 p-1 rounded hover:bg-slate-905 transition cursor-pointer"
+                      title="Deletar Prêmio"
+                    >
+                      <Trash className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">Posição / Evento</label>
+                      <input
+                        type="text"
+                        value={prem.posicao}
+                        onChange={(e) => handleUpdatePrize(idx, "posicao", e.target.value)}
+                        className="w-full p-2 bg-slate-900/80 border border-slate-800 rounded text-slate-200 font-bold text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">Nome / Prêmio</label>
+                      <input
+                        type="text"
+                        value={prem.premio}
+                        onChange={(e) => handleUpdatePrize(idx, "premio", e.target.value)}
+                        className="w-full p-2 bg-slate-900/80 border border-slate-800 rounded text-slate-200 font-bold text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">Informações Gerais / Detalhes</label>
+                      <input
+                        type="text"
+                        value={prem.detalhes}
+                        onChange={(e) => handleUpdatePrize(idx, "detalhes", e.target.value)}
+                        className="w-full p-2 bg-slate-905/80 border border-slate-800 rounded text-slate-300 text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {premiacoesCustom.length === 0 && (
+                <div className="text-center py-6 text-xs text-slate-500 font-bold border border-slate-800 border-dashed rounded-xl">
+                  Nenhum prêmio customizado cadastrado. Adicione para personalizar!
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Absolute Save Actions Button */}
+          <div className="pt-6 border-t border-slate-950 flex justify-end">
+            <button
+              onClick={handleSaveCustomTextsAndTables}
+              disabled={isSavingCustom}
+              className="flex items-center gap-1.5 px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-black rounded-lg cursor-pointer transition shadow hover:shadow-emerald-500/20 active:scale-95 disabled:opacity-50"
+            >
+              <Save className="h-4 w-4" />
+              {isSavingCustom ? "Salvando Alterações..." : "Salvar Configurações Visuais"}
             </button>
           </div>
         </div>

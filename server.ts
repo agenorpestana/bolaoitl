@@ -96,6 +96,15 @@ interface LocalDatabase {
     extension?: string;
     custom_favicon_base64?: string;
   };
+  configs_custom?: {
+    background_image?: string;
+    ad_image?: string;
+    header_title_1?: string;
+    header_title_2?: string;
+    header_description?: string;
+    regras?: Array<{ id: number; titulo: string; texto: string }>;
+    premiacoes?: Array<{ posicao: string; premio: string; detalhes: string }>;
+  };
 }
 
 // ==========================================
@@ -1380,9 +1389,80 @@ function ensureCustomLogoAndFaviconStatus(db: LocalDatabase | null) {
   }
 }
 
+function ensureCustomConfigs(db: LocalDatabase | null) {
+  if (!db) return;
+  if (!db.configs_custom) {
+    db.configs_custom = {};
+  }
+  if (db.configs_custom.background_image === undefined) {
+    db.configs_custom.background_image = "";
+  }
+  if (db.configs_custom.ad_image === undefined) {
+    db.configs_custom.ad_image = "";
+  }
+  if (db.configs_custom.header_title_1 === undefined) {
+    db.configs_custom.header_title_1 = "CARTOLA ITL";
+  }
+  if (db.configs_custom.header_title_2 === undefined) {
+    db.configs_custom.header_title_2 = "PROVEDOR ITLFIBRA";
+  }
+  if (db.configs_custom.header_description === undefined) {
+    db.configs_custom.header_description = "Mostre suas habilidades de palpite, crave placares exatos das maiores seleções e dispute um ano de internet grátis, TVs, consoles de última geração e prêmios incríveis!";
+  }
+  if (!db.configs_custom.regras) {
+    db.configs_custom.regras = [
+      {
+        id: 1,
+        titulo: "Participação Gratuita",
+        texto: "Bolão exclusivo para clientes ativos do nosso provedor, sem custo adicional."
+      },
+      {
+        id: 2,
+        titulo: "Bloqueio Prévio",
+        texto: "As apostas para cada partida serão encerradas exatamente 1 hora antes do início configurado pelo horário do servidor."
+      },
+      {
+        id: 3,
+        titulo: "Sistemática de Pontos",
+        texto: "Acordo de vencedor: 4 pontos. Empate: 4 pontos. Placar Exato: +6 pontos bônus (totalizando 10 pontos)."
+      },
+      {
+        id: 4,
+        titulo: "Validação Mensal",
+        texto: "Em caso de inadimplência no provedor, o acesso pode ser temporariamente suspenso até a regularização cadastral automática."
+      }
+    ];
+  }
+  if (!db.configs_custom.premiacoes) {
+    db.configs_custom.premiacoes = [
+      {
+        posicao: "1º Lugar Geral (Final da Copa)",
+        premio: "1 Ano de Internet Grátis",
+        detalhes: "Grande campeão do Bolão Geral ao final do torneio."
+      },
+      {
+        posicao: "1º Lugar de Cada Rodada",
+        premio: "1 Mês de Internet Grátis + Brinde Exclusivo",
+        detalhes: "Para o maior pontuador individual de cada rodada da Copa."
+      },
+      {
+        posicao: "2º Lugar de Cada Rodada",
+        premio: "1 Mês de Internet Grátis",
+        detalhes: "Para o segundo colocado de cada rodada individual."
+      },
+      {
+        posicao: "3º Lugar de Cada Rodada",
+        premio: "Um Brinde Exclusivo da ITLFIBRA",
+        detalhes: "Para o terceiro colocado de cada rodada individual."
+      }
+    ];
+  }
+}
+
 function loadDatabase(): LocalDatabase {
   if (cachedDb) {
     ensureCustomLogoAndFaviconStatus(cachedDb);
+    ensureCustomConfigs(cachedDb);
     
     // Auto-populate warm cache if missing Copa Libertadores matches
     const hasWarmLibertadoresMatches = cachedDb.jogos.some(j => (j.api_id?.toLowerCase().includes("libertadores") || getGameCampeonato(j) === "LIBERTADORES"));
@@ -1513,6 +1593,7 @@ function loadDatabase(): LocalDatabase {
   }
 
   ensureCustomLogoAndFaviconStatus(cachedDb);
+  ensureCustomConfigs(cachedDb);
   return cachedDb;
 }
 
@@ -3343,6 +3424,7 @@ async function startServer() {
       palpites: rawUserGuesses,
       usuario: matchedUser,
       configs_points: db.configs_points,
+      configs_custom: db.configs_custom,
       data_servidor: new Date().toISOString()
     });
   });
@@ -4502,7 +4584,8 @@ async function startServer() {
       configs_football: db.configs_football,
       configs_libertadores: db.configs_libertadores || { ativo: false },
       configs_copa_mundo: db.configs_copa_mundo || { ativo: true },
-      configs_brasileirao: db.configs_brasileirao || { ativo: false }
+      configs_brasileirao: db.configs_brasileirao || { ativo: false },
+      configs_custom: db.configs_custom
     });
   });
 
@@ -5458,6 +5541,108 @@ async function startServer() {
     } catch (err: any) {
       console.error("Erro interno no upload de favicon:", err);
       return res.status(500).json({ error: "Erro ao processar favicon: " + err.message });
+    }
+  });
+
+  // Save Site Branding and Text configs
+  app.post("/api/admin/configs/custom", verifyAdminToken, (req: any, res) => {
+    try {
+      if (!req.admin.permissions.podeEditar) {
+        return res.status(403).json({ error: "Sua conta de administrador não possui permissão para alterar as configurações do site." });
+      }
+
+      const { header_title_1, header_title_2, header_description, regras, premiacoes } = req.body;
+      const db = loadDatabase();
+
+      if (!db.configs_custom) {
+        db.configs_custom = {};
+      }
+
+      if (header_title_1 !== undefined) db.configs_custom.header_title_1 = header_title_1;
+      if (header_title_2 !== undefined) db.configs_custom.header_title_2 = header_title_2;
+      if (header_description !== undefined) db.configs_custom.header_description = header_description;
+      if (regras !== undefined) db.configs_custom.regras = regras;
+      if (premiacoes !== undefined) db.configs_custom.premiacoes = premiacoes;
+
+      saveDatabase(db);
+      addLog("Admin (Suporte)", "ATUALIZA_DADOS_PERSONALIZADOS", "Textos e tabelas de funcionamento da página inicial atualizados.", req);
+
+      return res.json({ success: true, configs_custom: db.configs_custom });
+    } catch (err: any) {
+      console.error("Erro ao salvar dados personalizados:", err);
+      return res.status(500).json({ error: "Erro interno: " + err.message });
+    }
+  });
+
+  // Upload Watermark Background
+  app.post("/api/admin/upload-background", verifyAdminToken, (req: any, res) => {
+    try {
+      if (!req.admin.permissions.podeEditar) {
+        return res.status(403).json({ error: "Sua conta de administrador não possui permissão para alterar a imagem de fundo." });
+      }
+
+      const { base64Data, remove } = req.body;
+      const db = loadDatabase();
+
+      if (!db.configs_custom) {
+        db.configs_custom = {};
+      }
+
+      if (remove) {
+        db.configs_custom.background_image = "";
+        saveDatabase(db);
+        addLog("Admin (Suporte)", "REMOVE_BACKGROUND", "Imagem de marca d'água de fundo foi removida.", req);
+        return res.json({ success: true, configs_custom: db.configs_custom });
+      }
+
+      if (!base64Data) {
+        return res.status(400).json({ error: "Nenhuma imagem recebida." });
+      }
+
+      db.configs_custom.background_image = base64Data;
+      saveDatabase(db);
+      addLog("Admin (Suporte)", "ATUALIZA_BACKGROUND", "Nova imagem de marca d'água de fundo foi carregada.", req);
+
+      return res.json({ success: true, configs_custom: db.configs_custom });
+    } catch (err: any) {
+      console.error("Erro no upload do background:", err);
+      return res.status(500).json({ error: "Erro interno ao processar: " + err.message });
+    }
+  });
+
+  // Upload ad banner (propaganda)
+  app.post("/api/admin/upload-ad-banner", verifyAdminToken, (req: any, res) => {
+    try {
+      if (!req.admin.permissions.podeEditar) {
+        return res.status(403).json({ error: "Sua conta de administrador não possui permissão para alterar o banner de propaganda." });
+      }
+
+      const { base64Data, remove } = req.body;
+      const db = loadDatabase();
+
+      if (!db.configs_custom) {
+        db.configs_custom = {};
+      }
+
+      if (remove) {
+        db.configs_custom.ad_image = "";
+        saveDatabase(db);
+        addLog("Admin (Suporte)", "REMOVE_AD_BANNER", "Banner de propaganda da página inicial foi removido.", req);
+        return res.json({ success: true, configs_custom: db.configs_custom });
+      }
+
+      if (!base64Data) {
+        return res.status(400).json({ error: "Nenhuma imagem recebida." });
+      }
+
+      db.configs_custom.ad_image = base64Data;
+      saveDatabase(db);
+      addLog("Admin (Suporte)", "ATUALIZA_AD_BANNER", "Novo banner de propaganda da página inicial foi carregado.", req);
+
+      return res.json({ success: true, configs_custom: db.configs_custom });
+    } catch (err: any) {
+      console.error("Erro no upload do banner de propaganda:", err);
+      return res.status(500).json({ error: "Erro interno ao processar: " + err.message });
     }
   });
 

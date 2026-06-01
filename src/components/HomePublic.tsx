@@ -3,7 +3,7 @@ import {
   Award, BookOpen, Gift, Users, Target, ChevronRight, Hourglass, ShieldCheck, Zap
 } from 'lucide-react';
 import { REGRAS_PROG, PREMIACOES } from '../data';
-import { Jogo } from '../types';
+import { Jogo, ConfigCustom } from '../types';
 import { getFriendlyRoundName, getGameCampeonato } from './MatchesSection';
 
 const flagEmojiToIso = (flag: string): string | null => {
@@ -184,6 +184,7 @@ interface HomePublicProps {
   jogos: Jogo[];
   vencedoresRodadas?: any[];
   usuarioLogado?: { id: number; nome: string } | null;
+  configsCustom?: ConfigCustom | null;
 }
 
 export default function HomePublic({ 
@@ -191,7 +192,8 @@ export default function HomePublic({
   metrics, 
   jogos,
   vencedoresRodadas = [],
-  usuarioLogado = null
+  usuarioLogado = null,
+  configsCustom = null
 }: HomePublicProps) {
   // Real countdown to June 11th 2026 20:00:00 UTC
   const targetDate = new Date("2026-06-11T20:00:00Z");
@@ -377,16 +379,26 @@ export default function HomePublic({
             <Zap className="h-3.5 w-3.5 text-yellow-500" /> EXCLUSIVO PARA CLIENTES DO PROVEDOR
           </div>
 
+          {configsCustom?.ad_image && (
+            <div className="w-full max-w-lg mx-auto overflow-hidden rounded-2xl border border-brand-blue-light/35 shadow-xl animate-fadeIn">
+              <img 
+                src={configsCustom.ad_image} 
+                alt="Propaganda" 
+                className="w-full h-auto object-cover max-h-[300px]"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+          )}
+
           <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight text-slate-100">
-            CARTOLA ITL <br />
-            <span className="bg-gradient-to-r from-brand-blue-vibrant via-blue-400 to-yellow-500 bg-clip-text text-transparent text-3xl md:text-5xl block mt-2">
-              PROVEDOR ITLFIBRA
+            {configsCustom?.header_title_1 || "CARTOLA ITL"} <br />
+            <span className="bg-gradient-to-r from-brand-blue-vibrant via-blue-400 to-yellow-500 bg-clip-text text-transparent text-3xl md:text-5xl block mt-2 animate-pulse">
+              {configsCustom?.header_title_2 || "PROVEDOR ITLFIBRA"}
             </span>
           </h1>
 
           <p className="text-sm md:text-base text-slate-300 max-w-xl mx-auto leading-relaxed">
-            Mostre suas habilidades de palpite, crave placares exatos das maiores seleções e dispute 
-            um ano de internet grátis, TVs, consoles de última geração e prêmios incríveis!
+            {configsCustom?.header_description || "Mostre suas habilidades de palpite, crave placares exatos das maiores seleções e dispute um ano de internet grátis, TVs, consoles de última geração e prêmios incríveis!"}
           </p>
 
           {/* Countdown Clock */}
@@ -685,7 +697,7 @@ export default function HomePublic({
               Critérios de Funcionamento
             </h2>
             <div className="space-y-3">
-              {REGRAS_PROG.map((reg) => (
+              {(configsCustom?.regras || REGRAS_PROG).map((reg) => (
                 <div key={reg.id} className="flex gap-3 text-left">
                   <div className="flex h-5 w-5 mt-0.5 shrink-0 items-center justify-center rounded-md bg-brand-blue-dark text-[10px] font-bold text-brand-blue-vibrant border border-brand-blue-light/50">
                     {reg.id}
@@ -706,7 +718,7 @@ export default function HomePublic({
               Prêmios para a Competição
             </h2>
             <div className="grid gap-3 sm:grid-cols-2">
-              {PREMIACOES.map((prem, idx) => (
+              {(configsCustom?.premiacoes || PREMIACOES).map((prem, idx) => (
                 <div 
                   key={idx} 
                   className="bg-slate-900/90 border border-slate-800/80 rounded-xl p-4 flex flex-col justify-between text-left relative overflow-hidden group shadow-md"
