@@ -29,6 +29,7 @@ export default function ParticipantLogin({ onLoginSuccess, onAdminLoginSuccess, 
   const [adminEmail, setAdminEmail] = React.useState("");
   const [adminPassword, setAdminPassword] = React.useState("");
 
+  const [recaptchaTokenState, setRecaptchaTokenState] = React.useState<string | null>(null);
   const recaptchaWidgetRef = React.useRef<number | null>(null);
 
   // Load and render reCAPTCHA dynamically if active
@@ -41,9 +42,13 @@ export default function ParticipantLogin({ onLoginSuccess, onAdminLoginSuccess, 
             if (container && recaptchaWidgetRef.current === null) {
               recaptchaWidgetRef.current = (window as any).grecaptcha.render("recaptcha-wrapper-container", {
                 sitekey: configsCustom.recaptcha_site_key,
-                size: "invisible",
+                theme: "dark",
                 callback: (token: string) => {
-                  submitLoginForm(token);
+                  setRecaptchaTokenState(token);
+                  setErrorMsg(null);
+                },
+                "expired-callback": () => {
+                  setRecaptchaTokenState(null);
                 }
               });
             }
@@ -128,6 +133,10 @@ export default function ParticipantLogin({ onLoginSuccess, onAdminLoginSuccess, 
       const data = await response.json();
 
       if (!response.ok) {
+        if (configsCustom?.recaptcha_active && (window as any).grecaptcha && recaptchaWidgetRef.current !== null) {
+          (window as any).grecaptcha.reset(recaptchaWidgetRef.current);
+          setRecaptchaTokenState(null);
+        }
         throw new Error(data.error || "Cadastro inexistente no IXC.");
       }
 
@@ -152,21 +161,11 @@ export default function ParticipantLogin({ onLoginSuccess, onAdminLoginSuccess, 
     }
 
     if (configsCustom?.recaptcha_active && configsCustom?.recaptcha_site_key) {
-      setLoading(true);
-      if ((window as any).grecaptcha) {
-        try {
-          if (recaptchaWidgetRef.current !== null) {
-            (window as any).grecaptcha.reset(recaptchaWidgetRef.current);
-          }
-          (window as any).grecaptcha.execute(recaptchaWidgetRef.current);
-        } catch (err: any) {
-          setLoading(false);
-          setErrorMsg("Erro ao iniciar validação de segurança. Por favor, tente novamente.");
-        }
-      } else {
-        setLoading(false);
-        setErrorMsg("Serviço de segurança do reCAPTCHA ainda não carregou totalmente. Aguarde alguns instantes.");
+      if (!recaptchaTokenState) {
+        setErrorMsg("Por favor, marque a caixa de seleção 'Não sou um robô'.");
+        return;
       }
+      submitLoginForm(recaptchaTokenState);
     } else {
       submitLoginForm();
     }

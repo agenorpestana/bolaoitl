@@ -1707,7 +1707,7 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
           <div className="space-y-4 bg-slate-950/40 p-5 border border-slate-800/80 rounded-xl">
             <div className="border-b border-slate-800/80 pb-2 flex items-center justify-between">
               <div>
-                <h3 className="text-base font-bold text-slate-200">Segurança de Acesso (Google reCAPTCHA v2)</h3>
+                <h3 className="text-base font-bold text-slate-200">Segurança de Acesso (Google reCAPTCHA v2 - Caixa de Seleção)</h3>
                 <p className="text-xs text-slate-400">
                   Proteja a autenticação dos participantes com verificação via Captcha de segurança dinâmico.
                 </p>
@@ -1753,7 +1753,7 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
             </div>
             
             <p className="text-[11px] text-slate-400 leading-normal">
-              💡 Para habilitar, registre seu domínio no <a href="https://www.google.com/recaptcha/admin" target="_blank" rel="noopener noreferrer" className="text-yellow-500 hover:underline">Google reCAPTCHA Admin Console</a> escolhendo o tipo <strong>Invisível v2</strong> para evitar atrito durante o login de participantes.
+              💡 Para habilitar, registre seu domínio no <a href="https://www.google.com/recaptcha/admin" target="_blank" rel="noopener noreferrer" className="text-yellow-500 hover:underline">Google reCAPTCHA Admin Console</a> escolhendo o tipo <strong>Caixa de verificação v2</strong> (Checkbox).
             </p>
           </div>
 
