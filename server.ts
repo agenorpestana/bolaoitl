@@ -3057,7 +3057,14 @@ async function startServer() {
 
         if (!recaptchaRes.data || !recaptchaRes.data.success) {
           console.error("reCAPTCHA validation failed:", recaptchaRes.data);
-          return res.status(400).json({ error: "Falha na verificação de segurança reCAPTCHA. Tente novamente." });
+          const errorCodes = recaptchaRes.data && recaptchaRes.data["error-codes"] ? recaptchaRes.data["error-codes"].join(", ") : "sem código de erro";
+          let friendlyExplanation = "Validação do reCAPTCHA do Google falhou.";
+          if (errorCodes.includes("invalid-input-response") || errorCodes.includes("timeout-or-duplicate") || errorCodes.includes("bad-request")) {
+            friendlyExplanation += " O token é inválido, expirou ou o domínio atual (" + (req.headers.host || "desconhecido") + ") não está registrado nas configurações da sua chave do Google reCAPTCHA. (Dica importante: Para testar livremente neste link temporário de visualização, você pode desmarcar a opção 'Verificar a origem das soluções do reCAPTCHA' nas configurações da chave no Google Admin Console ou adicionar o domínio atual). Erro: [" + errorCodes + "]";
+          } else {
+            friendlyExplanation += " Detalhes do erro: [" + errorCodes + "]";
+          }
+          return res.status(400).json({ error: friendlyExplanation });
         }
       } catch (err: any) {
         console.error("Erro ao validar reCAPTCHA:", err.message);
