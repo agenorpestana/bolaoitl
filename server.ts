@@ -583,6 +583,115 @@ const FALLBACK_LIBERTADORES = [
 // ==========================================
 // GLOBAL FOOTBALL API HELPERS & ENGINE
 // ==========================================
+const TEAM_TRANSLATIONS: Record<string, string> = {
+  "USA": "Estados Unidos",
+  "United States": "Estados Unidos",
+  "Germany": "Alemanha",
+  "Argentina": "Argentina",
+  "Brazil": "Brasil",
+  "Croatia": "Croácia",
+  "Morocco": "Marrocos",
+  "Qatar": "Catar",
+  "Spain": "Espanha",
+  "France": "França",
+  "Belgium": "Bélgica",
+  "England": "Inglaterra",
+  "Iran": "Irã",
+  "Wales": "País de Gales",
+  "Senegal": "Senegal",
+  "Netherlands": "Holanda",
+  "Denmark": "Dinamarca",
+  "Tunisia": "Tunísia",
+  "Mexico": "México",
+  "Poland": "Polônia",
+  "Australia": "Austrália",
+  "Japan": "Japão",
+  "Costa Rica": "Costa Rica",
+  "Canada": "Canadá",
+  "Slovakia": "Eslováquia",
+  "Switzerland": "Suíça",
+  "Cameroon": "Camarões",
+  "Uruguay": "Uruguai",
+  "South Korea": "Coreia do Sul",
+  "Portugal": "Portugal",
+  "Ghana": "Gana",
+  "Ecuador": "Equador",
+  "Saudi Arabia": "Arábia Saudita",
+  "Serbia": "Sérvia",
+  "Italy": "Itália",
+  "Sweden": "Suécia",
+  "Ukraine": "Ucrânia",
+  "Turkey": "Turquia",
+  "Colombia": "Colômbia",
+  "Peru": "Peru",
+  "Chile": "Chile",
+  "Paraguay": "Paraguai",
+  "Venezuela": "Venezuela",
+  "Bolivia": "Bolívia",
+  "South Africa": "África do Sul",
+  "Ivory Coast": "Costa do Marfim",
+  "Egypt": "Egito",
+  "Nigeria": "Nigéria",
+  "Algeria": "Argélia",
+  "Russia": "Rússia",
+  "Czech Republic": "República Tcheca",
+  "Czechia": "República Tcheca",
+  "Austria": "Áustria",
+  "Hungary": "Hungria",
+  "Romania": "Romênia",
+  "Scotland": "Escócia",
+  "Slovenia": "Eslovênia",
+  "Georgia": "Geórgia",
+  "Albania": "Albânia",
+  "New Zealand": "Nova Zelândia",
+  "Greece": "Grécia",
+  "Iceland": "Islândia",
+  "Norway": "Noruega",
+  "Finland": "Finlândia",
+  "Ireland": "Irlanda",
+  "Northern Ireland": "Irlanda do Norte",
+  "China": "China",
+  "Honduras": "Honduras",
+  "Jamaica": "Jamaica",
+  "Panama": "Panamá",
+  "Iraq": "Iraque",
+  "Syria": "Síria",
+  "United Arab Emirates": "Emirados Árabes Unidos",
+  "Oman": "Omã",
+  "Jordan": "Jordânia",
+  "Lebanon": "Líbano",
+  "Palestine": "Palestina",
+  "Uzbekistan": "Uzbequistão",
+  "Vietnam": "Vietnã",
+  "Thailand": "Tailândia",
+  "India": "Índia",
+  "North Korea": "Coreia do Norte"
+};
+
+function translateTeamToPt(name: string): string {
+  if (!name) return name;
+  const trimmed = name.trim();
+  if (TEAM_TRANSLATIONS[trimmed]) {
+    return TEAM_TRANSLATIONS[trimmed];
+  }
+  const lower = trimmed.toLowerCase();
+  for (const k of Object.keys(TEAM_TRANSLATIONS)) {
+    if (k.toLowerCase() === lower) {
+      return TEAM_TRANSLATIONS[k];
+    }
+  }
+  return trimmed;
+}
+
+function translateAllGamesInDb(db: any) {
+  if (db && db.jogos && Array.isArray(db.jogos)) {
+    for (const j of db.jogos) {
+      if (j.time_casa) j.time_casa = translateTeamToPt(j.time_casa);
+      if (j.time_fora) j.time_fora = translateTeamToPt(j.time_fora);
+    }
+  }
+}
+
 function getTeamFlag(teamName: string): string {
   const name = teamName.toLowerCase().trim();
   if (name.includes("brazil") || name.includes("brasil")) return "🇧🇷";
@@ -1141,8 +1250,8 @@ async function syncFootballApiReal(db: LocalDatabase, req?: express.Request): Pr
 
   for (const item of fixtures) {
     const apiId = `football_api_${item.fixture.id}`;
-    const timeCasa = item.teams.home.name;
-    const timeFora = item.teams.away.name;
+    const timeCasa = translateTeamToPt(item.teams.home.name);
+    const timeFora = translateTeamToPt(item.teams.away.name);
     const timeCasaBandeira = item.teams.home.logo || getTeamFlag(timeCasa);
     const timeForaBandeira = item.teams.away.logo || getTeamFlag(timeFora);
     
@@ -1504,6 +1613,7 @@ function loadDatabase(): LocalDatabase {
       cachedDb.push_subscriptions = [];
     }
     
+    translateAllGamesInDb(cachedDb);
     return cachedDb;
   }
   cachedDb = loadDatabaseFromFile();
@@ -1606,6 +1716,7 @@ function loadDatabase(): LocalDatabase {
 
   ensureCustomLogoAndFaviconStatus(cachedDb);
   ensureCustomConfigs(cachedDb);
+  translateAllGamesInDb(cachedDb);
   return cachedDb;
 }
 
