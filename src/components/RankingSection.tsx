@@ -19,9 +19,10 @@ interface RankingSectionProps {
   ranking: RankingRow[];
   jogos: Jogo[];
   token: string | null;
+  usuarioLogado?: any;
 }
 
-export default function RankingSection({ ranking, jogos, token }: RankingSectionProps) {
+export default function RankingSection({ ranking, jogos, token, usuarioLogado }: RankingSectionProps) {
   const [searchTerm, setSearchTerm] = React.useState("");
   const [selectedCity, setSelectedCity] = React.useState<string>("TODAS");
   const [localRanking, setLocalRanking] = React.useState<RankingRow[]>(ranking);
@@ -75,6 +76,25 @@ export default function RankingSection({ ranking, jogos, token }: RankingSection
       return matchesSearch && matchesCity;
     });
   }, [localRanking, searchTerm, selectedCity]);
+
+  // Slicing logic for logged-in user to show top 10 and self beneath
+  const loggedInUserIndex = React.useMemo(() => {
+    if (!usuarioLogado) return -1;
+    return filteredUsers.findIndex(u => {
+      return u.id === usuarioLogado.id || 
+             (u.nome && usuarioLogado.nome && u.nome.toLowerCase().trim() === usuarioLogado.nome.toLowerCase().trim());
+    });
+  }, [filteredUsers, usuarioLogado]);
+
+  const usersToRender = React.useMemo(() => {
+    if (usuarioLogado) {
+      return filteredUsers.slice(0, 10);
+    }
+    return filteredUsers;
+  }, [filteredUsers, usuarioLogado]);
+
+  const isUserBelowTop10 = usuarioLogado && loggedInUserIndex >= 10;
+  const loggedInUserObj = isUserBelowTop10 ? filteredUsers[loggedInUserIndex] : null;
 
   // Extract available rounds dynamically from matches list based on selected championship
   const availableRounds = React.useMemo(() => {
@@ -360,54 +380,136 @@ export default function RankingSection({ ranking, jogos, token }: RankingSection
                 </div>
 
                 <div className="divide-y divide-slate-900">
-                  {filteredUsers.length > 0 ? (
-                    filteredUsers.map((user, idx) => (
-                      <div key={user.id} className="px-4 py-3.5 flex items-center text-xs hover:bg-slate-900/40 transition gap-2">
-                        
-                        {/* Rank identifier column */}
-                        <span className="w-8 shrink-0 text-center font-bold font-mono text-slate-300">
-                          {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `${idx + 1}`}
-                        </span>
+                  {usersToRender.length > 0 ? (
+                    <>
+                      {usersToRender.map((user, idx) => {
+                        const isSelf = usuarioLogado && (
+                          user.id === usuarioLogado.id || 
+                          (user.nome && usuarioLogado.nome && user.nome.toLowerCase().trim() === usuarioLogado.nome.toLowerCase().trim())
+                        );
 
-                        {/* Meta customer data / user cards */}
-                        <div className="flex-1 min-w-0 pr-1">
-                          <div className="font-bold text-slate-200 truncate flex items-center gap-1.5">
-                            <span className="text-sm">⚽</span>
-                            <span className="truncate">{user.nome}</span>
-                          </div>
-                          <div className="text-[10px] text-slate-500 font-medium sm:hidden truncate">
-                            {user.cidade}
-                          </div>
-                        </div>
+                        return (
+                          <div 
+                            key={user.id} 
+                            className={`px-4 py-3.5 flex items-center text-xs transition gap-2 ${
+                              isSelf 
+                                ? 'bg-brand-blue-accent/15 border-l-4 border-brand-blue-accent/90 hover:bg-brand-blue-accent/20' 
+                                : 'hover:bg-slate-900/40'
+                            }`}
+                          >
+                            
+                            {/* Rank identifier column */}
+                            <span className="w-8 shrink-0 text-center font-bold font-mono text-slate-300">
+                              {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `${idx + 1}`}
+                            </span>
 
-                        {/* Stats responsive block */}
-                        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-                          <div className="hidden sm:flex items-center gap-3 font-mono">
-                            <span className="w-24 text-right text-slate-400 font-sans font-medium truncate hidden lg:inline">{user.cidade}</span>
-                            <span className="w-12 text-center font-bold text-yellow-500">{user.acertos_exato}</span>
-                            <span className="w-12 text-center font-bold text-brand-blue-vibrant">{user.acertos_vencedor}</span>
-                            <span className="w-12 text-center font-semibold text-amber-500">{user.acertos_artilheiro ?? 0}</span>
-                            <span className="w-12 text-center font-bold text-red-500/80">{user.erros}</span>
-                          </div>
-
-                          <div className="flex sm:hidden flex-col items-end text-[10px] text-slate-450 mr-1.5 font-mono leading-none">
-                            <div className="flex gap-1 flex-wrap justify-end">
-                              <span className="text-yellow-500 font-semibold">{user.acertos_exato}EX</span>
-                              <span className="text-slate-800">|</span>
-                              <span className="text-brand-blue-vibrant font-semibold">{user.acertos_vencedor}VC</span>
-                              <span className="text-slate-800">|</span>
-                              <span className="text-amber-500 font-semibold">{user.acertos_artilheiro ?? 0}ART</span>
+                            {/* Meta customer data / user cards */}
+                            <div className="flex-1 min-w-0 pr-1">
+                              <div className="font-bold text-slate-200 truncate flex items-center gap-1.5">
+                                <span className="text-sm">⚽</span>
+                                <span className="truncate flex items-center gap-1.5">
+                                  {user.nome}
+                                  {isSelf && (
+                                    <span className="text-[9px] text-yellow-400 bg-yellow-950/60 border border-yellow-800/40 px-1.5 py-0.5 rounded uppercase font-black tracking-wider shrink-0 select-none">Você</span>
+                                  )}
+                                </span>
+                              </div>
+                              <div className="text-[10px] text-slate-500 font-medium sm:hidden truncate">
+                                {user.cidade}
+                              </div>
                             </div>
+
+                            {/* Stats responsive block */}
+                            <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+                              <div className="hidden sm:flex items-center gap-3 font-mono">
+                                <span className="w-24 text-right text-slate-400 font-sans font-medium truncate hidden lg:inline">{user.cidade}</span>
+                                <span className="w-12 text-center font-bold text-yellow-500">{user.acertos_exato}</span>
+                                <span className="w-12 text-center font-bold text-brand-blue-vibrant">{user.acertos_vencedor}</span>
+                                <span className="w-12 text-center font-semibold text-amber-500">{user.acertos_artilheiro ?? 0}</span>
+                                <span className="w-12 text-center font-bold text-red-500/80">{user.erros}</span>
+                              </div>
+
+                              <div className="flex sm:hidden flex-col items-end text-[10px] text-slate-450 mr-1.5 font-mono leading-none">
+                                <div className="flex gap-1 flex-wrap justify-end">
+                                  <span className="text-yellow-500 font-semibold">{user.acertos_exato}EX</span>
+                                  <span className="text-slate-800">|</span>
+                                  <span className="text-brand-blue-vibrant font-semibold">{user.acertos_vencedor}VC</span>
+                                  <span className="text-slate-800">|</span>
+                                  <span className="text-amber-500 font-semibold">{user.acertos_artilheiro ?? 0}ART</span>
+                                </div>
+                              </div>
+
+                              {/* Total points */}
+                              <span className="w-16 text-right font-black font-mono text-brand-blue-vibrant text-sm">
+                                {user.pontos} p
+                              </span>
+                            </div>
+
                           </div>
+                        );
+                      })}
 
-                          {/* Total points */}
-                          <span className="w-16 text-right font-black font-mono text-brand-blue-vibrant text-sm">
-                            {user.pontos} p
-                          </span>
-                        </div>
+                      {/* Display logged-in user standing if located outside the Top 10 */}
+                      {isUserBelowTop10 && loggedInUserObj && (
+                        <>
+                          <div className="px-4 py-2.5 bg-slate-950 text-center text-[10px] font-black text-slate-500 border-y border-slate-900 tracking-wider uppercase select-none flex items-center justify-center gap-2">
+                            <span>Sua Posição no Campeonato</span>
+                            <div className="h-1.5 w-1.5 rounded-full bg-brand-blue-accent animate-pulse" />
+                          </div>
+                          
+                          <div 
+                            className="px-4 py-3.5 flex items-center text-xs transition gap-2 bg-gradient-to-r from-brand-blue-accent/15 to-slate-900/60 border-l-4 border-brand-blue-accent/90 hover:from-brand-blue-accent/20 hover:to-slate-900/80"
+                          >
+                            
+                            {/* Rank identifier column */}
+                            <span className="w-8 shrink-0 text-center font-black font-mono text-brand-blue-vibrant text-sm">
+                              #{loggedInUserIndex + 1}
+                            </span>
 
-                      </div>
-                    ))
+                            {/* Meta customer data / user cards */}
+                            <div className="flex-1 min-w-0 pr-1">
+                              <div className="font-bold text-slate-200 truncate flex items-center gap-1.5">
+                                <span className="text-sm">⭐</span>
+                                <span className="truncate flex items-center gap-1.5">
+                                  {loggedInUserObj.nome}
+                                  <span className="text-[9px] text-yellow-400 bg-yellow-950/60 border border-yellow-800/40 px-1.5 py-0.5 rounded uppercase font-black tracking-wider shrink-0 select-none">Você</span>
+                                </span>
+                              </div>
+                              <div className="text-[10px] text-slate-500 font-medium sm:hidden truncate">
+                                {loggedInUserObj.cidade}
+                              </div>
+                            </div>
+
+                            {/* Stats responsive block */}
+                            <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+                              <div className="hidden sm:flex items-center gap-3 font-mono">
+                                <span className="w-24 text-right text-slate-400 font-sans font-medium truncate hidden lg:inline">{loggedInUserObj.cidade}</span>
+                                <span className="w-12 text-center font-bold text-yellow-500">{loggedInUserObj.acertos_exato}</span>
+                                <span className="w-12 text-center font-bold text-brand-blue-vibrant">{loggedInUserObj.acertos_vencedor}</span>
+                                <span className="w-12 text-center font-semibold text-amber-500">{loggedInUserObj.acertos_artilheiro ?? 0}</span>
+                                <span className="w-12 text-center font-bold text-red-500/80">{loggedInUserObj.erros}</span>
+                              </div>
+
+                              <div className="flex sm:hidden flex-col items-end text-[10px] text-slate-450 mr-1.5 font-mono leading-none">
+                                <div className="flex gap-1 flex-wrap justify-end">
+                                  <span className="text-yellow-500 font-semibold">{loggedInUserObj.acertos_exato}EX</span>
+                                  <span className="text-slate-800">|</span>
+                                  <span className="text-brand-blue-vibrant font-semibold">{loggedInUserObj.acertos_vencedor}VC</span>
+                                  <span className="text-slate-800">|</span>
+                                  <span className="text-amber-500 font-semibold">{loggedInUserObj.acertos_artilheiro ?? 0}ART</span>
+                                </div>
+                              </div>
+
+                              {/* Total points */}
+                              <span className="w-16 text-right font-black font-mono text-brand-blue-vibrant text-sm">
+                                {loggedInUserObj.pontos} p
+                              </span>
+                            </div>
+
+                          </div>
+                        </>
+                      )}
+                    </>
                   ) : (
                     <div className="py-16 text-center text-xs text-slate-500">
                       Nenhum palpiteiro preenche os termos de filtros especificados.

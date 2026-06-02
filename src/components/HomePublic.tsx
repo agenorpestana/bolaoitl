@@ -380,11 +380,11 @@ export default function HomePublic({
           </div>
 
           {configsCustom?.ad_image && (
-            <div className="w-full max-w-lg mx-auto overflow-hidden rounded-2xl border border-brand-blue-light/35 shadow-xl animate-fadeIn">
+            <div className="w-full max-w-lg mx-auto overflow-hidden bg-transparent animate-fadeIn">
               <img 
                 src={configsCustom.ad_image} 
-                alt="Propaganda" 
-                className="w-full h-auto object-cover max-h-[300px]"
+                alt="Logo / Banner" 
+                className="w-full h-auto object-contain max-h-[400px] mx-auto bg-transparent"
                 referrerPolicy="no-referrer"
               />
             </div>
@@ -819,7 +819,7 @@ export default function HomePublic({
           <div>
             <h3 className="text-sm font-bold text-slate-200">Integração Direta com Provedor</h3>
             <p className="text-xs text-slate-400 mt-1 max-w-lg leading-relaxed">
-              Sistema verificado automatizado via API IXC Soft. Clientes com fatura em dia entram мгновенно, 
+              Sistema verificado automatizado via API IXC Soft. Clientes com fatura em dia entram e participam, 
               sem burocracias de senhas complexas ou inscrições pagas.
             </p>
           </div>
