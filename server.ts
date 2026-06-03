@@ -762,9 +762,9 @@ function migrateGuessesAndPurgeFallbackLibertadores(db: LocalDatabase) {
           migrationCount++;
         }
       });
-      // Add the fallback game's ID to delete list
-      deletedGameIds.push(fallback.id);
     }
+    // ALWAYS delete the fallback match once real API fixtures exist
+    deletedGameIds.push(fallback.id);
   });
 
   if (deletedGameIds.length > 0) {
@@ -932,7 +932,7 @@ function cleanInvalidLibertadoresMatches(db: LocalDatabase) {
     const cleaned = name.toLowerCase()
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "") // remove accents
-      .replace(/[^a-z0-0]/g, "") // remove symbols & spaces
+      .replace(/[^a-z0-9]/g, "") // remove symbols & spaces
       .trim();
 
     // Normalise matches and database keys symmetrically
@@ -940,7 +940,7 @@ function cleanInvalidLibertadoresMatches(db: LocalDatabase) {
       t.toLowerCase()
        .normalize("NFD")
        .replace(/[\u0300-\u036f]/g, "")
-       .replace(/[^a-z0-0]/g, "")
+       .replace(/[^a-z0-9]/g, "")
        .trim()
     );
 
@@ -2134,6 +2134,58 @@ async function saveDatabaseToMySqlIncremental(db: LocalDatabase | null) {
       });
     }
 
+    // Sync into personalizacao table as requested by the user
+    try {
+      const configCustom = (db.configs_custom || {}) as any;
+      const configLogo = (db.configs_logo || {}) as any;
+      const configFavicon = (db.configs_favicon || {}) as any;
+
+      await prisma.personalizacao.upsert({
+        where: { id: 1 },
+        update: {
+          background_image: configCustom.background_image || null,
+          ad_image: configCustom.ad_image || null,
+          header_title_1: configCustom.header_title_1 || null,
+          header_title_2: configCustom.header_title_2 || null,
+          header_description: configCustom.header_description || null,
+          regras: configCustom.regras ? JSON.stringify(configCustom.regras) : null,
+          premiacoes: configCustom.premiacoes ? JSON.stringify(configCustom.premiacoes) : null,
+          recaptcha_active: configCustom.recaptcha_active !== undefined ? Boolean(configCustom.recaptcha_active) : true,
+          recaptcha_site_key: configCustom.recaptcha_site_key || null,
+          recaptcha_secret_key: configCustom.recaptcha_secret_key || null,
+          has_custom_logo: configLogo.has_custom_logo !== undefined ? Boolean(configLogo.has_custom_logo) : false,
+          custom_logo_base64: configLogo.custom_logo_base64 || null,
+          custom_logo_timestamp: configLogo.timestamp !== undefined ? String(configLogo.timestamp) : null,
+          has_custom_favicon: configFavicon.has_custom_favicon !== undefined ? Boolean(configFavicon.has_custom_favicon) : false,
+          custom_favicon_base64: configFavicon.custom_favicon_base64 || null,
+          custom_favicon_extension: configFavicon.extension || null,
+          custom_favicon_timestamp: configFavicon.timestamp !== undefined ? String(configFavicon.timestamp) : null,
+        },
+        create: {
+          id: 1,
+          background_image: configCustom.background_image || null,
+          ad_image: configCustom.ad_image || null,
+          header_title_1: configCustom.header_title_1 || null,
+          header_title_2: configCustom.header_title_2 || null,
+          header_description: configCustom.header_description || null,
+          regras: configCustom.regras ? JSON.stringify(configCustom.regras) : null,
+          premiacoes: configCustom.premiacoes ? JSON.stringify(configCustom.premiacoes) : null,
+          recaptcha_active: configCustom.recaptcha_active !== undefined ? Boolean(configCustom.recaptcha_active) : true,
+          recaptcha_site_key: configCustom.recaptcha_site_key || null,
+          recaptcha_secret_key: configCustom.recaptcha_secret_key || null,
+          has_custom_logo: configLogo.has_custom_logo !== undefined ? Boolean(configLogo.has_custom_logo) : false,
+          custom_logo_base64: configLogo.custom_logo_base64 || null,
+          custom_logo_timestamp: configLogo.timestamp !== undefined ? String(configLogo.timestamp) : null,
+          has_custom_favicon: configFavicon.has_custom_favicon !== undefined ? Boolean(configFavicon.has_custom_favicon) : false,
+          custom_favicon_base64: configFavicon.custom_favicon_base64 || null,
+          custom_favicon_extension: configFavicon.extension || null,
+          custom_favicon_timestamp: configFavicon.timestamp !== undefined ? String(configFavicon.timestamp) : null,
+        }
+      });
+    } catch (errPersSave: any) {
+      console.error("[MySql Sync Error] Failed to incremental save Site Personalization metrics:", errPersSave.message);
+    }
+
     // 5. Sync audit logs
     const lastDBSavedLog = await prisma.auditLog.findFirst({
       orderBy: { id: "desc" }
@@ -2187,6 +2239,45 @@ async function loadDatabaseFromMySql(): Promise<LocalDatabase> {
       }
     });
   }
+
+  let dbPers = await prisma.personalizacao.findFirst();
+  if (!dbPers) {
+    dbPers = await prisma.personalizacao.create({
+      data: {
+        id: 1,
+        background_image: "",
+        ad_image: "",
+        header_title_1: "CARTOLA ITL",
+        header_title_2: "PROVEDOR ITLFIBRA",
+        header_description: "Mostre suas habilidades de palpite, crave placares exatos das maiores seleções e dispute um ano de internet grátis, TVs, consoles de última geração e prêmios incríveis!",
+        regras: JSON.stringify([
+          { id: 1, titulo: "Participação Gratuita", texto: "Bolão exclusivo para clientes ativos do nosso provedor, sem custo adicional." },
+          { id: 2, titulo: "Bloqueio Prévio", texto: "As apostas para cada partida serão encerradas exatamente 1 hora antes do início configurado pelo horário do servidor." },
+          { id: 3, titulo: "Sistemática de Pontos", texto: "Acordo de vencedor: 4 pontos. Empate: 4 pontos. Placar Exato: +6 pontos bônus (totalizando 10 pontos)." },
+          { id: 4, titulo: "Validação Mensal", texto: "Em caso de inadimplência no provedor, o acesso pode ser temporariamente suspenso até a regularização cadastral automática." }
+        ]),
+        premiacoes: JSON.stringify([
+          { posicao: "1º Lugar Geral (Final da Copa)", premio: "1 Ano de Internet Grátis", detalhes: "Grande campeão do Bolão Geral ao final do torneio." },
+          { posicao: "1º Lugar de Cada Rodada", premio: "1 Mês de Internet Grátis + Brinde Exclusivo", detalhes: "Para o maior pontuador individual de cada rodada da Copa." },
+          { posicao: "2º Lugar de Cada Rodada", premio: "1 Mês de Internet Grátis", detalhes: "Para o segundo colocado de cada rodada individual." },
+          { posicao: "3º Lugar de Cada Rodada", premio: "Um Brinde Exclusivo da ITLFIBRA", detalhes: "Para o terceiro colocado de cada rodada individual." }
+        ]),
+        recaptcha_active: true,
+        recaptcha_site_key: "6Lf4qjAsAAAAAXVXGhzCDJpaV1VtWDZOdWl4jI",
+        recaptcha_secret_key: "6Lf4qjAsAAAAAC3zwCjx0i7k_UNzaiPSUKw34AOy"
+      }
+    });
+  }
+
+  let customRules: any[] = [];
+  try {
+    customRules = dbPers.regras ? JSON.parse(dbPers.regras) : [];
+  } catch (e) {}
+
+  let customAwards: any[] = [];
+  try {
+    customAwards = dbPers.premiacoes ? JSON.parse(dbPers.premiacoes) : [];
+  } catch (e) {}
 
   const dbLogs = await prisma.auditLog.findMany({
     orderBy: { data: "desc" },
@@ -2349,6 +2440,29 @@ async function loadDatabaseFromMySql(): Promise<LocalDatabase> {
     },
     configs_brasileirao: {
       ativo: isBrasileiraoAtivo
+    },
+    configs_custom: {
+      background_image: dbPers.background_image || "",
+      ad_image: dbPers.ad_image || "",
+      header_title_1: dbPers.header_title_1 || "CARTOLA ITL",
+      header_title_2: dbPers.header_title_2 || "PROVEDOR ITLFIBRA",
+      header_description: dbPers.header_description || "",
+      regras: customRules,
+      premiacoes: customAwards,
+      recaptcha_active: dbPers.recaptcha_active !== null ? Boolean(dbPers.recaptcha_active) : true,
+      recaptcha_site_key: dbPers.recaptcha_site_key || "6Lf4qjAsAAAAAXVXGhzCDJpaV1VtWDZOdWl4jI",
+      recaptcha_secret_key: dbPers.recaptcha_secret_key || "6Lf4qjAsAAAAAC3zwCjx0i7k_UNzaiPSUKw34AOy"
+    },
+    configs_logo: {
+      has_custom_logo: dbPers.has_custom_logo || false,
+      timestamp: dbPers.custom_logo_timestamp ? Number(dbPers.custom_logo_timestamp) : Date.now(),
+      custom_logo_base64: dbPers.custom_logo_base64 || undefined
+    },
+    configs_favicon: {
+      has_custom_favicon: dbPers.has_custom_favicon || false,
+      timestamp: dbPers.custom_favicon_timestamp ? Number(dbPers.custom_favicon_timestamp) : Date.now(),
+      extension: dbPers.custom_favicon_extension || "ico",
+      custom_favicon_base64: dbPers.custom_favicon_base64 || undefined
     }
   };
 }
@@ -2380,6 +2494,15 @@ async function initializeDatabase() {
       await prisma.$queryRaw`SELECT 1 FROM usuarios LIMIT 1`;
       schemaIsPushed = true;
       console.log("[MySql Sync] Table structure looks correct (table 'usuarios' found). Skipping schema push to prevent data loss.");
+
+      // For site personalization: check if table 'personalizacao' exists
+      try {
+        await prisma.$queryRaw`SELECT 1 FROM personalizacao LIMIT 1`;
+        console.log("[MySql Sync] Table 'personalizacao' verified.");
+      } catch (errPers: any) {
+        console.log("[MySql Sync] Table 'personalizacao' doesn't exist. Forcing db push to synchronize customization schema: ", errPers.message);
+        schemaIsPushed = false;
+      }
 
       try {
         await prisma.$executeRawUnsafe("ALTER TABLE usuarios MODIFY COLUMN avatar VARCHAR(255) DEFAULT '⚽'");

@@ -140,3 +140,26 @@ model ApiToken {
 
   @@map("api_tokens")
 }
+
+model Personalizacao {
+  id                       Int      @id @default(1)
+  background_image         String?  @db.LongText
+  ad_image                 String?  @db.LongText
+  header_title_1           String?  @db.VarChar(255)
+  header_title_2           String?  @db.VarChar(255)
+  header_description       String?  @db.Text
+  regras                   String?  @db.Text
+  premiacoes               String?  @db.Text
+  recaptcha_active         Boolean? @default(true)
+  recaptcha_site_key       String?  @db.VarChar(255)
+  recaptcha_secret_key     String?  @db.VarChar(255)
+  has_custom_logo          Boolean? @default(false)
+  custom_logo_base64       String?  @db.LongText
+  custom_logo_timestamp    String?  @db.VarChar(50)
+  has_custom_favicon       Boolean? @default(false)
+  custom_favicon_base64    String?  @db.LongText
+  custom_favicon_extension String?  @db.VarChar(10)
+  custom_favicon_timestamp String?  @db.VarChar(50)
+
+  @@map("personalizacao")
+}
