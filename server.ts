@@ -692,6 +692,101 @@ function translateAllGamesInDb(db: any) {
   }
 }
 
+function cleanTeamNameLocal(name: string): string {
+  if (!name) return "";
+  return name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // remove accents
+    .replace(/\b(fc|sc|sd|cd|de|del|la|atletico|esporte|sporting|deportivo|club|clube|independiente|independ|riva|mvd|uru|lp|de quito|quito|barranquilla)\b/g, "")
+    .replace(/[^a-z0-9]/g, "") // remove special characters & spaces
+    .trim();
+}
+
+function teamsMatch(nameA: string, nameB: string): boolean {
+  if (!nameA || !nameB) return false;
+  const normA = nameA.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+  const normB = nameB.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+  
+  if (normA === normB) return true;
+  if (normA.includes(normB) || normB.includes(normA)) return true;
+
+  // LDU match
+  if (normA.startsWith("ldu") && normB.startsWith("ldu")) return true;
+  // Barcelona match
+  if ((normA.includes("barcelona") || normA.includes("bar.")) && (normB.includes("barcelona") || normB.includes("bar."))) return true;
+
+  const cleanA = cleanTeamNameLocal(nameA);
+  const cleanB = cleanTeamNameLocal(nameB);
+  if (cleanA === cleanB) return true;
+
+  // Split by words
+  const wordListA = normA.split(/[^a-z0-9]/).filter(w => w.length >= 4);
+  const wordListB = normB.split(/[^a-z0-9]/).filter(w => w.length >= 4);
+  const exclude = ["club", "clube", "deportivo", "independiente", "junior", "nacional"];
+  for (const wA of wordListA) {
+    if (exclude.includes(wA)) continue;
+    for (const wB of wordListB) {
+      if (wA === wB) return true;
+    }
+  }
+  return false;
+}
+
+function migrateGuessesAndPurgeFallbackLibertadores(db: LocalDatabase) {
+  const fallbackGames = db.jogos.filter(j => j.api_id?.startsWith("libertadores_r"));
+  const realGames = db.jogos.filter(j => j.api_id?.startsWith("libertadores_soccer_"));
+
+  if (realGames.length === 0) {
+    return; // No real API matches synchronized yet, keep fallbacks for display
+  }
+
+  console.log(`[Database Migration] Migrating user guesses from fallback matches to real Football API-Sports matches...`);
+  let migrationCount = 0;
+  const deletedGameIds: number[] = [];
+
+  fallbackGames.forEach(fallback => {
+    // Find matching real game in the same round (rodada)
+    const matchedReal = realGames.find(real => 
+      real.rodada === fallback.rodada && 
+      teamsMatch(fallback.time_casa, real.time_casa) && 
+      teamsMatch(fallback.time_fora, real.time_fora)
+    );
+
+    if (matchedReal) {
+      // Find all user guesses pointing to the fallback.id
+      db.palpites.forEach(palpite => {
+        if (palpite.jogo_id === fallback.id) {
+          // Point to real game's ID
+          palpite.jogo_id = matchedReal.id;
+          migrationCount++;
+        }
+      });
+      // Add the fallback game's ID to delete list
+      deletedGameIds.push(fallback.id);
+    }
+  });
+
+  if (deletedGameIds.length > 0) {
+    // Remove the fallback games from database
+    db.jogos = db.jogos.filter(j => !deletedGameIds.includes(j.id));
+    console.log(`[Database Migration] Purged ${deletedGameIds.length} fallback games. Migrated ${migrationCount} guesses.`);
+    
+    // Also perform safe deletion on MySQL side if Prisma is connected
+    if (typeof prisma !== 'undefined' && prisma) {
+      prisma.jogo.deleteMany({
+        where: { id: { in: deletedGameIds } }
+      })
+      .then(res => {
+        console.log(`[Database Migration MySQL] Deleted ${res.count} fallback rows from MySQL.`);
+      })
+      .catch(err => {
+        console.error("[Database Migration MySQL Error] Direct delete failed:", err.message);
+      });
+    }
+  }
+}
+
 function getTeamFlag(teamName: string): string {
   const name = teamName.toLowerCase().trim();
   if (name.includes("brazil") || name.includes("brasil")) return "🇧🇷";
@@ -769,7 +864,7 @@ function parseRoundNumber(roundStr: string, isLibertadores = false): number {
     if (norm.includes("group stage - 5") || norm.includes("rodada 5")) return 5;
     if (norm.includes("group stage - 6") || norm.includes("rodada 6")) return 6;
     
-    if (norm.includes("16") || norm.includes("eighth") || norm.includes("oitavas")) return 7;
+    if (norm.includes("16") || norm.includes("eighth") || norm.includes("oitavas") || norm.includes("8th")) return 7;
     if (norm.includes("quarter") || norm.includes("quartas")) return 8;
     if (norm.includes("semi")) return 9;
     if (norm.includes("final")) return 10;
@@ -780,7 +875,7 @@ function parseRoundNumber(roundStr: string, isLibertadores = false): number {
   if (norm.includes("group stage - 2") || norm.includes("rodada 2")) return 2;
   if (norm.includes("group stage - 3") || norm.includes("rodada 3")) return 3;
   if (norm.includes("32")) return 4;
-  if (norm.includes("16") || norm.includes("eighth") || norm.includes("oitavas")) return 5;
+  if (norm.includes("16") || norm.includes("eighth") || norm.includes("oitavas") || norm.includes("8th")) return 5;
   if (norm.includes("quarter") || norm.includes("quartas")) return 6;
   if (norm.includes("semi")) return 7;
   if (norm.includes("final")) return 8;
@@ -1024,7 +1119,7 @@ async function syncLeagueFromApi(db: LocalDatabase, leagueId: number): Promise<{
       let existing = db.jogos.find(j => j.api_id === apiId);
       if (!existing) {
         existing = db.jogos.find(j => 
-          (normalizeTeamName(j.time_casa) === normalizeTeamName(timeCasa) && normalizeTeamName(j.time_fora) === normalizeTeamName(timeFora))
+          teamsMatch(j.time_casa, timeCasa) && teamsMatch(j.time_fora, timeFora)
         );
       }
 
@@ -1060,6 +1155,8 @@ async function syncLeagueFromApi(db: LocalDatabase, leagueId: number): Promise<{
         updatedCount++;
       }
     }
+    cleanInvalidLibertadoresMatches(db);
+    migrateGuessesAndPurgeFallbackLibertadores(db);
   } else if (leagueId === 71) { // BRASILEIRAO
     console.log(`[Auto-Sync Engine] Fetching Brasileirao (League 71) Season 2026...`);
     const response = await axios.get(`${apiUrl}/fixtures`, {
@@ -2466,6 +2563,9 @@ async function initializeDatabase() {
     if (hasModifiedDb) {
       saveDatabase(cachedDb);
     }
+
+    // Clean up fallback matches on startup if real API games are already synced/imported
+    migrateGuessesAndPurgeFallbackLibertadores(cachedDb);
 
     // Recalculate leaderboard / rankings scores for all users and games on startup
     // to correct any legacy scoring defects instantly!
@@ -4981,11 +5081,11 @@ async function startServer() {
         }
 
         let existing = db.jogos.find(j => j.api_id === apiId);
-          if (!existing) {
-            existing = db.jogos.find(j => 
-              (normalizeTeamName(j.time_casa) === normalizeTeamName(timeCasa) && normalizeTeamName(j.time_fora) === normalizeTeamName(timeFora))
-            );
-          }
+        if (!existing) {
+          existing = db.jogos.find(j => 
+            teamsMatch(j.time_casa, timeCasa) && teamsMatch(j.time_fora, timeFora)
+          );
+        }
         if (!existing) {
           const newId = db.jogos.length > 0 ? Math.max(...db.jogos.map(j => j.id)) + 1 : 1;
           db.jogos.push({
@@ -5021,6 +5121,7 @@ async function startServer() {
     }
 
     cleanInvalidLibertadoresMatches(db);
+    migrateGuessesAndPurgeFallbackLibertadores(db);
     saveDatabase(db);
     addLog("Admin (Suporte)", "SYNC_LIBERTADORES", `Sincronizou jogos Libertadores: ${addedCount} adicionados, ${updatedCount} atualizados`, req);
     
