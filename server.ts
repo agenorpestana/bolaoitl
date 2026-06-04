@@ -1919,459 +1919,280 @@ function triggerMySqlSync() {
     });
 }
 
-let lastSyncedDbState: LocalDatabase | null = null;
-
-function isUsuarioDifferent(u1: any, u2: any): boolean {
-  if (!u1 || !u2) return true;
-  return (
-    (u1.ixc_id || "").toString() !== (u2.ixc_id || "").toString() ||
-    (u1.nome || "").trim() !== (u2.nome || "").trim() ||
-    (u1.cpf_cnpj || "").replace(/\D/g, "") !== (u2.cpf_cnpj || "").replace(/\D/g, "") ||
-    (u1.telefone || "").toString() !== (u2.telefone || "").toString() ||
-    (u1.email || "").toLowerCase().trim() !== (u2.email || "").toLowerCase().trim() ||
-    (u1.cidade || "").trim() !== (u2.cidade || "").trim() ||
-    (u1.avatar || "⚽") !== (u2.avatar || "⚽") ||
-    Number(u1.pontos_total || 0) !== Number(u2.pontos_total || 0) ||
-    Number(u1.acertos_exato || 0) !== Number(u2.acertos_exato || 0) ||
-    Number(u1.acertos_vencedor || 0) !== Number(u2.acertos_vencedor || 0) ||
-    Number(u1.erros || 0) !== Number(u2.erros || 0) ||
-    Boolean(u1.bloqueado) !== Boolean(u2.bloqueado)
-  );
-}
-
-function isJogoDifferent(j1: any, j2: any): boolean {
-  if (!j1 || !j2) return true;
-
-  const d1 = j1.data_jogo ? new Date(j1.data_jogo).getTime() : 0;
-  const d2 = j2.data_jogo ? new Date(j2.data_jogo).getTime() : 0;
-
-  return (
-    (j1.api_id || "").toString() !== (j2.api_id || "").toString() ||
-    (j1.time_casa || "").trim() !== (j2.time_casa || "").trim() ||
-    (j1.time_fora || "").trim() !== (j2.time_fora || "").trim() ||
-    (j1.time_casa_bandeira || "") !== (j2.time_casa_bandeira || "") ||
-    (j1.time_fora_bandeira || "") !== (j2.time_fora_bandeira || "") ||
-    d1 !== d2 ||
-    (j1.placar_casa !== null && j1.placar_casa !== undefined ? Number(j1.placar_casa) : null) !== (j2.placar_casa !== null && j2.placar_casa !== undefined ? Number(j2.placar_casa) : null) ||
-    (j1.placar_fora !== null && j1.placar_fora !== undefined ? Number(j1.placar_fora) : null) !== (j2.placar_fora !== null && j2.placar_fora !== undefined ? Number(j2.placar_fora) : null) ||
-    (j1.status || "PENDENTE") !== (j2.status || "PENDENTE") ||
-    (j1.status_detalhado || "NS") !== (j2.status_detalhado || "NS") ||
-    Number(j1.rodada || 1) !== Number(j2.rodada || 1)
-  );
-}
-
-function isPalpiteDifferent(p1: any, p2: any): boolean {
-  if (!p1 || !p2) return true;
-  return (
-    (p1.placar_casa !== null && p1.placar_casa !== undefined ? Number(p1.placar_casa) : null) !== (p2.placar_casa !== null && p2.placar_casa !== undefined ? Number(p2.placar_casa) : null) ||
-    (p1.placar_fora !== null && p1.placar_fora !== undefined ? Number(p1.placar_fora) : null) !== (p2.placar_fora !== null && p2.placar_fora !== undefined ? Number(p2.placar_fora) : null) ||
-    Number(p1.pontos || 0) !== Number(p2.pontos || 0) ||
-    JSON.stringify(p1.palpites_gols_jogadores || null) !== JSON.stringify(p2.palpites_gols_jogadores || null)
-  );
-}
-
-function isAdminDifferent(a1: any, a2: any): boolean {
-  if (!a1 || !a2) return true;
-  return (
-    (a1.email || "").toLowerCase().trim() !== (a2.email || "").toLowerCase().trim() ||
-    (a1.nome || "").trim() !== (a2.nome || "").trim() ||
-    (a1.senha || "200616") !== (a2.senha || "200616") ||
-    Boolean(a1.podeExcluir !== false) !== Boolean(a2.podeExcluir !== false) ||
-    Boolean(a1.podeEditar !== false) !== Boolean(a2.podeEditar !== false) ||
-    Boolean(a1.podeAtivarCampeonato !== false) !== Boolean(a2.podeAtivarCampeonato !== false)
-  );
-}
-
 async function saveDatabaseToMySqlIncremental(db: LocalDatabase | null) {
   if (!prisma || !db) return;
 
   try {
-    let usersToSync = db.usuarios;
-    let gamesToSync = db.jogos;
-    let betsToSync = db.palpites;
-    let adminsToSync = db.admins || [];
-    
-    let usersToDelete: number[] = [];
-    let gamesToDelete: number[] = [];
-    let betsToDelete: Array<{ usuario_id: number; jogo_id: number }> = [];
-    let adminsToDelete: number[] = [];
-
-    const isFullSync = !lastSyncedDbState;
-
-    if (!isFullSync && lastSyncedDbState) {
-      // 1. Detect modified/new users
-      usersToSync = db.usuarios.filter(u => {
-        const prev = lastSyncedDbState!.usuarios.find(x => x.id === u.id);
-        return !prev || isUsuarioDifferent(u, prev);
-      });
-      // Detect deleted users
-      usersToDelete = lastSyncedDbState.usuarios
-        .filter(prev => !db.usuarios.some(x => x.id === prev.id))
-        .map(x => x.id);
-
-      // 2. Detect modified/new games
-      gamesToSync = db.jogos.filter(g => {
-        const prev = lastSyncedDbState!.jogos.find(x => x.id === g.id);
-        return !prev || isJogoDifferent(g, prev);
-      });
-      // Detect deleted games
-      gamesToDelete = lastSyncedDbState.jogos
-        .filter(prev => !db.jogos.some(x => x.id === prev.id))
-        .map(x => x.id);
-
-      // 3. Detect modified/new bets (palpites)
-      betsToSync = db.palpites.filter(p => {
-        const prev = lastSyncedDbState!.palpites.find(x => x.usuario_id === p.usuario_id && x.jogo_id === p.jogo_id);
-        return !prev || isPalpiteDifferent(p, prev);
-      });
-      // Detect deleted bets
-      betsToDelete = lastSyncedDbState.palpites
-        .filter(prev => !db.palpites.some(x => x.usuario_id === prev.usuario_id && x.jogo_id === prev.jogo_id))
-        .map(x => ({ usuario_id: x.usuario_id, jogo_id: x.jogo_id }));
-
-      // 4. Detect modified/new admins
-      adminsToSync = (db.admins || []).filter(a => {
-        const prev = (lastSyncedDbState!.admins || []).find(x => x.id === a.id);
-        return !prev || isAdminDifferent(a, prev);
-      });
-      // Detect deleted admins
-      adminsToDelete = (lastSyncedDbState.admins || [])
-        .filter(prev => !(db.admins || []).some(x => x.id === prev.id))
-        .map(x => x.id);
-    }
-
-    // A. Sync deleted items first
-    if (usersToDelete.length > 0) {
-      console.log(`[MySql Async Sync] Syncing deletion of ${usersToDelete.length} users from MySQL`);
-      await prisma.usuario.deleteMany({
-        where: { id: { in: usersToDelete } }
-      });
-    }
-
-    if (gamesToDelete.length > 0) {
-      console.log(`[MySql Async Sync] Syncing deletion of ${gamesToDelete.length} games from MySQL`);
-      await prisma.jogo.deleteMany({
-        where: { id: { in: gamesToDelete } }
-      });
-    }
-
-    if (betsToDelete.length > 0) {
-      console.log(`[MySql Async Sync] Syncing deletion of ${betsToDelete.length} bets from MySQL`);
-      await Promise.all(
-        betsToDelete.map(b =>
-          prisma!.palpite.delete({
-            where: {
-              usuario_id_jogo_id: {
-                usuario_id: b.usuario_id,
-                jogo_id: b.jogo_id
-              }
-            }
-          }).catch(() => {})
-        )
-      );
-    }
-
-    if (adminsToDelete.length > 0) {
-      console.log(`[MySql Async Sync] Syncing deletion of ${adminsToDelete.length} admins from MySQL`);
-      await prisma.admin.deleteMany({
-        where: { id: { in: adminsToDelete } }
-      });
-    }
-
-    // B. Sync modified/created Users in chunks of 20 to prevent query overflow
-    if (usersToSync.length > 0) {
-      console.log(`[MySql Async Sync] Syncing ${usersToSync.length} modified/new users to MySQL`);
-      const chunkSize = 20;
-      for (let i = 0; i < usersToSync.length; i += chunkSize) {
-        const chunk = usersToSync.slice(i, i + chunkSize);
-        await Promise.all(
-          chunk.map(async (u) => {
-            try {
-              await prisma!.usuario.upsert({
-                where: { id: u.id },
-                update: {
-                  ixc_id: u.ixc_id,
-                  nome: u.nome,
-                  cpf_cnpj: u.cpf_cnpj,
-                  telefone: u.telefone,
-                  email: u.email,
-                  cidade: u.cidade,
-                  avatar: u.avatar || "⚽",
-                  pontos_total: u.pontos_total,
-                  acertos_exato: u.acertos_exato,
-                  acertos_vencedor: u.acertos_vencedor,
-                  erros: u.erros,
-                  bloqueado: u.bloqueado
-                },
-                create: {
-                  id: u.id,
-                  ixc_id: u.ixc_id,
-                  nome: u.nome,
-                  cpf_cnpj: u.cpf_cnpj,
-                  telefone: u.telefone,
-                  email: u.email,
-                  cidade: u.cidade,
-                  avatar: u.avatar || "⚽",
-                  pontos_total: u.pontos_total,
-                  acertos_exato: u.acertos_exato,
-                  acertos_vencedor: u.acertos_vencedor,
-                  erros: u.erros,
-                  bloqueado: u.bloqueado,
-                  created_at: new Date(u.created_at)
-                }
-              });
-            } catch (err: any) {
-              console.error(`[MySql Sync] Failed to upsert user ID ${u.id} (${u.nome}):`, err.message);
-            }
-          })
-        );
+    // 1. Sync clients (Usuario)
+    for (const u of db.usuarios) {
+      try {
+        await prisma.usuario.upsert({
+          where: { id: u.id },
+          update: {
+            ixc_id: u.ixc_id,
+            nome: u.nome,
+            cpf_cnpj: u.cpf_cnpj,
+            telefone: u.telefone,
+            email: u.email,
+            cidade: u.cidade,
+            avatar: u.avatar || "⚽",
+            pontos_total: u.pontos_total,
+            acertos_exato: u.acertos_exato,
+            acertos_vencedor: u.acertos_vencedor,
+            erros: u.erros,
+            bloqueado: u.bloqueado
+          },
+          create: {
+            id: u.id,
+            ixc_id: u.ixc_id,
+            nome: u.nome,
+            cpf_cnpj: u.cpf_cnpj,
+            telefone: u.telefone,
+            email: u.email,
+            cidade: u.cidade,
+            avatar: u.avatar || "⚽",
+            pontos_total: u.pontos_total,
+            acertos_exato: u.acertos_exato,
+            acertos_vencedor: u.acertos_vencedor,
+            erros: u.erros,
+            bloqueado: u.bloqueado,
+            created_at: new Date(u.created_at)
+          }
+        });
+      } catch (err: any) {
+        console.error(`[MySql Sync] Failed to upsert user ID ${u.id} (${u.nome}):`, err.message);
       }
     }
 
-    // C. Sync modified/created Games in chunks of 20 to prevent query overflow
-    if (gamesToSync.length > 0) {
-      console.log(`[MySql Async Sync] Syncing ${gamesToSync.length} modified/new games to MySQL`);
-      const chunkSize = 20;
-      for (let i = 0; i < gamesToSync.length; i += chunkSize) {
-        const chunk = gamesToSync.slice(i, i + chunkSize);
-        await Promise.all(
-          chunk.map(async (g) => {
-            try {
-              await prisma!.jogo.upsert({
-                where: { id: g.id },
-                update: {
-                  api_id: g.api_id,
-                  time_casa: g.time_casa,
-                  time_fora: g.time_fora,
-                  time_casa_bandeira: g.time_casa_bandeira || "🏳️",
-                  time_fora_bandeira: g.time_fora_bandeira || "🏳️",
-                  data_jogo: new Date(g.data_jogo),
-                  placar_casa: g.placar_casa,
-                  placar_fora: g.placar_fora,
-                  status: g.status,
-                  status_detalhado: g.status_detalhado || "NS",
-                  rodada: g.rodada
-                },
-                create: {
-                  id: g.id,
-                  api_id: g.api_id,
-                  time_casa: g.time_casa,
-                  time_fora: g.time_fora,
-                  time_casa_bandeira: g.time_casa_bandeira || "🏳️",
-                  time_fora_bandeira: g.time_fora_bandeira || "🏳️",
-                  data_jogo: new Date(g.data_jogo),
-                  placar_casa: g.placar_casa,
-                  placar_fora: g.placar_fora,
-                  status: g.status,
-                  status_detalhado: g.status_detalhado || "NS",
-                  rodada: g.rodada
-                }
-              });
-            } catch (err: any) {
-              console.error(`[MySql Sync] Failed to upsert game ID ${g.id} (${g.time_casa} x ${g.time_fora}):`, err.message);
-            }
-          })
-        );
+    // 2. Sync games (Jogo)
+    for (const g of db.jogos) {
+      try {
+        await prisma.jogo.upsert({
+          where: { id: g.id },
+          update: {
+            api_id: g.api_id,
+            time_casa: g.time_casa,
+            time_fora: g.time_fora,
+            time_casa_bandeira: g.time_casa_bandeira || "🏳️",
+            time_fora_bandeira: g.time_fora_bandeira || "🏳️",
+            data_jogo: new Date(g.data_jogo),
+            placar_casa: g.placar_casa,
+            placar_fora: g.placar_fora,
+            status: g.status,
+            status_detalhado: g.status_detalhado || "NS",
+            rodada: g.rodada
+          },
+          create: {
+            id: g.id,
+            api_id: g.api_id,
+            time_casa: g.time_casa,
+            time_fora: g.time_fora,
+            time_casa_bandeira: g.time_casa_bandeira || "🏳️",
+            time_fora_bandeira: g.time_fora_bandeira || "🏳️",
+            data_jogo: new Date(g.data_jogo),
+            placar_casa: g.placar_casa,
+            placar_fora: g.placar_fora,
+            status: g.status,
+            status_detalhado: g.status_detalhado || "NS",
+            rodada: g.rodada
+          }
+        });
+      } catch (err: any) {
+        console.error(`[MySql Sync] Failed to upsert game ID ${g.id} (${g.time_casa} x ${g.time_fora}):`, err.message);
       }
     }
 
-    // D. Sync modified/created Bets (Palpites) optimized with Set O(1) membership check and chunked execution
-    if (betsToSync.length > 0) {
-      console.log(`[MySql Async Sync] Syncing ${betsToSync.length} modified/new bets to MySQL`);
-      const userIdsSet = new Set(db.usuarios.map(u => u.id));
-      const gameIdsSet = new Set(db.jogos.map(g => g.id));
-      
-      const filteredBetsToSync = betsToSync.filter(p => userIdsSet.has(p.usuario_id) && gameIdsSet.has(p.jogo_id));
+    // 3. Sync bets (Palpite)
+    for (const p of db.palpites) {
+      try {
+        const userExist = db.usuarios.some(u => u.id === p.usuario_id);
+        const gameExist = db.jogos.some(g => g.id === p.jogo_id);
+        if (!userExist || !gameExist) {
+          console.warn(`[MySql Sync] Skipping bet ID ${p.id}: userExist=${userExist}, gameExist=${gameExist}`);
+          continue;
+        }
 
-      const chunkSize = 20;
-      for (let i = 0; i < filteredBetsToSync.length; i += chunkSize) {
-        const chunk = filteredBetsToSync.slice(i, i + chunkSize);
-        await Promise.all(
-          chunk.map(async (p) => {
-            try {
-              await prisma!.palpite.upsert({
-                where: {
-                  usuario_id_jogo_id: {
-                    usuario_id: p.usuario_id,
-                    jogo_id: p.jogo_id
-                  }
-                },
-                update: {
-                  placar_casa: p.placar_casa,
-                  placar_fora: p.placar_fora,
-                  pontos: p.pontos,
-                  gols_jogadores: p.palpites_gols_jogadores ? JSON.stringify(p.palpites_gols_jogadores) : null
-                },
-                create: {
-                  usuario_id: p.usuario_id,
-                  jogo_id: p.jogo_id,
-                  placar_casa: p.placar_casa,
-                  placar_fora: p.placar_fora,
-                  pontos: p.pontos,
-                  gols_jogadores: p.palpites_gols_jogadores ? JSON.stringify(p.palpites_gols_jogadores) : null,
-                  created_at: new Date(p.created_at)
-                }
-              });
-            } catch (err: any) {
-              console.error(`[MySql Sync] Failed to upsert bet (user ID ${p.usuario_id}, game ID ${p.jogo_id}):`, err.message);
+        // Upsert by compound unique constraint usuario_id_jogo_id to prevent duplicate key constraint crashes
+        await prisma.palpite.upsert({
+          where: {
+            usuario_id_jogo_id: {
+              usuario_id: p.usuario_id,
+              jogo_id: p.jogo_id
             }
-          })
-        );
+          },
+          update: {
+            placar_casa: p.placar_casa,
+            placar_fora: p.placar_fora,
+            pontos: p.pontos,
+            gols_jogadores: p.palpites_gols_jogadores ? JSON.stringify(p.palpites_gols_jogadores) : null
+          },
+          create: {
+            usuario_id: p.usuario_id,
+            jogo_id: p.jogo_id,
+            placar_casa: p.placar_casa,
+            placar_fora: p.placar_fora,
+            pontos: p.pontos,
+            gols_jogadores: p.palpites_gols_jogadores ? JSON.stringify(p.palpites_gols_jogadores) : null,
+            created_at: new Date(p.created_at)
+          }
+        });
+      } catch (err: any) {
+        console.error(`[MySql Sync] Failed to upsert bet ID ${p.id} (user ID ${p.usuario_id}, game ID ${p.jogo_id}):`, err.message);
       }
     }
 
-    // E. Sync configs ONLY if changed
-    const configsChanged = isFullSync || (
-      JSON.stringify(db.configs_ixc) !== JSON.stringify(lastSyncedDbState!.configs_ixc) ||
-      JSON.stringify(db.configs_points) !== JSON.stringify(lastSyncedDbState!.configs_points) ||
-      JSON.stringify(db.configs_football) !== JSON.stringify(lastSyncedDbState!.configs_football) ||
-      db.configs_libertadores?.ativo !== lastSyncedDbState!.configs_libertadores?.ativo ||
-      db.configs_copa_mundo?.ativo !== lastSyncedDbState!.configs_copa_mundo?.ativo ||
-      db.configs_brasileirao?.ativo !== lastSyncedDbState!.configs_brasileirao?.ativo
-    );
+    // 4. Sync Configs (Configuracoes)
+    const isLibAtivoStr = db.configs_libertadores?.ativo ? "true" : "false";
+    const isCopaAtivoStr = db.configs_copa_mundo?.ativo !== false ? "true" : "false";
+    const isBrasileiraoAtivoStr = db.configs_brasileirao?.ativo ? "true" : "false";
+    const ixcChaveCompound = `${db.configs_ixc.chave || ""}|libertadores:${isLibAtivoStr}|copa:${isCopaAtivoStr}|brasileirao:${isBrasileiraoAtivoStr}`;
 
-    if (configsChanged) {
-      console.log(`[MySql Async Sync] Syncing updated configuration parameters to MySQL`);
-      const isLibAtivoStr = db.configs_libertadores?.ativo ? "true" : "false";
-      const isCopaAtivoStr = db.configs_copa_mundo?.ativo !== false ? "true" : "false";
-      const isBrasileiraoAtivoStr = db.configs_brasileirao?.ativo ? "true" : "false";
-      const ixcChaveCompound = `${db.configs_ixc.chave || ""}|libertadores:${isLibAtivoStr}|copa:${isCopaAtivoStr}|brasileirao:${isBrasileiraoAtivoStr}`;
+    await prisma.configuracoes.upsert({
+      where: { id: 1 },
+      update: {
+        ixc_url: db.configs_ixc.url,
+        ixc_token: db.configs_ixc.token,
+        ixc_chave: ixcChaveCompound,
+        ixc_timeout: db.configs_ixc.timeout,
+        ixc_offline_mode: db.configs_ixc.offline_mode,
+        points_vencedor: db.configs_points.pontos_acertar_vencedor,
+        points_empate: db.configs_points.pontos_acertar_empate,
+        points_placar_exato: db.configs_points.pontos_acertar_placar_exato,
+        points_autor_gol: db.configs_points.pontos_acertar_autor_gol || 7,
+        bonus_rodada: db.configs_points.bonus_rodada,
+        bonus_sequencia: db.configs_points.bonus_sequencia,
+        bonus_jogos_perfeitos: db.configs_points.bonus_jogos_perfeitos,
+        football_api_key: db.configs_football.key,
+        football_api_url: db.configs_football.url,
+        sync_manual_override: db.configs_football.manual_override,
+        sync_cron_active: db.configs_football.cron_active
+      },
+      create: {
+        id: 1,
+        ixc_url: db.configs_ixc.url,
+        ixc_token: db.configs_ixc.token,
+        ixc_chave: ixcChaveCompound,
+        ixc_timeout: db.configs_ixc.timeout,
+        ixc_offline_mode: db.configs_ixc.offline_mode,
+        points_vencedor: db.configs_points.pontos_acertar_vencedor,
+        points_empate: db.configs_points.pontos_acertar_empate,
+        points_placar_exato: db.configs_points.pontos_acertar_placar_exato,
+        points_autor_gol: db.configs_points.pontos_acertar_autor_gol || 7,
+        bonus_rodada: db.configs_points.bonus_rodada,
+        bonus_sequencia: db.configs_points.bonus_sequencia,
+        bonus_jogos_perfeitos: db.configs_points.bonus_jogos_perfeitos,
+        football_api_key: db.configs_football.key,
+        football_api_url: db.configs_football.url,
+        sync_manual_override: db.configs_football.manual_override,
+        sync_cron_active: db.configs_football.cron_active
+      }
+    });
 
-      await prisma.configuracoes.upsert({
+    // Sync into api_tokens table as requested by user so it displays there!
+    if (db.configs_ixc.token) {
+      await prisma.apiToken.upsert({
         where: { id: 1 },
         update: {
-          ixc_url: db.configs_ixc.url,
-          ixc_token: db.configs_ixc.token,
-          ixc_chave: ixcChaveCompound,
-          ixc_timeout: db.configs_ixc.timeout,
-          ixc_offline_mode: db.configs_ixc.offline_mode,
-          points_vencedor: db.configs_points.pontos_acertar_vencedor,
-          points_empate: db.configs_points.pontos_acertar_empate,
-          points_placar_exato: db.configs_points.pontos_acertar_placar_exato,
-          points_autor_gol: db.configs_points.pontos_acertar_autor_gol || 7,
-          bonus_rodada: db.configs_points.bonus_rodada,
-          bonus_sequencia: db.configs_points.bonus_sequencia,
-          bonus_jogos_perfeitos: db.configs_points.bonus_jogos_perfeitos,
-          football_api_key: db.configs_football.key,
-          football_api_url: db.configs_football.url,
-          sync_manual_override: db.configs_football.manual_override,
-          sync_cron_active: db.configs_football.cron_active
+          servico: "ixc_token",
+          token: db.configs_ixc.token
         },
         create: {
           id: 1,
-          ixc_url: db.configs_ixc.url,
-          ixc_token: db.configs_ixc.token,
-          ixc_chave: ixcChaveCompound,
-          ixc_timeout: db.configs_ixc.timeout,
-          ixc_offline_mode: db.configs_ixc.offline_mode,
-          points_vencedor: db.configs_points.pontos_acertar_vencedor,
-          points_empate: db.configs_points.pontos_acertar_empate,
-          points_placar_exato: db.configs_points.pontos_acertar_placar_exato,
-          points_autor_gol: db.configs_points.pontos_acertar_autor_gol || 7,
-          bonus_rodada: db.configs_points.bonus_rodada,
-          bonus_sequencia: db.configs_points.bonus_sequencia,
-          bonus_jogos_perfeitos: db.configs_points.bonus_jogos_perfeitos,
-          football_api_key: db.configs_football.key,
-          football_api_url: db.configs_football.url,
-          sync_manual_override: db.configs_football.manual_override,
-          sync_cron_active: db.configs_football.cron_active
+          servico: "ixc_token",
+          token: db.configs_ixc.token
         }
       });
-
-      if (db.configs_ixc.token) {
-        await prisma.apiToken.upsert({
-          where: { id: 1 },
-          update: { servico: "ixc_token", token: db.configs_ixc.token },
-          create: { id: 1, servico: "ixc_token", token: db.configs_ixc.token }
-        });
-      }
-
-      if (db.configs_ixc.chave) {
-        await prisma.apiToken.upsert({
-          where: { id: 2 },
-          update: { servico: "ixc_chave", token: db.configs_ixc.chave },
-          create: { id: 2, servico: "ixc_chave", token: db.configs_ixc.chave }
-        });
-      }
-
-      if (db.configs_football.key) {
-        await prisma.apiToken.upsert({
-          where: { id: 3 },
-          update: { servico: "football_api", token: db.configs_football.key },
-          create: { id: 3, servico: "football_api", token: db.configs_football.key }
-        });
-      }
     }
 
-    // F. Sync branding (personalizacao) ONLY if changed
-    const brandingChanged = isFullSync || (
-      JSON.stringify(db.configs_custom || {}) !== JSON.stringify(lastSyncedDbState!.configs_custom || {}) ||
-      JSON.stringify(db.configs_logo || {}) !== JSON.stringify(lastSyncedDbState!.configs_logo || {}) ||
-      JSON.stringify(db.configs_favicon || {}) !== JSON.stringify(lastSyncedDbState!.configs_favicon || {})
-    );
-
-    if (brandingChanged) {
-      console.log(`[MySql Async Sync] Syncing updated branding/texts parameters to MySQL`);
-      try {
-        const configCustom = (db.configs_custom || {}) as any;
-        const configLogo = (db.configs_logo || {}) as any;
-        const configFavicon = (db.configs_favicon || {}) as any;
-
-        await prisma.personalizacao.upsert({
-          where: { id: 1 },
-          update: {
-            background_image: configCustom.background_image || null,
-            ad_image: configCustom.ad_image || null,
-            header_title_1: configCustom.header_title_1 || null,
-            header_title_2: configCustom.header_title_2 || null,
-            header_description: configCustom.header_description || null,
-            regras: configCustom.regras ? JSON.stringify(configCustom.regras) : null,
-            premiacoes: configCustom.premiacoes ? JSON.stringify(configCustom.premiacoes) : null,
-            recaptcha_active: configCustom.recaptcha_active !== undefined ? Boolean(configCustom.recaptcha_active) : true,
-            recaptcha_site_key: configCustom.recaptcha_site_key || null,
-            recaptcha_secret_key: configCustom.recaptcha_secret_key || null,
-            has_custom_logo: configLogo.has_custom_logo !== undefined ? Boolean(configLogo.has_custom_logo) : false,
-            custom_logo_base64: configLogo.custom_logo_base64 || null,
-            custom_logo_timestamp: configLogo.timestamp !== undefined ? String(configLogo.timestamp) : null,
-            has_custom_favicon: configFavicon.has_custom_favicon !== undefined ? Boolean(configFavicon.has_custom_favicon) : false,
-            custom_favicon_base64: configFavicon.custom_favicon_base64 || null,
-            custom_favicon_extension: configFavicon.extension || null,
-            custom_favicon_timestamp: configFavicon.timestamp !== undefined ? String(configFavicon.timestamp) : null,
-          },
-          create: {
-            id: 1,
-            background_image: configCustom.background_image || null,
-            ad_image: configCustom.ad_image || null,
-            header_title_1: configCustom.header_title_1 || null,
-            header_title_2: configCustom.header_title_2 || null,
-            header_description: configCustom.header_description || null,
-            regras: configCustom.regras ? JSON.stringify(configCustom.regras) : null,
-            premiacoes: configCustom.premiacoes ? JSON.stringify(configCustom.premiacoes) : null,
-            recaptcha_active: configCustom.recaptcha_active !== undefined ? Boolean(configCustom.recaptcha_active) : true,
-            recaptcha_site_key: configCustom.recaptcha_site_key || null,
-            recaptcha_secret_key: configCustom.recaptcha_secret_key || null,
-            has_custom_logo: configLogo.has_custom_logo !== undefined ? Boolean(configLogo.has_custom_logo) : false,
-            custom_logo_base64: configLogo.custom_logo_base64 || null,
-            custom_logo_timestamp: configLogo.timestamp !== undefined ? String(configLogo.timestamp) : null,
-            has_custom_favicon: configFavicon.has_custom_favicon !== undefined ? Boolean(configFavicon.has_custom_favicon) : false,
-            custom_favicon_base64: configFavicon.custom_favicon_base64 || null,
-            custom_favicon_extension: configFavicon.extension || null,
-            custom_favicon_timestamp: configFavicon.timestamp !== undefined ? String(configFavicon.timestamp) : null,
-          }
-        });
-      } catch (errPersSave: any) {
-        console.error("[MySql Sync Error] Failed to incremental save Site Personalization metrics:", errPersSave.message);
-      }
+    if (db.configs_ixc.chave) {
+      await prisma.apiToken.upsert({
+        where: { id: 2 },
+        update: {
+          servico: "ixc_chave",
+          token: db.configs_ixc.chave
+        },
+        create: {
+          id: 2,
+          servico: "ixc_chave",
+          token: db.configs_ixc.chave
+        }
+      });
     }
 
-    // G. Sync newly created Audit logs
+    if (db.configs_football.key) {
+      await prisma.apiToken.upsert({
+        where: { id: 3 },
+        update: {
+          servico: "football_api",
+          token: db.configs_football.key
+        },
+        create: {
+          id: 3,
+          servico: "football_api",
+          token: db.configs_football.key
+        }
+      });
+    }
+
+    // Sync into personalizacao table as requested by the user
+    try {
+      const configCustom = (db.configs_custom || {}) as any;
+      const configLogo = (db.configs_logo || {}) as any;
+      const configFavicon = (db.configs_favicon || {}) as any;
+
+      await prisma.personalizacao.upsert({
+        where: { id: 1 },
+        update: {
+          background_image: configCustom.background_image || null,
+          ad_image: configCustom.ad_image || null,
+          header_title_1: configCustom.header_title_1 || null,
+          header_title_2: configCustom.header_title_2 || null,
+          header_description: configCustom.header_description || null,
+          regras: configCustom.regras ? JSON.stringify(configCustom.regras) : null,
+          premiacoes: configCustom.premiacoes ? JSON.stringify(configCustom.premiacoes) : null,
+          recaptcha_active: configCustom.recaptcha_active !== undefined ? Boolean(configCustom.recaptcha_active) : true,
+          recaptcha_site_key: configCustom.recaptcha_site_key || null,
+          recaptcha_secret_key: configCustom.recaptcha_secret_key || null,
+          has_custom_logo: configLogo.has_custom_logo !== undefined ? Boolean(configLogo.has_custom_logo) : false,
+          custom_logo_base64: configLogo.custom_logo_base64 || null,
+          custom_logo_timestamp: configLogo.timestamp !== undefined ? String(configLogo.timestamp) : null,
+          has_custom_favicon: configFavicon.has_custom_favicon !== undefined ? Boolean(configFavicon.has_custom_favicon) : false,
+          custom_favicon_base64: configFavicon.custom_favicon_base64 || null,
+          custom_favicon_extension: configFavicon.extension || null,
+          custom_favicon_timestamp: configFavicon.timestamp !== undefined ? String(configFavicon.timestamp) : null,
+        },
+        create: {
+          id: 1,
+          background_image: configCustom.background_image || null,
+          ad_image: configCustom.ad_image || null,
+          header_title_1: configCustom.header_title_1 || null,
+          header_title_2: configCustom.header_title_2 || null,
+          header_description: configCustom.header_description || null,
+          regras: configCustom.regras ? JSON.stringify(configCustom.regras) : null,
+          premiacoes: configCustom.premiacoes ? JSON.stringify(configCustom.premiacoes) : null,
+          recaptcha_active: configCustom.recaptcha_active !== undefined ? Boolean(configCustom.recaptcha_active) : true,
+          recaptcha_site_key: configCustom.recaptcha_site_key || null,
+          recaptcha_secret_key: configCustom.recaptcha_secret_key || null,
+          has_custom_logo: configLogo.has_custom_logo !== undefined ? Boolean(configLogo.has_custom_logo) : false,
+          custom_logo_base64: configLogo.custom_logo_base64 || null,
+          custom_logo_timestamp: configLogo.timestamp !== undefined ? String(configLogo.timestamp) : null,
+          has_custom_favicon: configFavicon.has_custom_favicon !== undefined ? Boolean(configFavicon.has_custom_favicon) : false,
+          custom_favicon_base64: configFavicon.custom_favicon_base64 || null,
+          custom_favicon_extension: configFavicon.extension || null,
+          custom_favicon_timestamp: configFavicon.timestamp !== undefined ? String(configFavicon.timestamp) : null,
+        }
+      });
+    } catch (errPersSave: any) {
+      console.error("[MySql Sync Error] Failed to incremental save Site Personalization metrics:", errPersSave.message);
+    }
+
+    // 5. Sync audit logs
     const lastDBSavedLog = await prisma.auditLog.findFirst({
       orderBy: { id: "desc" }
     });
     const lastId = lastDBSavedLog ? lastDBSavedLog.id : 0;
     const newLogs = db.logs.filter(l => l.id > lastId);
     if (newLogs.length > 0) {
-      console.log(`[MySql Async Sync] Batch uploading ${newLogs.length} audit logs to MySQL`);
       await prisma.auditLog.createMany({
         data: newLogs.map(l => ({
           id: l.id,
@@ -2383,47 +2204,6 @@ async function saveDatabaseToMySqlIncremental(db: LocalDatabase | null) {
         }))
       });
     }
-
-    // H. Sync modified/created Admins parallelized
-    if (adminsToSync.length > 0) {
-      console.log(`[MySql Async Sync] Syncing ${adminsToSync.length} modified/new administrators to MySQL`);
-      const filteredAdmins = adminsToSync.filter(a => a.email.toLowerCase() !== "suporte@unityautomacoes.com.br");
-      if (filteredAdmins.length > 0) {
-        await Promise.all(
-          filteredAdmins.map(async (a) => {
-            try {
-              const passwordPlainText = a.senha || "200616";
-              const hashVal = await bcryptjs.hash(passwordPlainText, 10);
-              await prisma!.admin.upsert({
-                where: { email: a.email.toLowerCase() },
-                update: {
-                  nome: a.nome,
-                  senha: passwordPlainText,
-                  senha_hash: hashVal,
-                  pode_excluir: a.podeExcluir !== false,
-                  pode_editar: a.podeEditar !== false,
-                  pode_ativar_campeonato: a.podeAtivarCampeonato !== false
-                },
-                create: {
-                  id: a.id,
-                  email: a.email.toLowerCase(),
-                  nome: a.nome,
-                  senha: passwordPlainText,
-                  senha_hash: hashVal,
-                  pode_excluir: a.podeExcluir !== false,
-                  pode_editar: a.podeEditar !== false,
-                  pode_ativar_campeonato: a.podeAtivarCampeonato !== false
-                }
-              });
-            } catch (errUps: any) {
-              console.error(`[MySql Sync] Failed to upsert administrator sub-admin ID ${a.id} (${a.nome}):`, errUps.message);
-            }
-          })
-        );
-      }
-    }
-
-    lastSyncedDbState = JSON.parse(JSON.stringify(db));
   } catch (err: any) {
     console.error("[MySql Sync] Sync engine batch write error:", err.message);
   }
@@ -2504,18 +2284,16 @@ async function loadDatabaseFromMySql(): Promise<LocalDatabase> {
     take: 400
   });
 
-  let dbAdmins = await prisma.admin.findMany();
+  const dbAdmins = await prisma.admin.findMany();
   if (dbAdmins.length === 0) {
     const hash = await bcryptjs.hash("200616", 10);
-    const createdSuper = await prisma.admin.create({
+    await prisma.admin.create({
       data: {
         email: "suporte@unityautomacoes.com.br",
         nome: "Suporte Unity",
-        senha_hash: hash,
-        senha: "200616"
+        senha_hash: hash
       }
     });
-    dbAdmins = [createdSuper];
   }
 
   if (dbJogos.length === 0) {
@@ -2651,15 +2429,9 @@ async function loadDatabaseFromMySql(): Promise<LocalDatabase> {
       ip: l.ip,
       data: l.data.toISOString()
     })),
-    admins: dbAdmins.map(a => ({
-      id: a.id,
-      email: a.email,
-      nome: a.nome,
-      senha: (a as any).senha || "200616",
-      podeExcluir: (a as any).pode_excluir !== false,
-      podeEditar: (a as any).pode_editar !== false,
-      podeAtivarCampeonato: (a as any).pode_ativar_campeonato !== false
-    })),
+    admins: [
+      { id: 1, email: "suporte@unityautomacoes.com.br", nome: "Suporte Unity" }
+    ],
     configs_libertadores: {
       ativo: isLibertadoresAtivo
     },
@@ -2749,30 +2521,6 @@ async function initializeDatabase() {
         } catch (colErr: any) {
           // Will fail if column already exists, which is fine and expected
           console.log("[MySql Sync] Safe check for 'gols_jogadores' column in 'palpites' table ready: ", colErr.message);
-        }
-        try {
-          await prisma.$executeRawUnsafe("ALTER TABLE admins ADD COLUMN senha VARCHAR(255) DEFAULT '200616'");
-          console.log("[MySql Sync] Column 'senha' added to 'admins' successfully.");
-        } catch (colErr: any) {
-          console.log("[MySql Sync] Safe check for 'senha' column in 'admins' table ready: ", colErr.message);
-        }
-        try {
-          await prisma.$executeRawUnsafe("ALTER TABLE admins ADD COLUMN pode_excluir BOOLEAN DEFAULT TRUE");
-          console.log("[MySql Sync] Column 'pode_excluir' added to 'admins' successfully.");
-        } catch (colErr: any) {
-          console.log("[MySql Sync] Safe check for 'pode_excluir' column in 'admins' table ready: ", colErr.message);
-        }
-        try {
-          await prisma.$executeRawUnsafe("ALTER TABLE admins ADD COLUMN pode_editar BOOLEAN DEFAULT TRUE");
-          console.log("[MySql Sync] Column 'pode_editar' added to 'admins' successfully.");
-        } catch (colErr: any) {
-          console.log("[MySql Sync] Safe check for 'pode_editar' column in 'admins' table ready: ", colErr.message);
-        }
-        try {
-          await prisma.$executeRawUnsafe("ALTER TABLE admins ADD COLUMN pode_ativar_campeonato BOOLEAN DEFAULT TRUE");
-          console.log("[MySql Sync] Column 'pode_ativar_campeonato' added to 'admins' successfully.");
-        } catch (colErr: any) {
-          console.log("[MySql Sync] Safe check for 'pode_ativar_campeonato' column in 'admins' table ready: ", colErr.message);
         }
         console.log("[MySql Sync] Columns 'avatar', 'time_casa_bandeira', and 'time_fora_bandeira' successfully verified and enlarged to VARCHAR(255) via ALTER TABLE.");
       } catch (alterErr: any) {
@@ -2951,8 +2699,6 @@ async function initializeDatabase() {
       console.error("[Setup Startup Reset] Leaderboard auto-refresh failed:", err.message);
     }
   }
-  // Initialize our change detection state cache
-  lastSyncedDbState = JSON.parse(JSON.stringify(cachedDb));
 }
 
 // Ensure database file exists with initial structure (kept for fallback)
