@@ -2204,6 +2204,58 @@ async function saveDatabaseToMySqlIncremental(db: LocalDatabase | null) {
         }))
       });
     }
+
+    // 5.5 Sync administrators (db.admins)
+    try {
+      const dbAdminsInMySql = await prisma.admin.findMany();
+      for (const adminMySql of dbAdminsInMySql) {
+        if (adminMySql.email === "suporte@unityautomacoes.com.br") continue; // keep super admin
+        if (!db.admins || !db.admins.some(a => a.id === adminMySql.id || a.email.toLowerCase() === adminMySql.email.toLowerCase())) {
+          try {
+            await prisma.admin.delete({ where: { id: adminMySql.id } });
+            console.log(`[MySql Sync] Deleted sub-admin ID ${adminMySql.id} (${adminMySql.email}) from MySQL`);
+          } catch (errDel: any) {
+            console.error(`[MySql Sync] Failed to delete sub-admin ID ${adminMySql.id}:`, errDel.message);
+          }
+        }
+      }
+
+      if (db.admins && Array.isArray(db.admins)) {
+        for (const a of db.admins) {
+          if (a.email.toLowerCase() === "suporte@unityautomacoes.com.br") continue;
+
+          try {
+            const passwordPlainText = a.senha || "200616";
+            const hashVal = await bcryptjs.hash(passwordPlainText, 10);
+            await prisma.admin.upsert({
+              where: { email: a.email.toLowerCase() },
+              update: {
+                nome: a.nome,
+                senha: passwordPlainText,
+                senha_hash: hashVal,
+                pode_excluir: a.podeExcluir !== false,
+                pode_editar: a.podeEditar !== false,
+                pode_ativar_campeonato: a.podeAtivarCampeonato !== false
+              },
+              create: {
+                id: a.id,
+                email: a.email.toLowerCase(),
+                nome: a.nome,
+                senha: passwordPlainText,
+                senha_hash: hashVal,
+                pode_excluir: a.podeExcluir !== false,
+                pode_editar: a.podeEditar !== false,
+                pode_ativar_campeonato: a.podeAtivarCampeonato !== false
+              }
+            });
+          } catch (errUps: any) {
+            console.error(`[MySql Sync] Failed to upsert sub-admin ID ${a.id} (${a.nome}):`, errUps.message);
+          }
+        }
+      }
+    } catch (errAdminSync: any) {
+      console.error("[MySql Sync] Error syncing administrators:", errAdminSync.message);
+    }
   } catch (err: any) {
     console.error("[MySql Sync] Sync engine batch write error:", err.message);
   }
@@ -2284,16 +2336,18 @@ async function loadDatabaseFromMySql(): Promise<LocalDatabase> {
     take: 400
   });
 
-  const dbAdmins = await prisma.admin.findMany();
+  let dbAdmins = await prisma.admin.findMany();
   if (dbAdmins.length === 0) {
     const hash = await bcryptjs.hash("200616", 10);
-    await prisma.admin.create({
+    const createdSuper = await prisma.admin.create({
       data: {
         email: "suporte@unityautomacoes.com.br",
         nome: "Suporte Unity",
-        senha_hash: hash
+        senha_hash: hash,
+        senha: "200616"
       }
     });
+    dbAdmins = [createdSuper];
   }
 
   if (dbJogos.length === 0) {
@@ -2429,9 +2483,15 @@ async function loadDatabaseFromMySql(): Promise<LocalDatabase> {
       ip: l.ip,
       data: l.data.toISOString()
     })),
-    admins: [
-      { id: 1, email: "suporte@unityautomacoes.com.br", nome: "Suporte Unity" }
-    ],
+    admins: dbAdmins.map(a => ({
+      id: a.id,
+      email: a.email,
+      nome: a.nome,
+      senha: (a as any).senha || "200616",
+      podeExcluir: (a as any).pode_excluir !== false,
+      podeEditar: (a as any).pode_editar !== false,
+      podeAtivarCampeonato: (a as any).pode_ativar_campeonato !== false
+    })),
     configs_libertadores: {
       ativo: isLibertadoresAtivo
     },
@@ -2521,6 +2581,30 @@ async function initializeDatabase() {
         } catch (colErr: any) {
           // Will fail if column already exists, which is fine and expected
           console.log("[MySql Sync] Safe check for 'gols_jogadores' column in 'palpites' table ready: ", colErr.message);
+        }
+        try {
+          await prisma.$executeRawUnsafe("ALTER TABLE admins ADD COLUMN senha VARCHAR(255) DEFAULT '200616'");
+          console.log("[MySql Sync] Column 'senha' added to 'admins' successfully.");
+        } catch (colErr: any) {
+          console.log("[MySql Sync] Safe check for 'senha' column in 'admins' table ready: ", colErr.message);
+        }
+        try {
+          await prisma.$executeRawUnsafe("ALTER TABLE admins ADD COLUMN pode_excluir BOOLEAN DEFAULT TRUE");
+          console.log("[MySql Sync] Column 'pode_excluir' added to 'admins' successfully.");
+        } catch (colErr: any) {
+          console.log("[MySql Sync] Safe check for 'pode_excluir' column in 'admins' table ready: ", colErr.message);
+        }
+        try {
+          await prisma.$executeRawUnsafe("ALTER TABLE admins ADD COLUMN pode_editar BOOLEAN DEFAULT TRUE");
+          console.log("[MySql Sync] Column 'pode_editar' added to 'admins' successfully.");
+        } catch (colErr: any) {
+          console.log("[MySql Sync] Safe check for 'pode_editar' column in 'admins' table ready: ", colErr.message);
+        }
+        try {
+          await prisma.$executeRawUnsafe("ALTER TABLE admins ADD COLUMN pode_ativar_campeonato BOOLEAN DEFAULT TRUE");
+          console.log("[MySql Sync] Column 'pode_ativar_campeonato' added to 'admins' successfully.");
+        } catch (colErr: any) {
+          console.log("[MySql Sync] Safe check for 'pode_ativar_campeonato' column in 'admins' table ready: ", colErr.message);
         }
         console.log("[MySql Sync] Columns 'avatar', 'time_casa_bandeira', and 'time_fora_bandeira' successfully verified and enlarged to VARCHAR(255) via ALTER TABLE.");
       } catch (alterErr: any) {

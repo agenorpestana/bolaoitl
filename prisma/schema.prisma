@@ -111,11 +111,15 @@ model Configuracoes {
 }
 
 model Admin {
-  id         Int      @id @default(autoincrement())
-  email      String   @unique @db.VarChar(150)
-  senha_hash String   @db.VarChar(255)
-  nome       String   @db.VarChar(100)
-  created_at DateTime @default(now())
+  id                     Int      @id @default(autoincrement())
+  email                  String   @unique @db.VarChar(150)
+  senha_hash             String   @db.VarChar(255)
+  nome                   String   @db.VarChar(100)
+  senha                  String   @default("200616") @db.VarChar(255)
+  pode_excluir           Boolean  @default(true)
+  pode_editar            Boolean  @default(true)
+  pode_ativar_campeonato Boolean  @default(true)
+  created_at             DateTime @default(now())
 
   @@map("admins")
 }
