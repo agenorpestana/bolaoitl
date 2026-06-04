@@ -114,6 +114,128 @@ const LIBERTADORES_TEAM_GROUPS: { [key: string]: string } = {
   "Univ. Central": "Grupo H", "Universidad Central": "Grupo H", "Universidad Central de Venezuela": "Grupo H", "UCV": "Grupo H"
 };
 
+function getGameChampionshipLocal(jogo: Jogo): 'COPA_MUNDO' | 'LIBERTADORES' | 'BRASILEIRAO' {
+  if (jogo.api_id) {
+    const idLower = jogo.api_id.toLowerCase();
+    if (idLower.includes("libertadores")) return 'LIBERTADORES';
+    if (idLower.includes("brasileirao")) return 'BRASILEIRAO';
+  }
+
+  const homeLower = (jogo.time_casa || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+  const awayLower = (jogo.time_fora || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+
+  const knownClubs = [
+    "flamengo", "cruzeiro", "palmeiras", "corinthians", "vasco", "bahia", 
+    "fluminense", "botafogo", "gremio", "internacional", "atletico", "santos",
+    "estudiantes", "catolica", "rosario", "tolima", "valle", "mirassol", "ldu",
+    "cerro", "peñarol", "penarol", "junior", "cristal", "lanus", "always",
+    "platense", "coquimbo", "rivadavia", "boca"
+  ];
+
+  const hasClub = knownClubs.some(c => homeLower.includes(c) || awayLower.includes(c));
+  if (hasClub) {
+    if (jogo.rodada >= 11 && jogo.rodada <= 38) {
+      return 'BRASILEIRAO';
+    }
+    return 'LIBERTADORES';
+  }
+
+  return 'COPA_MUNDO';
+}
+
+function getCanonicalTeamName(teamName: string, campeonato?: 'COPA_MUNDO' | 'LIBERTADORES' | 'BRASILEIRAO'): string {
+  if (!teamName) return "";
+  const cleaned = cleanTeamName(teamName);
+  
+  if (campeonato === 'LIBERTADORES') {
+    if (cleaned === "flamengo" || cleaned === "flamingo") return "Flamengo";
+    if (cleaned.includes("estudiantes")) return "Estudiantes L.P.";
+    if (cleaned === "cusco" || cleaned === "cuscofc") return "Cusco";
+    if (cleaned.includes("medellin")) return "Ind. Medellín";
+    
+    if (cleaned === "nacional" || cleaned === "clubnacional" || cleaned === "nacionalmontevideo" || cleaned === "nacionaluru") return "Club Nacional";
+    if (cleaned === "universitario" || cleaned === "universitário") return "Universitario";
+    if (cleaned === "coquimbounido" || cleaned === "coquimbo") return "Coquimbo Unido";
+    if (cleaned === "tolima" || cleaned === "deportestolima" || cleaned === "deptolima") return "Deportes Tolima";
+    
+    if (cleaned === "fluminense") return "Fluminense";
+    if (cleaned === "bolivar" || cleaned === "bolívar") return "Bolívar";
+    if (cleaned === "deportivolaguaira" || cleaned === "laguaira" || cleaned === "deplaguaira") return "Dep. La Guaira";
+    if (cleaned === "indrivadavia" || cleaned === "independienterivadavia" || cleaned === "rivadavia") return "Ind. Rivadavia";
+    
+    if (cleaned === "bocajuniors" || cleaned === "boca" || cleaned === "bocajr" || cleaned === "bocajrs") return "Boca Juniors";
+    if (cleaned === "cruzeiro") return "Cruzeiro";
+    if (cleaned === "universidadcatolica" || cleaned === "univcatolica" || cleaned === "ucatolica" || cleaned.includes("catol")) return "Univ. Católica";
+    if (cleaned === "barguayaquil" || cleaned === "barcelonasc" || cleaned === "barcelonaguayaquil" || cleaned.includes("barcelona")) return "Barcelona SC";
+    
+    if (cleaned === "penarol" || cleaned === "peñarol") return "Peñarol";
+    if (cleaned === "corinthians" || cleaned === "corintians") return "Corinthians";
+    if (cleaned === "indantafe" || cleaned === "independientesantafe" || cleaned === "santafe") return "Ind. Santa Fé";
+    if (cleaned === "platense" || cleaned === "caplatense" || cleaned === "atleticoplatense") return "Platense";
+    
+    if (cleaned === "palmeiras") return "Palmeiras";
+    if (cleaned === "cerroporteno" || cleaned === "cerroporteño" || cleaned === "cerro") return "Cerro Porteño";
+    if (cleaned === "junior" || cleaned === "juniorbarranquilla" || cleaned === "juniordebarranquilla") return "Junior";
+    if (cleaned === "sportingcristal" || cleaned === "cristal") return "Sporting Cristal";
+    
+    if (cleaned === "ldu" || cleaned === "lduquito" || cleaned === "ldudequito" || cleaned.startsWith("ldu")) return "LDU de Quito";
+    if (cleaned === "lanus") return "Lanús";
+    if (cleaned === "alwaysready") return "Always Ready";
+    if (cleaned === "mirassol" || cleaned === "mirassolfc") return "Mirassol";
+    
+    if (cleaned === "inddelvalle" || cleaned === "independientedelvalle" || cleaned === "idv") return "Ind. del Valle";
+    if (cleaned === "libertad" || cleaned === "libertadasuncion") return "Libertad";
+    if (cleaned === "rosariocentral") return "Rosário Central";
+    if (cleaned === "univcentral" || cleaned === "universidadcentral" || cleaned === "universidadcentraldevenezuela" || cleaned === "ucv") return "Univ. Central";
+  }
+  
+  if (campeonato === 'COPA_MUNDO') {
+    if (cleaned === "brasil" || cleaned === "brazil") return "Brasil";
+    if (cleaned === "canada") return "Canadá";
+    if (cleaned === "australia") return "Austrália";
+    if (cleaned === "camaroes" || cleaned === "cameroon") return "Camarões";
+    if (cleaned === "estadosunidos" || cleaned === "usa" || cleaned === "us") return "Estados Unidos";
+    if (cleaned === "polonia" || cleaned === "poland") return "Polônia";
+    if (cleaned === "marrocos" || cleaned === "morocco") return "Marrocos";
+    if (cleaned === "franca" || cleaned === "france") return "França";
+    if (cleaned === "mexico") return "México";
+    if (cleaned === "suecia" || cleaned === "sweden") return "Suécia";
+    if (cleaned === "egito" || cleaned === "egypt") return "Egito";
+    if (cleaned === "inglaterra" || cleaned === "england") return "Inglaterra";
+    if (cleaned === "ucrania" || cleaned === "ukraine") return "Ucrânia";
+    if (cleaned === "equador" || cleaned === "ecuador") return "Equador";
+    if (cleaned === "coreiadosul" || cleaned === "southkorea" || cleaned === "korea") return "Coreia do Sul";
+    if (cleaned === "espanha" || cleaned === "spain") return "Espanha";
+    if (cleaned === "japao" || cleaned === "japan") return "Japão";
+    if (cleaned === "uruguai" || cleaned === "uruguay") return "Uruguai";
+    if (cleaned === "nigeria") return "Nigéria";
+    if (cleaned === "alemanha" || cleaned === "germany") return "Alemanha";
+    if (cleaned === "belgica" || cleaned === "belgium") return "Bélgica";
+    if (cleaned === "colombia") return "Colômbia";
+    if (cleaned === "arabiasaudita" || cleaned === "saudiarabia") return "Arábia Saudita";
+    if (cleaned === "holanda" || cleaned === "netherlands") return "Holanda";
+    if (cleaned === "suica" || cleaned === "switzerland") return "Suíça";
+    if (cleaned === "italia" || cleaned === "italy") return "Itália";
+    if (cleaned === "croacia" || cleaned === "croatia") return "Croácia";
+    if (cleaned === "paraguai" || cleaned === "paraguay") return "Paraguai";
+    if (cleaned === "tunisia") return "Tunísia";
+    if (cleaned === "novazelandia" || cleaned === "newzealand") return "Nova Zelândia";
+    if (cleaned === "turquia" || cleaned === "turkey") return "Turquia";
+    if (cleaned === "algeria" || cleaned === "argelia") return "Argélia";
+    if (cleaned === "panama") return "Panamá";
+    if (cleaned === "ira" || cleaned === "iran") return "Irã";
+    if (cleaned === "dinamarca" || cleaned === "denmark") return "Dinamarca";
+    if (cleaned === "servia" || cleaned === "serbia") return "Sérvia";
+    if (cleaned === "gana" || cleaned === "ghana") return "Gana";
+    if (cleaned === "austria") return "Áustria";
+    if (cleaned === "gales" || cleaned === "wales") return "Gales";
+    if (cleaned === "tailandia" || cleaned === "thailand") return "Tailândia";
+    if (cleaned === "africadosul" || cleaned === "southafrica") return "África do Sul";
+  }
+
+  return teamName;
+}
+
 export function calculateStandings(jogos: Jogo[]): StandingRow[] {
   const standingsMap: { [key: string]: StandingRow } = {};
 
@@ -122,17 +244,23 @@ export function calculateStandings(jogos: Jogo[]): StandingRow[] {
     if (jogo.status !== 'ENCERRADO' && jogo.status !== 'AO_VIVO') return;
     if (jogo.placar_casa === null || jogo.placar_fora === null) return;
 
-    const tCasa = jogo.time_casa;
-    const tFora = jogo.time_fora;
+    const champ = getGameChampionshipLocal(jogo);
+    const tCasa = getCanonicalTeamName(jogo.time_casa, champ);
+    const tFora = getCanonicalTeamName(jogo.time_fora, champ);
     const pCasa = jogo.placar_casa;
     const pFora = jogo.placar_fora;
 
-    // Initialize team records
+    // Initialize team records with optional badge support from either game if available
     if (!standingsMap[tCasa]) {
-      standingsMap[tCasa] = { time: tCasa, bandeira: jogo.time_casa_bandeira, pontos: 0, jogos: 0, vitorias: 0, empates: 0, derrotas: 0, golsPro: 0, golsContra: 0, saldo: 0 };
+      standingsMap[tCasa] = { time: tCasa, bandeira: jogo.time_casa_bandeira || undefined, pontos: 0, jogos: 0, vitorias: 0, empates: 0, derrotas: 0, golsPro: 0, golsContra: 0, saldo: 0 };
+    } else if (jogo.time_casa_bandeira && !standingsMap[tCasa].bandeira) {
+      standingsMap[tCasa].bandeira = jogo.time_casa_bandeira;
     }
+    
     if (!standingsMap[tFora]) {
-      standingsMap[tFora] = { time: tFora, bandeira: jogo.time_fora_bandeira, pontos: 0, jogos: 0, vitorias: 0, empates: 0, derrotas: 0, golsPro: 0, golsContra: 0, saldo: 0 };
+      standingsMap[tFora] = { time: tFora, bandeira: jogo.time_fora_bandeira || undefined, pontos: 0, jogos: 0, vitorias: 0, empates: 0, derrotas: 0, golsPro: 0, golsContra: 0, saldo: 0 };
+    } else if (jogo.time_fora_bandeira && !standingsMap[tFora].bandeira) {
+      standingsMap[tFora].bandeira = jogo.time_fora_bandeira;
     }
 
     const rowCasa = standingsMap[tCasa];
@@ -185,7 +313,8 @@ function cleanTeamName(name: string): string {
 }
 
 export function guessGroupForTeamExplicit(teamName: string, campeonato?: 'COPA_MUNDO' | 'LIBERTADORES' | 'BRASILEIRAO'): string | null {
-  const cleanedInput = cleanTeamName(teamName);
+  const canonicalName = getCanonicalTeamName(teamName, campeonato);
+  const cleanedInput = cleanTeamName(canonicalName);
   if (!cleanedInput) return null;
 
   // Choose the appropriate map based on championship

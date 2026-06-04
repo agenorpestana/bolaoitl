@@ -16,7 +16,18 @@ import { Usuario, Jogo, Palpite } from './types';
 export default function App() {
   // Navigation
   const [activeTab, setActiveTab] = React.useState<string>('home');
-  const [loading, setLoading] = React.useState(true);
+  
+  // SWR Strategy: If we already have cached games and public metrics, we start with loading = false
+  // so the interface renders instantly. Then we update data silently in the background!
+  const [loading, setLoading] = React.useState(() => {
+    try {
+      const hasGames = !!localStorage.getItem('bolao_jogos');
+      const hasMetrics = !!localStorage.getItem('bolao_public_metrics');
+      return !(hasGames && hasMetrics);
+    } catch {
+      return true;
+    }
+  });
 
   // Authentication states with localStorage sync to survive dev refreshes
   const [token, setToken] = React.useState<string | null>(() => localStorage.getItem('bolao_token'));
@@ -35,16 +46,51 @@ export default function App() {
   const [adminToken, setAdminToken] = React.useState<string | null>(() => localStorage.getItem('bolao_admin_token'));
   const [adminLogado, setAdminLogado] = React.useState<boolean>(() => !!localStorage.getItem('bolao_admin_token'));
 
-  // Database states
-  const [jogos, setJogos] = React.useState<Jogo[]>([]);
-  const [palpites, setPalpites] = React.useState<Palpite[]>([]);
-  const [ranking, setRanking] = React.useState<any[]>([]);
-  const [vencedoresRodadas, setVencedoresRodadas] = React.useState<any[]>([]);
-  const [publicMetrics, setPublicMetrics] = React.useState<any | null>(null);
-  const [pointsConfig, setPointsConfig] = React.useState<any>(null);
+  // Database states with local cache fallback
+  const [jogos, setJogos] = React.useState<Jogo[]>(() => {
+    try {
+      const saved = localStorage.getItem('bolao_jogos');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+  const [palpites, setPalpites] = React.useState<Palpite[]>(() => {
+    try {
+      const saved = localStorage.getItem('bolao_palpites');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+  const [ranking, setRanking] = React.useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem('bolao_ranking');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+  const [vencedoresRodadas, setVencedoresRodadas] = React.useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem('bolao_vencedores_rodadas');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+  const [publicMetrics, setPublicMetrics] = React.useState<any | null>(() => {
+    try {
+      const saved = localStorage.getItem('bolao_public_metrics');
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
+  const [pointsConfig, setPointsConfig] = React.useState<any>(() => {
+    try {
+      const saved = localStorage.getItem('bolao_points_config');
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
   const [dataServidor, setDataServidor] = React.useState<string>(new Date().toISOString());
   const [ixcOfflineMode, setIxcOfflineMode] = React.useState<boolean>(true);
-  const [configsCustom, setConfigsCustom] = React.useState<any | null>(null);
+  const [configsCustom, setConfigsCustom] = React.useState<any | null>(() => {
+    try {
+      const saved = localStorage.getItem('bolao_configs_custom');
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
 
   // Global flash messages
   const [alertInfo, setAlertInfo] = React.useState<{ msg: string; isErr: boolean } | null>(null);
@@ -186,7 +232,8 @@ export default function App() {
     }
   }, [token]);
 
-  // Sync caches from Express API
+  // Sync caches from Express API concurrently using parallel Promise.all 
+  // and persistence in local storage so the PWA loads instantly on next boots!
   const refreshAppData = async () => {
     try {
       const headersArr: any = {};
@@ -195,33 +242,41 @@ export default function App() {
         headersArr["Authorization"] = `Bearer ${activeUserToken}`;
       }
 
-      // 1. Public Metrics
-      const mRes = await fetch("/api/metrics-public", { headers: headersArr });
-      if (mRes.ok) {
-        const mData = await mRes.json();
+      // Fetch all sources concurrently to slash loading time to 1 roundtrip!
+      const [mRes, rRes, vRes, gRes] = await Promise.all([
+        fetch("/api/metrics-public", { headers: headersArr }),
+        fetch("/api/ranking", { headers: headersArr }),
+        fetch("/api/vencedores-rodadas", { headers: headersArr }),
+        fetch("/api/jogos", { headers: headersArr })
+      ]);
+
+      // Parse JSON payloads concurrently as well!
+      const [mData, rData, vData, gData] = await Promise.all([
+        mRes.ok ? mRes.json() : null,
+        rRes.ok ? rRes.json() : null,
+        vRes.ok ? vRes.json() : null,
+        gRes.ok ? gRes.json() : null
+      ]);
+
+      if (mData) {
         setPublicMetrics(mData);
         setDataServidor(mData.data_servidor);
         if (mData.ixc_offline_mode !== undefined) {
           setIxcOfflineMode(mData.ixc_offline_mode);
         }
+        localStorage.setItem('bolao_public_metrics', JSON.stringify(mData));
       }
 
-      // 2. Rankings List
-      const rRes = await fetch("/api/ranking", { headers: headersArr });
-      if (rRes.ok) {
-        const rData = await rRes.json();
+      if (rData) {
         setRanking(rData);
+        localStorage.setItem('bolao_ranking', JSON.stringify(rData));
       }
 
-      // 2.5 Copa Round Winners List
-      const vRes = await fetch("/api/vencedores-rodadas", { headers: headersArr });
-      if (vRes.ok) {
-        const vData = await vRes.json();
+      if (vData) {
         setVencedoresRodadas(vData);
+        localStorage.setItem('bolao_vencedores_rodadas', JSON.stringify(vData));
       }
 
-      // 3. Fixtures combined with User Guesses (if token available)
-      const gRes = await fetch("/api/jogos", { headers: headersArr });
       if (gRes.status === 401) {
         localStorage.removeItem('bolao_token');
         localStorage.removeItem('bolao_usuario');
@@ -234,16 +289,22 @@ export default function App() {
         showAlert("Sua sessão expirou. Por favor, faça login novamente.", true);
         return;
       }
-      if (gRes.ok) {
-        const gData = await gRes.json();
+
+      if (gData) {
         setJogos(gData.jogos);
         setPalpites(gData.palpites);
         setDataServidor(gData.data_servidor);
+        
+        localStorage.setItem('bolao_jogos', JSON.stringify(gData.jogos));
+        localStorage.setItem('bolao_palpites', JSON.stringify(gData.palpites));
+
         if (gData.configs_points) {
           setPointsConfig(gData.configs_points);
+          localStorage.setItem('bolao_points_config', JSON.stringify(gData.configs_points));
         }
         if (gData.configs_custom) {
           setConfigsCustom(gData.configs_custom);
+          localStorage.setItem('bolao_configs_custom', JSON.stringify(gData.configs_custom));
         }
         if (gData.usuario) {
           setUsuario(gData.usuario);
