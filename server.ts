@@ -1922,55 +1922,63 @@ function triggerMySqlSync() {
 let lastSyncedDbState: LocalDatabase | null = null;
 
 function isUsuarioDifferent(u1: any, u2: any): boolean {
+  if (!u1 || !u2) return true;
   return (
-    u1.ixc_id !== u2.ixc_id ||
-    u1.nome !== u2.nome ||
-    u1.cpf_cnpj !== u2.cpf_cnpj ||
-    u1.telefone !== u2.telefone ||
-    u1.email !== u2.email ||
-    u1.cidade !== u2.cidade ||
-    u1.avatar !== u2.avatar ||
-    u1.pontos_total !== u2.pontos_total ||
-    u1.acertos_exato !== u2.acertos_exato ||
-    u1.acertos_vencedor !== u2.acertos_vencedor ||
-    u1.erros !== u2.erros ||
-    u1.bloqueado !== u2.bloqueado
+    (u1.ixc_id || "").toString() !== (u2.ixc_id || "").toString() ||
+    (u1.nome || "").trim() !== (u2.nome || "").trim() ||
+    (u1.cpf_cnpj || "").replace(/\D/g, "") !== (u2.cpf_cnpj || "").replace(/\D/g, "") ||
+    (u1.telefone || "").toString() !== (u2.telefone || "").toString() ||
+    (u1.email || "").toLowerCase().trim() !== (u2.email || "").toLowerCase().trim() ||
+    (u1.cidade || "").trim() !== (u2.cidade || "").trim() ||
+    (u1.avatar || "⚽") !== (u2.avatar || "⚽") ||
+    Number(u1.pontos_total || 0) !== Number(u2.pontos_total || 0) ||
+    Number(u1.acertos_exato || 0) !== Number(u2.acertos_exato || 0) ||
+    Number(u1.acertos_vencedor || 0) !== Number(u2.acertos_vencedor || 0) ||
+    Number(u1.erros || 0) !== Number(u2.erros || 0) ||
+    Boolean(u1.bloqueado) !== Boolean(u2.bloqueado)
   );
 }
 
 function isJogoDifferent(j1: any, j2: any): boolean {
+  if (!j1 || !j2) return true;
+
+  const d1 = j1.data_jogo ? new Date(j1.data_jogo).getTime() : 0;
+  const d2 = j2.data_jogo ? new Date(j2.data_jogo).getTime() : 0;
+
   return (
-    j1.api_id !== j2.api_id ||
-    j1.time_casa !== j2.time_casa ||
-    j1.time_fora !== j2.time_fora ||
-    j1.time_casa_bandeira !== j2.time_casa_bandeira ||
-    j1.time_fora_bandeira !== j2.time_fora_bandeira ||
-    j1.data_jogo !== j2.data_jogo ||
-    j1.placar_casa !== j2.placar_casa ||
-    j1.placar_fora !== j2.placar_fora ||
-    j1.status !== j2.status ||
-    j1.status_detalhado !== j2.status_detalhado ||
-    j1.rodada !== j2.rodada
+    (j1.api_id || "").toString() !== (j2.api_id || "").toString() ||
+    (j1.time_casa || "").trim() !== (j2.time_casa || "").trim() ||
+    (j1.time_fora || "").trim() !== (j2.time_fora || "").trim() ||
+    (j1.time_casa_bandeira || "") !== (j2.time_casa_bandeira || "") ||
+    (j1.time_fora_bandeira || "") !== (j2.time_fora_bandeira || "") ||
+    d1 !== d2 ||
+    (j1.placar_casa !== null && j1.placar_casa !== undefined ? Number(j1.placar_casa) : null) !== (j2.placar_casa !== null && j2.placar_casa !== undefined ? Number(j2.placar_casa) : null) ||
+    (j1.placar_fora !== null && j1.placar_fora !== undefined ? Number(j1.placar_fora) : null) !== (j2.placar_fora !== null && j2.placar_fora !== undefined ? Number(j2.placar_fora) : null) ||
+    (j1.status || "PENDENTE") !== (j2.status || "PENDENTE") ||
+    (j1.status_detalhado || "NS") !== (j2.status_detalhado || "NS") ||
+    Number(j1.rodada || 1) !== Number(j2.rodada || 1)
   );
 }
 
 function isPalpiteDifferent(p1: any, p2: any): boolean {
+  if (!p1 || !p2) return true;
   return (
-    p1.placar_casa !== p2.placar_casa ||
-    p1.placar_fora !== p2.placar_fora ||
-    p1.pontos !== p2.pontos ||
+    (p1.placar_casa !== null && p1.placar_casa !== undefined ? Number(p1.placar_casa) : null) !== (p2.placar_casa !== null && p2.placar_casa !== undefined ? Number(p2.placar_casa) : null) ||
+    (p1.placar_fora !== null && p1.placar_fora !== undefined ? Number(p1.placar_fora) : null) !== (p2.placar_fora !== null && p2.placar_fora !== undefined ? Number(p2.placar_fora) : null) ||
+    Number(p1.pontos || 0) !== Number(p2.pontos || 0) ||
     JSON.stringify(p1.palpites_gols_jogadores || null) !== JSON.stringify(p2.palpites_gols_jogadores || null)
   );
 }
 
 function isAdminDifferent(a1: any, a2: any): boolean {
+  if (!a1 || !a2) return true;
   return (
-    a1.email !== a2.email ||
-    a1.nome !== a2.nome ||
-    a1.senha !== a2.senha ||
-    a1.podeExcluir !== a2.podeExcluir ||
-    a1.podeEditar !== a2.podeEditar ||
-    a1.podeAtivarCampeonato !== a2.podeAtivarCampeonato
+    (a1.email || "").toLowerCase().trim() !== (a2.email || "").toLowerCase().trim() ||
+    (a1.nome || "").trim() !== (a2.nome || "").trim() ||
+    (a1.senha || "200616") !== (a2.senha || "200616") ||
+    Boolean(a1.podeExcluir !== false) !== Boolean(a2.podeExcluir !== false) ||
+    Boolean(a1.podeEditar !== false) !== Boolean(a2.podeEditar !== false) ||
+    Boolean(a1.podeAtivarCampeonato !== false) !== Boolean(a2.podeAtivarCampeonato !== false)
   );
 }
 
@@ -2070,128 +2078,145 @@ async function saveDatabaseToMySqlIncremental(db: LocalDatabase | null) {
       });
     }
 
-    // B. Sync modified/created Users
+    // B. Sync modified/created Users in chunks of 20 to prevent query overflow
     if (usersToSync.length > 0) {
       console.log(`[MySql Async Sync] Syncing ${usersToSync.length} modified/new users to MySQL`);
-      for (const u of usersToSync) {
-        try {
-          await prisma.usuario.upsert({
-            where: { id: u.id },
-            update: {
-              ixc_id: u.ixc_id,
-              nome: u.nome,
-              cpf_cnpj: u.cpf_cnpj,
-              telefone: u.telefone,
-              email: u.email,
-              cidade: u.cidade,
-              avatar: u.avatar || "⚽",
-              pontos_total: u.pontos_total,
-              acertos_exato: u.acertos_exato,
-              acertos_vencedor: u.acertos_vencedor,
-              erros: u.erros,
-              bloqueado: u.bloqueado
-            },
-            create: {
-              id: u.id,
-              ixc_id: u.ixc_id,
-              nome: u.nome,
-              cpf_cnpj: u.cpf_cnpj,
-              telefone: u.telefone,
-              email: u.email,
-              cidade: u.cidade,
-              avatar: u.avatar || "⚽",
-              pontos_total: u.pontos_total,
-              acertos_exato: u.acertos_exato,
-              acertos_vencedor: u.acertos_vencedor,
-              erros: u.erros,
-              bloqueado: u.bloqueado,
-              created_at: new Date(u.created_at)
+      const chunkSize = 20;
+      for (let i = 0; i < usersToSync.length; i += chunkSize) {
+        const chunk = usersToSync.slice(i, i + chunkSize);
+        await Promise.all(
+          chunk.map(async (u) => {
+            try {
+              await prisma!.usuario.upsert({
+                where: { id: u.id },
+                update: {
+                  ixc_id: u.ixc_id,
+                  nome: u.nome,
+                  cpf_cnpj: u.cpf_cnpj,
+                  telefone: u.telefone,
+                  email: u.email,
+                  cidade: u.cidade,
+                  avatar: u.avatar || "⚽",
+                  pontos_total: u.pontos_total,
+                  acertos_exato: u.acertos_exato,
+                  acertos_vencedor: u.acertos_vencedor,
+                  erros: u.erros,
+                  bloqueado: u.bloqueado
+                },
+                create: {
+                  id: u.id,
+                  ixc_id: u.ixc_id,
+                  nome: u.nome,
+                  cpf_cnpj: u.cpf_cnpj,
+                  telefone: u.telefone,
+                  email: u.email,
+                  cidade: u.cidade,
+                  avatar: u.avatar || "⚽",
+                  pontos_total: u.pontos_total,
+                  acertos_exato: u.acertos_exato,
+                  acertos_vencedor: u.acertos_vencedor,
+                  erros: u.erros,
+                  bloqueado: u.bloqueado,
+                  created_at: new Date(u.created_at)
+                }
+              });
+            } catch (err: any) {
+              console.error(`[MySql Sync] Failed to upsert user ID ${u.id} (${u.nome}):`, err.message);
             }
-          });
-        } catch (err: any) {
-          console.error(`[MySql Sync] Failed to upsert user ID ${u.id} (${u.nome}):`, err.message);
-        }
+          })
+        );
       }
     }
 
-    // C. Sync modified/created Games
+    // C. Sync modified/created Games in chunks of 20 to prevent query overflow
     if (gamesToSync.length > 0) {
       console.log(`[MySql Async Sync] Syncing ${gamesToSync.length} modified/new games to MySQL`);
-      for (const g of gamesToSync) {
-        try {
-          await prisma.jogo.upsert({
-            where: { id: g.id },
-            update: {
-              api_id: g.api_id,
-              time_casa: g.time_casa,
-              time_fora: g.time_fora,
-              time_casa_bandeira: g.time_casa_bandeira || "🏳️",
-              time_fora_bandeira: g.time_fora_bandeira || "🏳️",
-              data_jogo: new Date(g.data_jogo),
-              placar_casa: g.placar_casa,
-              placar_fora: g.placar_fora,
-              status: g.status,
-              status_detalhado: g.status_detalhado || "NS",
-              rodada: g.rodada
-            },
-            create: {
-              id: g.id,
-              api_id: g.api_id,
-              time_casa: g.time_casa,
-              time_fora: g.time_fora,
-              time_casa_bandeira: g.time_casa_bandeira || "🏳️",
-              time_fora_bandeira: g.time_fora_bandeira || "🏳️",
-              data_jogo: new Date(g.data_jogo),
-              placar_casa: g.placar_casa,
-              placar_fora: g.placar_fora,
-              status: g.status,
-              status_detalhado: g.status_detalhado || "NS",
-              rodada: g.rodada
+      const chunkSize = 20;
+      for (let i = 0; i < gamesToSync.length; i += chunkSize) {
+        const chunk = gamesToSync.slice(i, i + chunkSize);
+        await Promise.all(
+          chunk.map(async (g) => {
+            try {
+              await prisma!.jogo.upsert({
+                where: { id: g.id },
+                update: {
+                  api_id: g.api_id,
+                  time_casa: g.time_casa,
+                  time_fora: g.time_fora,
+                  time_casa_bandeira: g.time_casa_bandeira || "🏳️",
+                  time_fora_bandeira: g.time_fora_bandeira || "🏳️",
+                  data_jogo: new Date(g.data_jogo),
+                  placar_casa: g.placar_casa,
+                  placar_fora: g.placar_fora,
+                  status: g.status,
+                  status_detalhado: g.status_detalhado || "NS",
+                  rodada: g.rodada
+                },
+                create: {
+                  id: g.id,
+                  api_id: g.api_id,
+                  time_casa: g.time_casa,
+                  time_fora: g.time_fora,
+                  time_casa_bandeira: g.time_casa_bandeira || "🏳️",
+                  time_fora_bandeira: g.time_fora_bandeira || "🏳️",
+                  data_jogo: new Date(g.data_jogo),
+                  placar_casa: g.placar_casa,
+                  placar_fora: g.placar_fora,
+                  status: g.status,
+                  status_detalhado: g.status_detalhado || "NS",
+                  rodada: g.rodada
+                }
+              });
+            } catch (err: any) {
+              console.error(`[MySql Sync] Failed to upsert game ID ${g.id} (${g.time_casa} x ${g.time_fora}):`, err.message);
             }
-          });
-        } catch (err: any) {
-          console.error(`[MySql Sync] Failed to upsert game ID ${g.id} (${g.time_casa} x ${g.time_fora}):`, err.message);
-        }
+          })
+        );
       }
     }
 
-    // D. Sync modified/created Bets (Palpites)
+    // D. Sync modified/created Bets (Palpites) optimized with Set O(1) membership check and chunked execution
     if (betsToSync.length > 0) {
       console.log(`[MySql Async Sync] Syncing ${betsToSync.length} modified/new bets to MySQL`);
-      for (const p of betsToSync) {
-        try {
-          const userExist = db.usuarios.some(u => u.id === p.usuario_id);
-          const gameExist = db.jogos.some(g => g.id === p.jogo_id);
-          if (!userExist || !gameExist) {
-            continue;
-          }
+      const userIdsSet = new Set(db.usuarios.map(u => u.id));
+      const gameIdsSet = new Set(db.jogos.map(g => g.id));
+      
+      const filteredBetsToSync = betsToSync.filter(p => userIdsSet.has(p.usuario_id) && gameIdsSet.has(p.jogo_id));
 
-          await prisma.palpite.upsert({
-            where: {
-              usuario_id_jogo_id: {
-                usuario_id: p.usuario_id,
-                jogo_id: p.jogo_id
-              }
-            },
-            update: {
-              placar_casa: p.placar_casa,
-              placar_fora: p.placar_fora,
-              pontos: p.pontos,
-              gols_jogadores: p.palpites_gols_jogadores ? JSON.stringify(p.palpites_gols_jogadores) : null
-            },
-            create: {
-              usuario_id: p.usuario_id,
-              jogo_id: p.jogo_id,
-              placar_casa: p.placar_casa,
-              placar_fora: p.placar_fora,
-              pontos: p.pontos,
-              gols_jogadores: p.palpites_gols_jogadores ? JSON.stringify(p.palpites_gols_jogadores) : null,
-              created_at: new Date(p.created_at)
+      const chunkSize = 20;
+      for (let i = 0; i < filteredBetsToSync.length; i += chunkSize) {
+        const chunk = filteredBetsToSync.slice(i, i + chunkSize);
+        await Promise.all(
+          chunk.map(async (p) => {
+            try {
+              await prisma!.palpite.upsert({
+                where: {
+                  usuario_id_jogo_id: {
+                    usuario_id: p.usuario_id,
+                    jogo_id: p.jogo_id
+                  }
+                },
+                update: {
+                  placar_casa: p.placar_casa,
+                  placar_fora: p.placar_fora,
+                  pontos: p.pontos,
+                  gols_jogadores: p.palpites_gols_jogadores ? JSON.stringify(p.palpites_gols_jogadores) : null
+                },
+                create: {
+                  usuario_id: p.usuario_id,
+                  jogo_id: p.jogo_id,
+                  placar_casa: p.placar_casa,
+                  placar_fora: p.placar_fora,
+                  pontos: p.pontos,
+                  gols_jogadores: p.palpites_gols_jogadores ? JSON.stringify(p.palpites_gols_jogadores) : null,
+                  created_at: new Date(p.created_at)
+                }
+              });
+            } catch (err: any) {
+              console.error(`[MySql Sync] Failed to upsert bet (user ID ${p.usuario_id}, game ID ${p.jogo_id}):`, err.message);
             }
-          });
-        } catch (err: any) {
-          console.error(`[MySql Sync] Failed to upsert bet (user ID ${p.usuario_id}, game ID ${p.jogo_id}):`, err.message);
-        }
+          })
+        );
       }
     }
 
@@ -2359,39 +2384,42 @@ async function saveDatabaseToMySqlIncremental(db: LocalDatabase | null) {
       });
     }
 
-    // H. Sync modified/created Admins
+    // H. Sync modified/created Admins parallelized
     if (adminsToSync.length > 0) {
       console.log(`[MySql Async Sync] Syncing ${adminsToSync.length} modified/new administrators to MySQL`);
-      for (const a of adminsToSync) {
-        if (a.email.toLowerCase() === "suporte@unityautomacoes.com.br") continue;
-
-        try {
-          const passwordPlainText = a.senha || "200616";
-          const hashVal = await bcryptjs.hash(passwordPlainText, 10);
-          await prisma.admin.upsert({
-            where: { email: a.email.toLowerCase() },
-            update: {
-              nome: a.nome,
-              senha: passwordPlainText,
-              senha_hash: hashVal,
-              pode_excluir: a.podeExcluir !== false,
-              pode_editar: a.podeEditar !== false,
-              pode_ativar_campeonato: a.podeAtivarCampeonato !== false
-            },
-            create: {
-              id: a.id,
-              email: a.email.toLowerCase(),
-              nome: a.nome,
-              senha: passwordPlainText,
-              senha_hash: hashVal,
-              pode_excluir: a.podeExcluir !== false,
-              pode_editar: a.podeEditar !== false,
-              pode_ativar_campeonato: a.podeAtivarCampeonato !== false
+      const filteredAdmins = adminsToSync.filter(a => a.email.toLowerCase() !== "suporte@unityautomacoes.com.br");
+      if (filteredAdmins.length > 0) {
+        await Promise.all(
+          filteredAdmins.map(async (a) => {
+            try {
+              const passwordPlainText = a.senha || "200616";
+              const hashVal = await bcryptjs.hash(passwordPlainText, 10);
+              await prisma!.admin.upsert({
+                where: { email: a.email.toLowerCase() },
+                update: {
+                  nome: a.nome,
+                  senha: passwordPlainText,
+                  senha_hash: hashVal,
+                  pode_excluir: a.podeExcluir !== false,
+                  pode_editar: a.podeEditar !== false,
+                  pode_ativar_campeonato: a.podeAtivarCampeonato !== false
+                },
+                create: {
+                  id: a.id,
+                  email: a.email.toLowerCase(),
+                  nome: a.nome,
+                  senha: passwordPlainText,
+                  senha_hash: hashVal,
+                  pode_excluir: a.podeExcluir !== false,
+                  pode_editar: a.podeEditar !== false,
+                  pode_ativar_campeonato: a.podeAtivarCampeonato !== false
+                }
+              });
+            } catch (errUps: any) {
+              console.error(`[MySql Sync] Failed to upsert administrator sub-admin ID ${a.id} (${a.nome}):`, errUps.message);
             }
-          });
-        } catch (errUps: any) {
-          console.error(`[MySql Sync] Failed to upsert administrator sub-admin ID ${a.id} (${a.nome}):`, errUps.message);
-        }
+          })
+        );
       }
     }
 
