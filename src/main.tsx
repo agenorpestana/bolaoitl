@@ -6,9 +6,11 @@ import './index.css';
 // Register the PWA service worker automatically
 if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
+    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
       .then(reg => {
         console.log('Cartola ITL PWA Service Worker registered successfully:', reg);
+        // Clean and check for updates actively on load to prevent stale caching
+        reg.update();
       })
       .catch(err => {
         console.error('Cartola ITL PWA Service Worker registration failed:', err);

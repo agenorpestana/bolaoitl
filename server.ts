@@ -6368,7 +6368,36 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
+    
+    // Explicitly add strict no-cache control route for core files to prevent aggressive browser/iOS Safari caching
+    app.get(["/", "/index.html", "/sw.js", "/manifest.json"], (req, res) => {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+      
+      if (req.path === "/sw.js") {
+        return res.sendFile(path.join(distPath, "sw.js"));
+      } else if (req.path === "/manifest.json") {
+        return res.sendFile(path.join(distPath, "manifest.json"));
+      }
+      return res.sendFile(path.join(distPath, "index.html"));
+    });
+
+    // Serve all static assets (js, css, png, etc.)
+    app.use(express.static(distPath, {
+      setHeaders: (res, filePath) => {
+        // Double check extension types just in case they bypass direct route definition
+        if (filePath.endsWith("sw.js") || filePath.endsWith(".html") || filePath.endsWith("manifest.json")) {
+          res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+          res.setHeader("Pragma", "no-cache");
+          res.setHeader("Expires", "0");
+        } else {
+          // Serve compiled assets/chunks with a long-term immutable cache (since filenames have high-entropy hashes that change with updates)
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        }
+      }
+    }));
+
     app.get('*', (req, res) => {
       res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
       res.setHeader("Pragma", "no-cache");
