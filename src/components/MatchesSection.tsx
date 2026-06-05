@@ -184,7 +184,7 @@ export default function MatchesSection({
       } 
     }));
     try {
-      const res = await fetch(`/api/jogos/${gameId}/estatisticas`);
+      const res = await fetch(`/api/jogos/${gameId}/estatisticas?_cb=${Date.now()}`);
       if (!res.ok) throw new Error("Erro ao carregar estatísticas.");
       const json = await res.json();
       setGameStatsData(prev => ({ ...prev, [gameId]: json.data }));
@@ -228,7 +228,7 @@ export default function MatchesSection({
       } 
     }));
     try {
-      const res = await fetch(`/api/jogos/${gameId}/escalacao`);
+      const res = await fetch(`/api/jogos/${gameId}/escalacao?_cb=${Date.now()}`);
       if (!res.ok) throw new Error("Erro ao carregar escalação.");
       const json = await res.json();
       setGameLineupsData(prev => ({ ...prev, [gameId]: json.data }));
@@ -272,7 +272,7 @@ export default function MatchesSection({
       } 
     }));
     try {
-      const res = await fetch(`/api/jogos/${gameId}/eventos`);
+      const res = await fetch(`/api/jogos/${gameId}/eventos?_cb=${Date.now()}`);
       if (!res.ok) throw new Error("Erro ao carregar eventos.");
       const json = await res.json();
       setGameEventsData(prev => ({ ...prev, [gameId]: json.data }));

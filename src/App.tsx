@@ -192,7 +192,7 @@ export default function App() {
       let sub = await registration.pushManager.getSubscription();
       
       if (!sub) {
-        const keyRes = await fetch("/api/notifications/vapid-public-key");
+        const keyRes = await fetch(`/api/notifications/vapid-public-key?_cb=${Date.now()}`);
         if (!keyRes.ok) throw new Error("Chave VAPID pública indisponível.");
         const keyData = await keyRes.json();
         
@@ -242,12 +242,13 @@ export default function App() {
         headersArr["Authorization"] = `Bearer ${activeUserToken}`;
       }
 
+      const t = Date.now();
       // Fetch all sources concurrently to slash loading time to 1 roundtrip!
       const [mRes, rRes, vRes, gRes] = await Promise.all([
-        fetch("/api/metrics-public", { headers: headersArr }),
-        fetch("/api/ranking", { headers: headersArr }),
-        fetch("/api/vencedores-rodadas", { headers: headersArr }),
-        fetch("/api/jogos", { headers: headersArr })
+        fetch(`/api/metrics-public?_cb=${t}`, { headers: headersArr }),
+        fetch(`/api/ranking?_cb=${t}`, { headers: headersArr }),
+        fetch(`/api/vencedores-rodadas?_cb=${t}`, { headers: headersArr }),
+        fetch(`/api/jogos?_cb=${t}`, { headers: headersArr })
       ]);
 
       // Parse JSON payloads concurrently as well!
