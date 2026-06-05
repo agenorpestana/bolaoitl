@@ -169,6 +169,10 @@ export default function App() {
     return outputArray;
   };
 
+  const [pushSupported] = React.useState<boolean>(() => {
+    return typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  });
+
   const [notificationPermission, setNotificationPermission] = React.useState<string>(() => {
     return 'Notification' in window ? Notification.permission : 'default';
   });
@@ -496,7 +500,7 @@ export default function App() {
       )}
 
       {/* PWA Notifications opt-in banner */}
-      {usuario && notificationPermission !== 'granted' && (
+      {pushSupported && notificationPermission === 'default' && (
         <div className="bg-gradient-to-r from-slate-900 via-brand-blue-dark/15 to-slate-900 border-b border-brand-blue-light/10 py-3 px-4 flex flex-col md:flex-row gap-3 md:gap-0 items-start md:items-center justify-between text-xs font-sans relative z-30">
           <div className="flex items-center gap-3">
             <div className="h-8 w-8 rounded-full bg-slate-950 border border-brand-blue/30 flex items-center justify-center shrink-0">
