@@ -3336,12 +3336,19 @@ async function startServer() {
   // Middleware setups
   app.use(express.json({ limit: "20mb" }));
   
-  // Custom simple Helmet header layer for compliance
+  // Custom simple Helmet header layer for compliance and anti-caching for iOS/Safari
   app.use((req, res, next) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("X-Frame-Options", "DENY");
     res.setHeader("X-XSS-Protection", "1; mode=block");
     res.setHeader("Referrer-Policy", "no-referrer");
+    
+    // Prevent aggressive caching on iOS Safari
+    if (req.url && (req.url.startsWith("/api/") || req.url.includes("/api"))) {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+    }
     next();
   });
 
@@ -6363,6 +6370,9 @@ async function startServer() {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

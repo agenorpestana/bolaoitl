@@ -49,6 +49,7 @@ export default function RankingSection({ ranking, jogos, token, usuarioLogado }:
       const query = new URLSearchParams();
       if (camp && camp !== 'all') query.set('campeonato', camp);
       if (rod && rod !== 'all') query.set('rodada', rod);
+      query.set('_cb', String(Date.now()));
 
       const url = `/api/ranking?${query.toString()}`;
       const res = await fetch(url, { headers: headersArr });
