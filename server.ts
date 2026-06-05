@@ -2010,6 +2010,25 @@ async function saveDatabaseToMySqlIncremental(db: LocalDatabase | null) {
 
     const isFullSync = !lastSyncedDbState;
 
+    const nextSyncedDbState: LocalDatabase = lastSyncedDbState 
+      ? JSON.parse(JSON.stringify(lastSyncedDbState))
+      : {
+          usuarios: [],
+          jogos: [],
+          palpites: [],
+          configs_ixc: {},
+          configs_points: {},
+          configs_football: {},
+          logs: [],
+          admins: [],
+          configs_libertadores: { ativo: false },
+          configs_copa_mundo: { ativo: true },
+          configs_brasileirao: { ativo: false },
+          configs_custom: {},
+          configs_logo: {},
+          configs_favicon: {}
+        } as any;
+
     if (!isFullSync && lastSyncedDbState) {
       // 1. Detect modified/new users
       usersToSync = db.usuarios.filter(u => {
@@ -2059,6 +2078,7 @@ async function saveDatabaseToMySqlIncremental(db: LocalDatabase | null) {
         await prisma.usuario.deleteMany({
           where: { id: { in: usersToDelete } }
         });
+        nextSyncedDbState.usuarios = nextSyncedDbState.usuarios.filter(u => !usersToDelete.includes(u.id));
       }
     } catch (err: any) {
       console.error("[MySql Sync] Error syncing users deletion:", err.message);
@@ -2070,6 +2090,7 @@ async function saveDatabaseToMySqlIncremental(db: LocalDatabase | null) {
         await prisma.jogo.deleteMany({
           where: { id: { in: gamesToDelete } }
         });
+        nextSyncedDbState.jogos = nextSyncedDbState.jogos.filter(g => !gamesToDelete.includes(g.id));
       }
     } catch (err: any) {
       console.error("[MySql Sync] Error syncing games deletion:", err.message);
@@ -2078,17 +2099,24 @@ async function saveDatabaseToMySqlIncremental(db: LocalDatabase | null) {
     try {
       if (betsToDelete.length > 0) {
         console.log(`[MySql Async Sync] Syncing deletion of ${betsToDelete.length} bets from MySQL`);
+        let successfullyDeletedBets: Array<{ usuario_id: number; jogo_id: number }> = [];
         await Promise.all(
-          betsToDelete.map(b =>
-            prisma!.palpite.delete({
-              where: {
-                usuario_id_jogo_id: {
-                  usuario_id: b.usuario_id,
-                  jogo_id: b.jogo_id
+          betsToDelete.map(async (b) => {
+            try {
+              await prisma!.palpite.delete({
+                where: {
+                  usuario_id_jogo_id: {
+                    usuario_id: b.usuario_id,
+                    jogo_id: b.jogo_id
+                  }
                 }
-              }
-            }).catch(() => {})
-          )
+              });
+              successfullyDeletedBets.push(b);
+            } catch (err) {}
+          })
+        );
+        nextSyncedDbState.palpites = nextSyncedDbState.palpites.filter(
+          p => !successfullyDeletedBets.some(b => b.usuario_id === p.usuario_id && b.jogo_id === p.jogo_id)
         );
       }
     } catch (err: any) {
@@ -2101,6 +2129,7 @@ async function saveDatabaseToMySqlIncremental(db: LocalDatabase | null) {
         await prisma.admin.deleteMany({
           where: { id: { in: adminsToDelete } }
         });
+        nextSyncedDbState.admins = (nextSyncedDbState.admins || []).filter(a => !adminsToDelete.includes(a.id));
       }
     } catch (err: any) {
       console.error("[MySql Sync] Error syncing admins deletion:", err.message);
@@ -2149,6 +2178,12 @@ async function saveDatabaseToMySqlIncremental(db: LocalDatabase | null) {
                     created_at: new Date(u.created_at)
                   }
                 });
+                const idx = nextSyncedDbState.usuarios.findIndex(x => x.id === u.id);
+                if (idx !== -1) {
+                  nextSyncedDbState.usuarios[idx] = JSON.parse(JSON.stringify(u));
+                } else {
+                  nextSyncedDbState.usuarios.push(JSON.parse(JSON.stringify(u)));
+                }
               } catch (err: any) {
                 console.error(`[MySql Sync] Failed to upsert user ID ${u.id} (${u.nome}):`, err.message);
               }
@@ -2200,6 +2235,12 @@ async function saveDatabaseToMySqlIncremental(db: LocalDatabase | null) {
                     rodada: g.rodada
                   }
                 });
+                const idx = nextSyncedDbState.jogos.findIndex(x => x.id === g.id);
+                if (idx !== -1) {
+                  nextSyncedDbState.jogos[idx] = JSON.parse(JSON.stringify(g));
+                } else {
+                  nextSyncedDbState.jogos.push(JSON.parse(JSON.stringify(g)));
+                }
               } catch (err: any) {
                 console.error(`[MySql Sync] Failed to upsert game ID ${g.id} (${g.time_casa} x ${g.time_fora}):`, err.message);
               }
@@ -2249,6 +2290,12 @@ async function saveDatabaseToMySqlIncremental(db: LocalDatabase | null) {
                     created_at: new Date(p.created_at)
                   }
                 });
+                const idx = nextSyncedDbState.palpites.findIndex(x => x.usuario_id === p.usuario_id && x.jogo_id === p.jogo_id);
+                if (idx !== -1) {
+                  nextSyncedDbState.palpites[idx] = JSON.parse(JSON.stringify(p));
+                } else {
+                  nextSyncedDbState.palpites.push(JSON.parse(JSON.stringify(p)));
+                }
               } catch (err: any) {
                 console.error(`[MySql Sync] Failed to upsert bet (user ID ${p.usuario_id}, game ID ${p.jogo_id}):`, err.message);
               }
@@ -2342,6 +2389,13 @@ async function saveDatabaseToMySqlIncremental(db: LocalDatabase | null) {
             create: { id: 3, servico: "football_api", token: db.configs_football.key }
           });
         }
+
+        nextSyncedDbState.configs_ixc = JSON.parse(JSON.stringify(db.configs_ixc));
+        nextSyncedDbState.configs_points = JSON.parse(JSON.stringify(db.configs_points));
+        nextSyncedDbState.configs_football = JSON.parse(JSON.stringify(db.configs_football));
+        nextSyncedDbState.configs_libertadores = JSON.parse(JSON.stringify(db.configs_libertadores || { ativo: false }));
+        nextSyncedDbState.configs_copa_mundo = JSON.parse(JSON.stringify(db.configs_copa_mundo || { ativo: true }));
+        nextSyncedDbState.configs_brasileirao = JSON.parse(JSON.stringify(db.configs_brasileirao || { ativo: false }));
       }
     } catch (err: any) {
       console.error("[MySql Sync] Error syncing configurations params:", err.message);
@@ -2403,9 +2457,13 @@ async function saveDatabaseToMySqlIncremental(db: LocalDatabase | null) {
             custom_favicon_timestamp: configFavicon.timestamp !== undefined ? String(configFavicon.timestamp) : null,
           }
         });
+
+        nextSyncedDbState.configs_custom = JSON.parse(JSON.stringify(db.configs_custom || {}));
+        nextSyncedDbState.configs_logo = JSON.parse(JSON.stringify(db.configs_logo || {}));
+        nextSyncedDbState.configs_favicon = JSON.parse(JSON.stringify(db.configs_favicon || {}));
       }
     } catch (err: any) {
-      console.error("[MySql Sync Error] Failed to incremental save Site Personalization metrics:", err.message);
+      console.error("[MySql Sync Error] Failed to incremental save Site Personalization parameters:", err.message);
     }
 
     // G. Sync newly created Audit logs
@@ -2426,6 +2484,14 @@ async function saveDatabaseToMySqlIncremental(db: LocalDatabase | null) {
             ip: l.ip,
             data: new Date(l.data)
           }))
+        });
+        
+        const loggedIds = new Set((nextSyncedDbState.logs || []).map(l => l.id));
+        newLogs.forEach(l => {
+          if (!loggedIds.has(l.id)) {
+            if (!nextSyncedDbState.logs) nextSyncedDbState.logs = [];
+            nextSyncedDbState.logs.push(JSON.parse(JSON.stringify(l)));
+          }
         });
       }
     } catch (err: any) {
@@ -2474,6 +2540,14 @@ async function saveDatabaseToMySqlIncremental(db: LocalDatabase | null) {
                     pode_ativar_campeonato: a.podeAtivarCampeonato !== false
                   }
                 });
+
+                const idx = (nextSyncedDbState.admins || []).findIndex(x => x.id === a.id);
+                if (idx !== -1) {
+                  nextSyncedDbState.admins![idx] = JSON.parse(JSON.stringify(a));
+                } else {
+                  if (!nextSyncedDbState.admins) nextSyncedDbState.admins = [];
+                  nextSyncedDbState.admins.push(JSON.parse(JSON.stringify(a)));
+                }
               } catch (errUps: any) {
                 console.error(`[MySql Sync] Failed to upsert administrator sub-admin ID ${a.id} (${a.nome}):`, errUps.message);
               }
@@ -2485,7 +2559,7 @@ async function saveDatabaseToMySqlIncremental(db: LocalDatabase | null) {
       console.error("[MySql Sync] Error syncing administrators list:", err.message);
     }
 
-    lastSyncedDbState = JSON.parse(JSON.stringify(db));
+    lastSyncedDbState = nextSyncedDbState;
   } catch (err: any) {
     console.error("[MySql Sync] Sync engine batch write error:", err.message);
   }
@@ -4040,6 +4114,50 @@ async function startServer() {
 
     addLog("Intrusão", "TENTATIVA_LOGIN_FALHOU", `Falha de login de administrador usando email: ${email}`, req);
     return res.status(401).json({ error: "Credenciais de administrador inválidas." });
+  });
+
+  // Diagnostic route to check DB connection
+  app.get("/api/diagnose-db", async (req, res) => {
+    const report: any = {
+      timestamp: new Date().toISOString(),
+      prisma_initialized: !!prisma,
+      DATABASE_URL_present: !!process.env.DATABASE_URL,
+      DB_USER: process.env.DB_USER,
+      DB_NAME: process.env.DB_NAME,
+      DB_HOST: process.env.DB_HOST,
+      cachedDb_stats: null,
+      error: null
+    };
+
+    if (cachedDb) {
+      report.cachedDb_stats = {
+        usuarios_count: cachedDb.usuarios?.length || 0,
+        palpites_count: cachedDb.palpites?.length || 0,
+        jogos_count: cachedDb.jogos?.length || 0,
+        admins_count: cachedDb.admins?.length || 0
+      };
+    }
+
+    try {
+      if (prisma) {
+        report.mysql_counts = {
+          usuarios: await prisma.usuario.count(),
+          jogos: await prisma.jogo.count(),
+          palpites: await prisma.palpite.count(),
+          admins: await prisma.admin.count()
+        };
+      } else {
+        report.mysql_status = "No prisma client initialized";
+      }
+    } catch (err: any) {
+      report.error = {
+        message: err.message,
+        stack: err.stack,
+        code: err.code
+      };
+    }
+
+    res.json(report);
   });
 
   // Get current state of games combined with user guesses
