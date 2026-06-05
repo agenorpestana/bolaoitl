@@ -2,6 +2,7 @@ import React from 'react';
 import { Trophy, CheckCircle, XCircle, Clock, Calendar, Search, Award, TrendingUp, Filter, Target } from 'lucide-react';
 import { Jogo, Palpite } from '../types';
 import { getGameCampeonato } from './MatchesSection';
+import { safeParseDate, safeLocaleString } from '../utils/dateUtils';
 
 function normalizePlayerName(name: string): string {
   if (!name) return "";
@@ -82,7 +83,7 @@ export default function GuessesHistory({ jogos, palpites, usuarioNome, isCompact
         };
       })
       .filter((item): item is NonNullable<typeof item> => item !== null)
-      .sort((a, b) => new Date(b.jogo.data_jogo).getTime() - new Date(a.jogo.data_jogo).getTime());
+      .sort((a, b) => safeParseDate(b.jogo.data_jogo).getTime() - safeParseDate(a.jogo.data_jogo).getTime());
   }, [jogos, palpites]);
 
   // Stats Counters
@@ -305,7 +306,7 @@ export default function GuessesHistory({ jogos, palpites, usuarioNome, isCompact
                 <div className="flex flex-col space-y-1 align-left text-left w-full xs:w-auto">
                   <span className="text-[8px] font-mono font-bold tracking-widest text-slate-500 uppercase flex items-center gap-1">
                     <Calendar className="h-3 w-3" />
-                    {new Date(jogo.data_jogo).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} • {getFriendlyRoundName(jogo.rodada, champ)}
+                    {safeLocaleString(jogo.data_jogo, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} • {getFriendlyRoundName(jogo.rodada, champ)}
                   </span>
                   
                   {/* Scoreboard visual alignment */}

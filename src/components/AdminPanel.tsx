@@ -7,6 +7,7 @@ import { Usuario, Jogo, ConfigPoints, ConfigIXC, ConfigFootballApi, AuditLog } f
 import { CIDADES_ATENDIDAS } from '../data';
 import { renderBandeira } from './HomePublic';
 import GuessesHistory from './GuessesHistory';
+import { safeParseDate, safeLocaleDateString, safeLocaleTimeString, safeLocaleString } from '../utils/dateUtils';
 
 
 interface AdminPanelProps {
@@ -917,7 +918,7 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
           time_fora: newAwayTeam,
           time_casa_bandeira: newHomeFlag,
           time_fora_bandeira: newAwayFlag,
-          data_jogo: new Date(newMatchDate).toISOString(),
+          data_jogo: safeParseDate(newMatchDate).toISOString(),
           rodada: newMatchRound
         })
       });
@@ -1420,7 +1421,7 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
             <div className="bg-slate-950 rounded-xl p-3 divide-y divide-slate-900 max-h-[220px] overflow-y-auto">
               {logs.slice(0, 5).map((lg) => (
                 <div key={lg.id} className="py-2 text-[11px] font-mono flex items-start gap-2">
-                  <span className="text-[10px] text-slate-500 shrink-0">[{new Date(lg.data).toLocaleTimeString('pt-BR')}]</span>
+                  <span className="text-[10px] text-slate-500 shrink-0">[{safeLocaleTimeString(lg.data)}]</span>
                   <span className="text-yellow-500/95 font-bold shrink-0">{lg.acao}:</span>
                   <span className="text-slate-300 flex-1">{lg.descricao}</span>
                   <span className="text-slate-550 shrink-0 text-[10px]">{lg.usuario} ({lg.ip})</span>
@@ -2733,7 +2734,7 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
                               </span>
                             </td>
                             <td className="px-4 py-3 font-mono text-slate-400">
-                              {new Date(jogo.data_jogo).toLocaleDateString('pt-BR')} às {new Date(jogo.data_jogo).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                              {safeLocaleDateString(jogo.data_jogo)} às {safeLocaleTimeString(jogo.data_jogo, { hour: '2-digit', minute: '2-digit' })}
                             </td>
                             
                             <td className="px-4 py-3 text-center">
@@ -2899,7 +2900,7 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
                           return (
                             <div key={jogo.id} className="px-4 py-4 hover:bg-slate-905/35 transition grid grid-cols-12 gap-2 items-center text-xs">
                               <div className="col-span-2 font-mono text-slate-450">
-                                {new Date(jogo.data_jogo).toLocaleString('pt-BR')}
+                                {safeLocaleString(jogo.data_jogo)}
                               </div>
 
                               <div className="col-span-4 flex items-center justify-between px-3">
@@ -3122,7 +3123,7 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
                           return (
                             <div key={jogo.id} className="px-4 py-4 hover:bg-slate-905/35 transition grid grid-cols-12 gap-2 items-center text-xs">
                               <div className="col-span-2 font-mono text-slate-450">
-                                {new Date(jogo.data_jogo).toLocaleString('pt-BR')}
+                                {safeLocaleString(jogo.data_jogo)}
                               </div>
 
                               <div className="col-span-4 flex items-center justify-between px-3">
@@ -3442,7 +3443,7 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
                 {logs.length > 0 ? (
                   logs.map((lg) => (
                     <div key={lg.id} className="px-4 py-3 bg-slate-905/30 hover:bg-slate-905/60 transition grid grid-cols-12 gap-2">
-                      <span className="col-span-2 text-slate-500">{new Date(lg.data).toLocaleString('pt-BR')}</span>
+                      <span className="col-span-2 text-slate-500">{safeLocaleString(lg.data)}</span>
                       <span className="col-span-2 text-yellow-500 font-bold tracking-tight truncate pr-1" title={lg.acao}>{lg.acao}</span>
                       <span className="col-span-5 text-slate-300">{lg.descricao}</span>
                       <span className="col-span-2 text-slate-400 font-sans font-bold truncate pr-1">{lg.usuario}</span>

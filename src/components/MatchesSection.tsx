@@ -7,6 +7,7 @@ import { Jogo, Palpite } from '../types';
 import { renderBandeira } from './HomePublic';
 import { STATUS_LABELS } from '../utils/gameEnricher';
 import { calculateStandings, groupStandings } from '../utils/standingsCalculator';
+import { safeParseDate, safeLocaleDateString, safeLocaleTimeString } from '../utils/dateUtils';
 
 
 export function getFriendlyRoundName(rdNum: number | string, campeonato?: 'COPA_MUNDO' | 'LIBERTADORES' | 'BRASILEIRAO'): string {
@@ -324,7 +325,7 @@ export default function MatchesSection({
         // Check if game is in progress (live) or if kickoff is in the past and not yet finished
         const isLive = game.status === 'AO_VIVO' || 
                        ["1H", "HT", "2H", "ET", "P", "BT", "LIVE", "SUSP", "INT"].includes((game.status_detalhado || '').toUpperCase()) ||
-                       (new Date(game.data_jogo).getTime() <= now && game.status !== 'ENCERRADO');
+                       (safeParseDate(game.data_jogo).getTime() <= now && game.status !== 'ENCERRADO');
 
         // Stats interval: 1 minute for live matches, 24 hours otherwise
         const statsInterval = isLive ? 60 * 1000 : 24 * 60 * 60 * 1000;
@@ -747,8 +748,8 @@ export default function MatchesSection({
   }, [championshipJogos]);
 
   const isPastGame = React.useCallback((jogo: Jogo): boolean => {
-    const nowMs = new Date(dataServidor || new Date().toISOString()).getTime();
-    const gameMs = new Date(jogo.data_jogo).getTime();
+    const nowMs = safeParseDate(dataServidor || new Date().toISOString()).getTime();
+    const gameMs = safeParseDate(jogo.data_jogo).getTime();
     return gameMs <= nowMs;
   }, [dataServidor]);
 
@@ -756,8 +757,8 @@ export default function MatchesSection({
     if (jogo.status === 'AO_VIVO') return true;
     if (["1H", "HT", "2H", "ET", "P", "BT", "LIVE", "SUSP", "INT"].includes(jogo.status_detalhado || '')) return true;
     if (jogo.status === 'PENDENTE' && isPastGame(jogo)) {
-      const kickoff = new Date(jogo.data_jogo).getTime();
-      const now = new Date(dataServidor || new Date().toISOString()).getTime();
+      const kickoff = safeParseDate(jogo.data_jogo).getTime();
+      const now = safeParseDate(dataServidor || new Date().toISOString()).getTime();
       const elapsedMins = (now - kickoff) / (1000 * 60);
       return elapsedMins < 135;
     }
@@ -774,8 +775,8 @@ export default function MatchesSection({
     }
 
     if (isPastGame(jogo)) {
-      const kickoff = new Date(jogo.data_jogo).getTime();
-      const now = new Date(dataServidor || new Date().toISOString()).getTime();
+      const kickoff = safeParseDate(jogo.data_jogo).getTime();
+      const now = safeParseDate(dataServidor || new Date().toISOString()).getTime();
       const elapsedMins = (now - kickoff) / (1000 * 60);
       
       // If past 135 minutes (2 hours 15 mins), and is not explicitly formatted live, treat as concluded/expired
@@ -839,8 +840,8 @@ export default function MatchesSection({
     // Only matches belonging to the current active round are open for guesses!
     if (jogo.rodada !== currentRound) return true;
 
-    const nowMs = new Date(dataServidor || new Date().toISOString()).getTime();
-    const gameMs = new Date(jogo.data_jogo).getTime();
+    const nowMs = safeParseDate(dataServidor || new Date().toISOString()).getTime();
+    const gameMs = safeParseDate(jogo.data_jogo).getTime();
     const lockMarginMs = 1 * 60 * 60 * 1000; // 1 Hour
     return (gameMs - nowMs) < lockMarginMs;
   };
@@ -853,8 +854,8 @@ export default function MatchesSection({
       return "Rodada encerrada";
     }
 
-    const nowMs = new Date(dataServidor || new Date().toISOString()).getTime();
-    const gameMs = new Date(jogo.data_jogo).getTime();
+    const nowMs = safeParseDate(dataServidor || new Date().toISOString()).getTime();
+    const gameMs = safeParseDate(jogo.data_jogo).getTime();
     const lockMarginMs = 1 * 60 * 60 * 1050; // lock margin
     const timeLeftMs = (gameMs - lockMarginMs) - nowMs;
 
@@ -954,7 +955,7 @@ export default function MatchesSection({
             </span>
             <span>•</span>
             <span className="font-mono">
-              {new Date(jogo.data_jogo).toLocaleDateString('pt-BR')} às {new Date(jogo.data_jogo).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+              {safeLocaleDateString(jogo.data_jogo)} às {safeLocaleTimeString(jogo.data_jogo, { hour: '2-digit', minute: '2-digit' })}
             </span>
           </div>
 
@@ -1728,7 +1729,7 @@ export default function MatchesSection({
           }
         } else if (games.length >= 2) {
           // Sort chronologically by date
-          const sorted = [...games].sort((a, b) => new Date(a.data_jogo).getTime() - new Date(b.data_jogo).getTime());
+          const sorted = [...games].sort((a, b) => safeParseDate(a.data_jogo).getTime() - safeParseDate(b.data_jogo).getTime());
           oitavasIdaList[sIdx] = sorted[0];
           oitavasVoltaList[sIdx] = sorted[1];
         }

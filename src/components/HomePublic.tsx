@@ -5,6 +5,7 @@ import {
 import { REGRAS_PROG, PREMIACOES } from '../data';
 import { Jogo, ConfigCustom } from '../types';
 import { getFriendlyRoundName, getGameCampeonato } from './MatchesSection';
+import { safeParseDate, safeLocaleDateString, safeLocaleTimeString } from '../utils/dateUtils';
 
 const flagEmojiToIso = (flag: string): string | null => {
   if (!flag) return null;
@@ -201,14 +202,14 @@ export default function HomePublic({
 
   const matchHighlights = React.useMemo(() => {
     const dataServidorStr = metrics?.data_servidor || new Date().toISOString();
-    const nowMs = new Date(dataServidorStr).getTime();
+    const nowMs = safeParseDate(dataServidorStr).getTime();
 
     // Helper to check if a single game is concluded/expired
     const isGameConcludedOrExpired = (j: Jogo): boolean => {
       if (j.status === 'ENCERRADO') return true;
       if (['FT', 'AET', 'PEN', 'CANC', 'ABD', 'AWD', 'WO'].includes(j.status_detalhado || '')) return true;
       
-      const gameMs = new Date(j.data_jogo).getTime();
+      const gameMs = safeParseDate(j.data_jogo).getTime();
       const idUpper = (j.status_detalhado || '').toUpperCase();
       const isExplicitLive = ['1H', 'HT', '2H', 'ET', 'P', 'BT', 'LIVE', 'SUSP', 'INT'].includes(idUpper) || j.status === 'AO_VIVO';
       
@@ -257,7 +258,7 @@ export default function HomePublic({
     const brasCurrentRound = getChampionshipCurrentRound(brasGames);
 
     // Normalize Server date to start of today local to avoid timezone leaks
-    const now = new Date(dataServidorStr);
+    const now = safeParseDate(dataServidorStr);
     const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
 
     // Now, filter pending games that are within those current rounds AND do NOT have a date in the past
@@ -270,7 +271,7 @@ export default function HomePublic({
       if (['PST', 'CANX', 'ABD', 'CANC', 'SUSP'].includes(statusDet)) return false;
 
       // Must NOT have a date prior to today (yesterday or older)
-      const gameDate = new Date(j.data_jogo);
+      const gameDate = safeParseDate(j.data_jogo);
       const gameMs = gameDate.getTime();
       if (gameMs < todayMidnight) return false;
 
@@ -288,7 +289,7 @@ export default function HomePublic({
 
     // Let's sort highlights by kickoff date so that the closest games appear first!
     return pendingAndValidHighlights
-      .sort((a, b) => new Date(a.data_jogo).getTime() - new Date(b.data_jogo).getTime())
+      .sort((a, b) => safeParseDate(a.data_jogo).getTime() - safeParseDate(b.data_jogo).getTime())
       .slice(0, 3);
   }, [jogos, metrics]);
 
@@ -298,8 +299,8 @@ export default function HomePublic({
       if (jogo.status === 'AO_VIVO') return true;
       if (["1H", "HT", "2H", "ET", "P", "BT", "LIVE", "SUSP", "INT"].includes(jogo.status_detalhado || '')) return true;
       
-      const nowMs = new Date(dataServidor).getTime();
-      const gameMs = new Date(jogo.data_jogo).getTime();
+      const nowMs = safeParseDate(dataServidor).getTime();
+      const gameMs = safeParseDate(jogo.data_jogo).getTime();
       const isPastGame = gameMs <= nowMs;
       
       if (jogo.status === 'PENDENTE' && isPastGame) {
@@ -530,7 +531,7 @@ export default function HomePublic({
                   </div>
 
                   <div className="text-center font-mono text-[9px] text-slate-500 bg-slate-950/40 py-1.5 rounded tracking-wide border border-slate-950/20">
-                    Rodada {jogo.rodada} • {new Date(jogo.data_jogo).toLocaleDateString('pt-BR')} às {new Date(jogo.data_jogo).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                    Rodada {jogo.rodada} • {safeLocaleDateString(jogo.data_jogo)} às {safeLocaleTimeString(jogo.data_jogo, { hour: '2-digit', minute: '2-digit' })}
                   </div>
                 </div>
               );
@@ -588,7 +589,7 @@ export default function HomePublic({
                 </div>
 
                 <div className="text-center font-mono text-[10px] text-slate-400 bg-slate-950/60 py-1 rounded">
-                  {new Date(jogo.data_jogo).toLocaleDateString('pt-BR')} às {new Date(jogo.data_jogo).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                  {safeLocaleDateString(jogo.data_jogo)} às {safeLocaleTimeString(jogo.data_jogo, { hour: '2-digit', minute: '2-digit' })}
                 </div>
               </div>
             ))}
