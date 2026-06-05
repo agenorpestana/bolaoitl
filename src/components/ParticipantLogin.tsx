@@ -37,34 +37,24 @@ export default function ParticipantLogin({ onLoginSuccess, onAdminLoginSuccess, 
     if (configsCustom?.recaptcha_active && configsCustom?.recaptcha_site_key) {
       const initRecaptcha = () => {
         if ((window as any).grecaptcha && (window as any).grecaptcha.render) {
-          // Wrap with setTimeout to ensure DOM container has fully painted and has computed styles on iOS Safari
-          setTimeout(() => {
-            try {
-              const container = document.getElementById("recaptcha-wrapper-container");
-              if (container) {
-                // If container is empty, reset the widget ref to allow re-rendering (e.g. after tab switching)
-                if (container.children.length === 0) {
-                  recaptchaWidgetRef.current = null;
+          try {
+            const container = document.getElementById("recaptcha-wrapper-container");
+            if (container && recaptchaWidgetRef.current === null) {
+              recaptchaWidgetRef.current = (window as any).grecaptcha.render("recaptcha-wrapper-container", {
+                sitekey: configsCustom.recaptcha_site_key,
+                theme: "dark",
+                callback: (token: string) => {
+                  setRecaptchaTokenState(token);
+                  setErrorMsg(null);
+                },
+                "expired-callback": () => {
+                  setRecaptchaTokenState(null);
                 }
-                
-                if (recaptchaWidgetRef.current === null) {
-                  recaptchaWidgetRef.current = (window as any).grecaptcha.render("recaptcha-wrapper-container", {
-                    sitekey: configsCustom.recaptcha_site_key,
-                    theme: "dark",
-                    callback: (token: string) => {
-                      setRecaptchaTokenState(token);
-                      setErrorMsg(null);
-                    },
-                    "expired-callback": () => {
-                      setRecaptchaTokenState(null);
-                    }
-                  });
-                }
-              }
-            } catch (err) {
-              console.error("Erro ao renderizar reCAPTCHA:", err);
+              });
             }
-          }, 250);
+          } catch (err) {
+            console.error("Erro ao renderizar reCAPTCHA:", err);
+          }
         }
       };
 
@@ -72,7 +62,7 @@ export default function ParticipantLogin({ onLoginSuccess, onAdminLoginSuccess, 
       if (!existingScript) {
         const script = document.createElement("script");
         script.id = "recaptcha-script";
-        script.src = "https://www.recaptcha.net/recaptcha/api.js?render=explicit";
+        script.src = "https://www.google.com/recaptcha/api.js?render=explicit";
         script.async = true;
         script.defer = true;
         script.onload = () => {
@@ -366,11 +356,7 @@ export default function ParticipantLogin({ onLoginSuccess, onAdminLoginSuccess, 
               )}
 
               {configsCustom?.recaptcha_active && configsCustom?.recaptcha_site_key && (
-                <div 
-                  id="recaptcha-wrapper-container" 
-                  className="my-3 flex justify-center items-center overflow-visible w-full"
-                  style={{ minHeight: "78px", minWidth: "302px" }}
-                ></div>
+                <div id="recaptcha-wrapper-container" className="my-2 flex justify-center"></div>
               )}
 
               <button
