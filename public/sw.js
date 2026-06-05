@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cartola-itl-cache-v10';
+const CACHE_NAME = 'cartola-itl-cache-v11';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -38,6 +38,7 @@ self.addEventListener('fetch', (event) => {
   // Let's pass API requests directly to network immediately
   const url = new URL(event.request.url);
   if (url.pathname.startsWith('/api')) {
+    event.respondWith(fetch(event.request));
     return;
   }
 
