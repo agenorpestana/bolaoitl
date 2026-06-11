@@ -122,12 +122,30 @@ export default function GuessesHistory({ jogos, palpites, usuarioNome, isCompact
               if (evtName === gNameNormal) {
                 score = 100;
               } else {
-                const evtWords = evtName.split(" ").filter(Boolean);
-                const guessWords = gNameNormal.split(" ").filter(Boolean);
-                const commonWords = evtWords.filter(w => guessWords.includes(w));
-                if (commonWords.length > 0) {
-                  const overlap = commonWords.length / Math.max(evtWords.length, guessWords.length);
-                  score = overlap * 80;
+                const cleanWord = (w: string) => w.replace(/[^a-z0-9]/gi, "").toLowerCase();
+                const prepositions = ["de", "da", "do", "la", "el", "di", "del", "du", "van", "von", "y", "dos", "das", "der"];
+
+                const evtWords = evtName.split(/\s+/).filter(Boolean);
+                const guessWords = gNameNormal.split(/\s+/).filter(Boolean);
+
+                const evtCleaned = evtWords.map(cleanWord).filter(Boolean);
+                const guessCleaned = guessWords.map(cleanWord).filter(Boolean);
+
+                const evtSig = evtCleaned.filter(w => w.length >= 3 && !prepositions.includes(w));
+                const guessSig = guessCleaned.filter(w => w.length >= 3 && !prepositions.includes(w));
+
+                if (evtSig.length > 0 && guessSig.length > 0) {
+                  const commonSig = evtSig.filter(w => guessSig.includes(w));
+                  if (commonSig.length > 0) {
+                    const overlap = commonSig.length / Math.max(evtSig.length, guessSig.length);
+                    score = overlap * 80;
+                  }
+                } else {
+                  const commonAll = evtCleaned.filter(w => guessCleaned.includes(w));
+                  if (commonAll.length > 0) {
+                    const overlap = commonAll.length / Math.max(evtCleaned.length, guessCleaned.length);
+                    score = overlap * 80;
+                  }
                 }
               }
 
@@ -347,12 +365,30 @@ export default function GuessesHistory({ jogos, palpites, usuarioNome, isCompact
                             if (evtName === gNameNormal) {
                               score = 100;
                             } else {
-                              const evtWords = evtName.split(" ").filter(Boolean);
-                              const guessWords = gNameNormal.split(" ").filter(Boolean);
-                              const commonWords = evtWords.filter(w => guessWords.includes(w));
-                              if (commonWords.length > 0) {
-                                const overlap = commonWords.length / Math.max(evtWords.length, guessWords.length);
-                                score = overlap * 80;
+                              const cleanWord = (w: string) => w.replace(/[^a-z0-9]/gi, "").toLowerCase();
+                              const prepositions = ["de", "da", "do", "la", "el", "di", "del", "du", "van", "von", "y", "dos", "das", "der"];
+
+                              const evtWords = evtName.split(/\s+/).filter(Boolean);
+                              const guessWords = gNameNormal.split(/\s+/).filter(Boolean);
+
+                              const evtCleaned = evtWords.map(cleanWord).filter(Boolean);
+                              const guessCleaned = guessWords.map(cleanWord).filter(Boolean);
+
+                              const evtSig = evtCleaned.filter(w => w.length >= 3 && !prepositions.includes(w));
+                              const guessSig = guessCleaned.filter(w => w.length >= 3 && !prepositions.includes(w));
+
+                              if (evtSig.length > 0 && guessSig.length > 0) {
+                                const commonSig = evtSig.filter(w => guessSig.includes(w));
+                                if (commonSig.length > 0) {
+                                  const overlap = commonSig.length / Math.max(evtSig.length, guessSig.length);
+                                  score = overlap * 80;
+                                }
+                              } else {
+                                const commonAll = evtCleaned.filter(w => guessCleaned.includes(w));
+                                if (commonAll.length > 0) {
+                                  const overlap = commonAll.length / Math.max(evtCleaned.length, guessCleaned.length);
+                                  score = overlap * 80;
+                                }
                               }
                             }
 
