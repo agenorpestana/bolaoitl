@@ -3156,8 +3156,8 @@ function getGoalsFromGameEvents(jogo: Jogo): { [playerName: string]: number } {
       
       let side: "casa" | "fora" = "casa";
       if (evt.team && evt.team.name) {
-        const teamEventName = evt.team.name.toLowerCase();
-        const teamFora = jogo.time_fora.toLowerCase();
+        const teamEventName = normalizePlayerName(evt.team.name);
+        const teamFora = normalizePlayerName(jogo.time_fora);
         if (teamEventName === teamFora || teamFora.includes(teamEventName) || teamEventName.includes(teamFora)) {
           side = "fora";
         }
@@ -3177,7 +3177,6 @@ function calculateArtilheiroHitsForBet(palpite: Palpite, jogo: Jogo): number {
     palpite.palpites_gols_jogadores.forEach(p_guess => {
       const gNameNormal = normalizePlayerName(p_guess.jogador);
       const guessedGoals = Number(p_guess.gols) || 0;
-      const guessSide = p_guess.time_lado || "casa";
       if (guessedGoals <= 0 || !gNameNormal) return;
 
       let matchedActualGoals = 0;
@@ -3186,9 +3185,8 @@ function calculateArtilheiroHitsForBet(palpite: Palpite, jogo: Jogo): number {
       for (const [evtNameWithSide, goalsScored] of Object.entries(actualGoals)) {
         const parts = evtNameWithSide.split("_");
         const evtName = parts[0];
-        const evtSide = parts[1] || guessSide;
 
-        if (evtName && gNameNormal && evtSide === guessSide) {
+        if (evtName && gNameNormal) {
           let score = 0;
           if (evtName === gNameNormal) {
             score = 100;
@@ -3205,7 +3203,12 @@ function calculateArtilheiroHitsForBet(palpite: Palpite, jogo: Jogo): number {
             const evtSig = evtCleaned.filter(w => w.length >= 3 && !prepositions.includes(w));
             const guessSig = guessCleaned.filter(w => w.length >= 3 && !prepositions.includes(w));
 
-            if (evtSig.length > 0 && guessSig.length > 0) {
+            // Check for exact match first of cleaned words
+            const evtCleanStr = evtCleaned.join("");
+            const guessCleanStr = guessCleaned.join("");
+            if (evtCleanStr && guessCleanStr && evtCleanStr === guessCleanStr) {
+              score = 100;
+            } else if (evtSig.length > 0 && guessSig.length > 0) {
               const commonSig = evtSig.filter(w => guessSig.includes(w));
               if (commonSig.length > 0) {
                 const overlap = commonSig.length / Math.max(evtSig.length, guessSig.length);
@@ -3281,7 +3284,6 @@ function calculatePointsForBet(palpite: Palpite, jogo: Jogo, points_cfg: ConfigP
     palpite.palpites_gols_jogadores.forEach(p_guess => {
       const gNameNormal = normalizePlayerName(p_guess.jogador);
       const guessedGoals = Number(p_guess.gols) || 0;
-      const guessSide = p_guess.time_lado || "casa";
       if (guessedGoals <= 0 || !gNameNormal) return;
 
       let matchedActualGoals = 0;
@@ -3290,9 +3292,8 @@ function calculatePointsForBet(palpite: Palpite, jogo: Jogo, points_cfg: ConfigP
       for (const [evtNameWithSide, goalsScored] of Object.entries(actualGoals)) {
         const parts = evtNameWithSide.split("_");
         const evtName = parts[0];
-        const evtSide = parts[1] || guessSide;
 
-        if (evtName && gNameNormal && evtSide === guessSide) {
+        if (evtName && gNameNormal) {
           let score = 0;
           if (evtName === gNameNormal) {
             score = 100; // Perfect match
@@ -3309,7 +3310,12 @@ function calculatePointsForBet(palpite: Palpite, jogo: Jogo, points_cfg: ConfigP
             const evtSig = evtCleaned.filter(w => w.length >= 3 && !prepositions.includes(w));
             const guessSig = guessCleaned.filter(w => w.length >= 3 && !prepositions.includes(w));
 
-            if (evtSig.length > 0 && guessSig.length > 0) {
+            // Check for exact match first of cleaned words
+            const evtCleanStr = evtCleaned.join("");
+            const guessCleanStr = guessCleaned.join("");
+            if (evtCleanStr && guessCleanStr && evtCleanStr === guessCleanStr) {
+              score = 100;
+            } else if (evtSig.length > 0 && guessSig.length > 0) {
               const commonSig = evtSig.filter(w => guessSig.includes(w));
               if (commonSig.length > 0) {
                 const overlap = commonSig.length / Math.max(evtSig.length, guessSig.length);
