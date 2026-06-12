@@ -15,103 +15,153 @@ export interface StandingRow {
 
 // Map of typical groups for major teams in Copa do Mundo 2026/Libertadores 2026 to make brackets and standings gorgeous
 const WORLD_CUP_TEAM_GROUPS: { [key: string]: string } = {
-  // Group A
-  "Brasil": "Grupo A", "Brazil": "Grupo A", "Canadá": "Grupo A", "Canada": "Grupo A", 
-  "Austrália": "Grupo A", "Australia": "Grupo A", "Camarões": "Grupo A", "Cameroon": "Grupo A",
-  
-  // Group B
-  "Argentina": "Grupo B", "Estados Unidos": "Grupo B", "USA": "Grupo B", "Polônia": "Grupo B", 
-  "Poland": "Grupo B", "Marrocos": "Grupo B", "Morocco": "Grupo B",
-  
-  // Group C
-  "França": "Grupo C", "France": "Grupo C", "México": "Grupo C", "Mexico": "Grupo C", 
-  "Suécia": "Grupo C", "Sweden": "Grupo C", "Egito": "Grupo C", "Egypt": "Grupo C",
-  
-  // Group D
-  "Inglaterra": "Grupo D", "England": "Grupo D", "Ucrânia": "Grupo D", "Ukraine": "Grupo D", 
-  "Equador": "Grupo D", "Ecuador": "Grupo D", "Coreia do Sul": "Grupo D", "South Korea": "Grupo D",
-  
-  // Group E
-  "Espanha": "Grupo E", "Spain": "Grupo E", "Japão": "Grupo E", "Japan": "Grupo E", 
-  "Uruguai": "Grupo E", "Uruguay": "Grupo E", "Nigéria": "Grupo E", "Nigeria": "Grupo E",
-  
-  // Group F
-  "Alemanha": "Grupo F", "Germany": "Grupo F", "Bélgica": "Grupo F", "Belgium": "Grupo F", 
-  "Colômbia": "Grupo F", "Colombia": "Grupo F", "Arábia Saudita": "Grupo F", "Saudi Arabia": "Grupo F",
-  
-  // Group G
-  "Portugal": "Grupo G", "Holanda": "Grupo G", "Netherlands": "Grupo G", "Suíça": "Grupo G", 
-  "Switzerland": "Grupo G", "Chile": "Grupo G",
-  
-  // Group H
-  "Itália": "Grupo H", "Italy": "Grupo H", "Croácia": "Grupo H", "Croatia": "Grupo H", 
-  "Paraguai": "Grupo H", "Paraguay": "Grupo H", "Senegal": "Grupo H",
+  // Grupo A
+  "México": "Grupo A", "Mexico": "Grupo A",
+  "África do Sul": "Grupo A", "South Africa": "Grupo A",
+  "Coreia do Sul": "Grupo A", "South Korea": "Grupo A", "Korea": "Grupo A",
+  "Rep. Tcheca": "Grupo A", "Czech Republic": "Grupo A", "Czechia": "Grupo A",
 
-  // Group I
-  "Costa Rica": "Grupo I", "Tunísia": "Grupo I", "Tunisia": "Grupo I", "Nova Zelândia": "Grupo I", 
-  "New Zealand": "Grupo I", "Peru": "Grupo I",
+  // Grupo B
+  "Canadá": "Grupo B", "Canada": "Grupo B",
+  "Bósnia": "Grupo B", "Bosnia": "Grupo B", "Bosnia and Herzegovina": "Grupo B",
+  "Qatar": "Grupo B", "Katar": "Grupo B",
+  "Suíça": "Grupo B", "Switzerland": "Grupo B",
 
-  // Group J
-  "Turquia": "Grupo J", "Turkey": "Grupo J", "Argélia": "Grupo J", "Algeria": "Grupo J", 
-  "Panamá": "Grupo J", "Panama": "Grupo J", "Irã": "Grupo J", "Iran": "Grupo J", "Islamic Republic of Iran": "Grupo J",
+  // Grupo C
+  "Brasil": "Grupo C", "Brazil": "Grupo C",
+  "Marrocos": "Grupo C", "Morocco": "Grupo C",
+  "Haiti": "Grupo C",
+  "Escócia": "Grupo C", "Scotland": "Grupo C",
 
-  // Group K
-  "Dinamarca": "Grupo K", "Denmark": "Grupo K", "Sérvia": "Grupo K", "Serbia": "Grupo K", 
-  "Gana": "Grupo K", "Ghana": "Grupo K", "Qatar": "Grupo K",
+  // Grupo D
+  "EUA": "Grupo D", "USA": "Grupo D", "Estados Unidos": "Grupo D", "United States": "Grupo D",
+  "Paraguai": "Grupo D", "Paraguay": "Grupo D",
+  "Austrália": "Grupo D", "Australia": "Grupo D",
+  "Turquia": "Grupo D", "Turkey": "Grupo D",
 
-  // Group L
-  "Áustria": "Grupo L", "Austria": "Grupo L", "Gales": "Grupo L", "Wales": "Grupo L", 
-  "Tailândia": "Grupo L", "Thailand": "Grupo L", "África do Sul": "Grupo L", "South Africa": "Grupo L"
+  // Grupo E
+  "Alemanha": "Grupo E", "Germany": "Grupo E",
+  "Curaçao": "Grupo E", "Curacao": "Grupo E",
+  "Costa do Marfim": "Grupo E", "Ivory Coast": "Grupo E",
+  "Equador": "Grupo E", "Ecuador": "Grupo E",
+
+  // Grupo F
+  "Holanda": "Grupo F", "Netherlands": "Grupo F",
+  "Japão": "Grupo F", "Japan": "Grupo F",
+  "Suécia": "Grupo F", "Sweden": "Grupo F",
+  "Tunísia": "Grupo F", "Tunisia": "Grupo F",
+
+  // Grupo G
+  "Bélgica": "Grupo G", "Belgium": "Grupo G",
+  "Egito": "Grupo G", "Egypt": "Grupo G",
+  "Irã": "Grupo G", "Iran": "Grupo G", "Islamic Republic of Iran": "Grupo G",
+  "N. Zelândia": "Grupo G", "Nova Zelândia": "Grupo G", "New Zealand": "Grupo G",
+
+  // Grupo H
+  "Espanha": "Grupo H", "Spain": "Grupo H",
+  "Cabo Verde": "Grupo H", "Cape Verde": "Grupo H",
+  "Arábia Saudita": "Grupo H", "Saudi Arabia": "Grupo H",
+  "Uruguai": "Grupo H", "Uruguay": "Grupo H",
+
+  // Grupo I
+  "França": "Grupo I", "France": "Grupo I",
+  "Senegal": "Grupo I",
+  "Iraque": "Grupo I", "Iraq": "Grupo I",
+  "Noruega": "Grupo I", "Norway": "Grupo I",
+
+  // Grupo J
+  "Argentina": "Grupo J",
+  "Argélia": "Grupo J", "Algeria": "Grupo J",
+  "Áustria": "Grupo J", "Austria": "Grupo J",
+  "Jordânia": "Grupo J", "Jordan": "Grupo J",
+
+  // Grupo K
+  "Portugal": "Grupo K",
+  "RD Congo": "Grupo K", "DR Congo": "Grupo K", "Congo DR": "Grupo K", "Democratic Republic of the Congo": "Grupo K",
+  "Uzbequistão": "Grupo K", "Uzbekistan": "Grupo K",
+  "Colômbia": "Grupo K", "Colombia": "Grupo K",
+
+  // Grupo L
+  "Inglaterra": "Grupo L", "England": "Grupo L",
+  "Croácia": "Grupo L", "Croatia": "Grupo L",
+  "Gana": "Grupo L", "Ghana": "Grupo L",
+  "Panamá": "Grupo L", "Panama": "Grupo L",
 };
 
 const LIBERTADORES_TEAM_GROUPS: { [key: string]: string } = {
   // Grupo A
   "Flamengo": "Grupo A", "Flamingo": "Grupo A",
-  "Estudiantes": "Grupo A", "Estudiantes L.P.": "Grupo A", "Estudiantes LP": "Grupo A", "Estudiantes de La Plata": "Grupo A",
-  "Cusco": "Grupo A", "Cusco FC": "Grupo A", "Cusco F.C.": "Grupo A",
-  "Ind. Medellín": "Grupo A", "Independiente Medellín": "Grupo A", "Medellín": "Grupo A", "Independiente Medellin": "Grupo A", "Ind. Medellin": "Grupo A",
+  "Estudiantes L.P.": "Grupo A", "Estudiantes": "Grupo A", "Estudiantes LP": "Grupo A",
+  "Cusco": "Grupo A", "Cusco FC": "Grupo A",
+  "Ind. Medellín": "Grupo A", "Independiente Medellín": "Grupo A", "Medellín": "Grupo A",
 
   // Grupo B
-  "Nacional": "Grupo B", "Club Nacional": "Grupo B", "Nacional Montevideo": "Grupo B", "Nacional URU": "Grupo B", "Nacional de Montevideo": "Grupo B",
-  "Universitário": "Grupo B", "Universitario": "Grupo B", "Universitario de Deportes": "Grupo B",
+  "Club Nacional": "Grupo B", "Nacional": "Grupo B", "Nacional Montevideo": "Grupo B",
+  "Universitario": "Grupo B", "Universitário": "Grupo B",
   "Coquimbo Unido": "Grupo B", "Coquimbo": "Grupo B",
-  "Tolima": "Grupo B", "Deportes Tolima": "Grupo B", "Dep. Tolima": "Grupo B",
+  "Deportes Tolima": "Grupo B", "Tolima": "Grupo B",
 
   // Grupo C
   "Fluminense": "Grupo C",
   "Bolívar": "Grupo C", "Bolivar": "Grupo C",
-  "Dep. La Guaira": "Grupo C", "Deportivo La Guaira": "Grupo C", "La Guaira": "Grupo C",
-  "Ind. Rivadavia": "Grupo C", "Independiente Rivadavia": "Grupo C", "Rivadavia": "Grupo C",
+  "Dep. La Guaira": "Grupo C", "Deportivo La Guaira": "Grupo C",
+  "Ind. Rivadavia": "Grupo C", "Independiente Rivadavia": "Grupo C",
 
   // Grupo D
-  "Boca Júniors": "Grupo D", "Boca Juniors": "Grupo D", "Boca": "Grupo D", "Boca Jr": "Grupo D", "Boca Jrs": "Grupo D",
+  "Boca Juniors": "Grupo D", "Boca": "Grupo D",
   "Cruzeiro": "Grupo D",
-  "Univ. Católica": "Grupo D", "Universidad Católica": "Grupo D", "Univ Catolica": "Grupo D", "Universidad Catolica": "Grupo D", "U. Católica": "Grupo D",
-  "Bar. Guayaquil": "Grupo D", "Barcelona SC": "Grupo D", "Barcelona Guayaquil": "Grupo D", "Barcelona S.C.": "Grupo D",
+  "Univ. Católica": "Grupo D", "Universidad Católica": "Grupo D",
+  "Barcelona SC": "Grupo D", "Bar. Guayaquil": "Grupo D",
 
   // Grupo E
   "Peñarol": "Grupo E", "Penarol": "Grupo E",
-  "Corinthians": "Grupo E", "Corintians": "Grupo E",
-  "Ind. Santa Fé": "Grupo E", "Independiente Santa Fe": "Grupo E", "Santa Fe": "Grupo E", "Santa Fé": "Grupo E", "Ind. Santa Fe": "Grupo E",
-  "Platense": "Grupo E", "C.A. Platense": "Grupo E", "Atletico Platense": "Grupo E",
+  "Corinthians": "Grupo E",
+  "Ind. Santa Fé": "Grupo E", "Independiente Santa Fe": "Grupo E", "Santa Fe": "Grupo E",
+  "Platense": "Grupo E",
 
   // Grupo F
   "Palmeiras": "Grupo F",
   "Cerro Porteño": "Grupo F", "Cerro Porteno": "Grupo F",
-  "Júnior Barranquilla": "Grupo F", "Junior": "Grupo F", "Junior Barranquilla": "Grupo F", "Junior de Barranquilla": "Grupo F",
-  "Sporting Cristal": "Grupo F", "Cristal": "Grupo F",
+  "Junior": "Grupo F", "Júnior Barranquilla": "Grupo F", "Junior Barranquilla": "Grupo F",
+  "Sporting Cristal": "Grupo F",
 
   // Grupo G
-  "LDU": "Grupo G", "LDU Quito": "Grupo G", "LDU de Quito": "Grupo G", "L.D.U. Quito": "Grupo G",
+  "LDU de Quito": "Grupo G", "LDU": "Grupo G", "LDU Quito": "Grupo G",
   "Lanús": "Grupo G", "Lanus": "Grupo G",
   "Always Ready": "Grupo G",
   "Mirassol": "Grupo G", "Mirassol FC": "Grupo G",
 
   // Grupo H
   "Ind. del Valle": "Grupo H", "Independiente del Valle": "Grupo H", "IDV": "Grupo H",
-  "Libertad": "Grupo H", "Libertad Asuncion": "Grupo H",
+  "Libertad": "Grupo H",
   "Rosário Central": "Grupo H", "Rosario Central": "Grupo H",
-  "Univ. Central": "Grupo H", "Universidad Central": "Grupo H", "Universidad Central de Venezuela": "Grupo H", "UCV": "Grupo H"
+  "Univ. Central": "Grupo H", "Universidad Central": "Grupo H"
+};
+
+export const WORLD_CUP_GROUPS_INITIAL_TEAMS: { [group: string]: string[] } = {
+  "Grupo A": ["México", "África do Sul", "Coreia do Sul", "Rep. Tcheca"],
+  "Grupo B": ["Canadá", "Bósnia", "Qatar", "Suíça"],
+  "Grupo C": ["Brasil", "Marrocos", "Haiti", "Escócia"],
+  "Grupo D": ["EUA", "Paraguai", "Austrália", "Turquia"],
+  "Grupo E": ["Alemanha", "Curaçao", "Costa do Marfim", "Equador"],
+  "Grupo F": ["Holanda", "Japão", "Suécia", "Tunísia"],
+  "Grupo G": ["Bélgica", "Egito", "Irã", "N. Zelândia"],
+  "Grupo H": ["Espanha", "Cabo Verde", "Arábia Saudita", "Uruguai"],
+  "Grupo I": ["França", "Senegal", "Iraque", "Noruega"],
+  "Grupo J": ["Argentina", "Argélia", "Áustria", "Jordânia"],
+  "Grupo K": ["Portugal", "RD Congo", "Uzbequistão", "Colômbia"],
+  "Grupo L": ["Inglaterra", "Croácia", "Gana", "Panamá"],
+};
+
+export const LIBERTADORES_GROUPS_INITIAL_TEAMS: { [group: string]: string[] } = {
+  "Grupo A": ["Flamengo", "Estudiantes L.P.", "Cusco", "Ind. Medellín"],
+  "Grupo B": ["Club Nacional", "Universitario", "Coquimbo Unido", "Deportes Tolima"],
+  "Grupo C": ["Fluminense", "Bolívar", "Dep. La Guaira", "Ind. Rivadavia"],
+  "Grupo D": ["Boca Juniors", "Cruzeiro", "Univ. Católica", "Barcelona SC"],
+  "Grupo E": ["Peñarol", "Corinthians", "Ind. Santa Fé", "Platense"],
+  "Grupo F": ["Palmeiras", "Cerro Porteño", "Junior", "Sporting Cristal"],
+  "Grupo G": ["LDU de Quito", "Lanús", "Always Ready", "Mirassol"],
+  "Grupo H": ["Ind. del Valle", "Libertad", "Rosário Central", "Univ. Central"],
 };
 
 function getGameChampionshipLocal(jogo: Jogo): 'COPA_MUNDO' | 'LIBERTADORES' | 'BRASILEIRAO' {
@@ -194,7 +244,7 @@ function getCanonicalTeamName(teamName: string, campeonato?: 'COPA_MUNDO' | 'LIB
     if (cleaned === "canada") return "Canadá";
     if (cleaned === "australia") return "Austrália";
     if (cleaned === "camaroes" || cleaned === "cameroon") return "Camarões";
-    if (cleaned === "estadosunidos" || cleaned === "usa" || cleaned === "us") return "Estados Unidos";
+    if (cleaned === "estadosunidos" || cleaned === "usa" || cleaned === "us" || cleaned === "eua" || cleaned === "unitedstates") return "EUA";
     if (cleaned === "polonia" || cleaned === "poland") return "Polônia";
     if (cleaned === "marrocos" || cleaned === "morocco") return "Marrocos";
     if (cleaned === "franca" || cleaned === "france") return "França";
@@ -208,7 +258,7 @@ function getCanonicalTeamName(teamName: string, campeonato?: 'COPA_MUNDO' | 'LIB
     if (cleaned === "espanha" || cleaned === "spain") return "Espanha";
     if (cleaned === "japao" || cleaned === "japan") return "Japão";
     if (cleaned === "uruguai" || cleaned === "uruguay") return "Uruguai";
-    if (cleaned === "nigeria") return "Nigéria";
+    if (cleaned === "nigeria" || cleaned === "nigeria") return "Nigéria";
     if (cleaned === "alemanha" || cleaned === "germany") return "Alemanha";
     if (cleaned === "belgica" || cleaned === "belgium") return "Bélgica";
     if (cleaned === "colombia") return "Colômbia";
@@ -219,7 +269,7 @@ function getCanonicalTeamName(teamName: string, campeonato?: 'COPA_MUNDO' | 'LIB
     if (cleaned === "croacia" || cleaned === "croatia") return "Croácia";
     if (cleaned === "paraguai" || cleaned === "paraguay") return "Paraguai";
     if (cleaned === "tunisia") return "Tunísia";
-    if (cleaned === "novazelandia" || cleaned === "newzealand") return "Nova Zelândia";
+    if (cleaned === "novazelandia" || cleaned === "newzealand" || cleaned === "nzelandia") return "N. Zelândia";
     if (cleaned === "turquia" || cleaned === "turkey") return "Turquia";
     if (cleaned === "algeria" || cleaned === "argelia") return "Argélia";
     if (cleaned === "panama") return "Panamá";
@@ -231,6 +281,21 @@ function getCanonicalTeamName(teamName: string, campeonato?: 'COPA_MUNDO' | 'LIB
     if (cleaned === "gales" || cleaned === "wales") return "Gales";
     if (cleaned === "tailandia" || cleaned === "thailand") return "Tailândia";
     if (cleaned === "africadosul" || cleaned === "southafrica") return "África do Sul";
+    
+    // Additional teams from image
+    if (cleaned === "bosnia" || cleaned.includes("herzegovina")) return "Bósnia";
+    if (cleaned === "haiti") return "Haiti";
+    if (cleaned === "escocia" || cleaned === "scotland") return "Escócia";
+    if (cleaned === "curacao") return "Curaçao";
+    if (cleaned.includes("marfim") || cleaned === "ivorycoast") return "Costa do Marfim";
+    if (cleaned === "caboverde" || cleaned === "capeverde") return "Cabo Verde";
+    if (cleaned === "senegal") return "Senegal";
+    if (cleaned === "iraque" || cleaned === "iraq") return "Iraque";
+    if (cleaned === "noruega" || cleaned === "norway") return "Noruega";
+    if (cleaned === "jordania" || cleaned === "jordan") return "Jordânia";
+    if (cleaned.includes("congo") || cleaned === "rdcongo") return "RD Congo";
+    if (cleaned === "uzbequistao" || cleaned === "uzbekistan") return "Uzbequistão";
+    if (cleaned.includes("tcheca") || cleaned === "czechrepublic" || cleaned === "czechia" || cleaned === "reptcheca") return "Rep. Tcheca";
   }
 
   return teamName;
@@ -379,16 +444,52 @@ export function guessGroupForTeam(teamName: string, campeonato?: 'COPA_MUNDO' | 
 
 export function groupStandings(
   standings: StandingRow[],
-  campeonato?: 'COPA_MUNDO' | 'LIBERTADORES' | 'BRASILEIRAO'
+  campeonato?: 'COPA_MUNDO' | 'LIBERTADORES' | 'BRASILEIRAO',
+  allGames?: Jogo[]
 ): { [groupName: string]: StandingRow[] } {
   // World Cup 2026 has 12 groups (A to L), while Libertadores has 8 (A to H)
   const groupKeys = campeonato === 'COPA_MUNDO'
     ? ["Grupo A", "Grupo B", "Grupo C", "Grupo D", "Grupo E", "Grupo F", "Grupo G", "Grupo H", "Grupo I", "Grupo J", "Grupo K", "Grupo L"]
     : ["Grupo A", "Grupo B", "Grupo C", "Grupo D", "Grupo E", "Grupo F", "Grupo G", "Grupo H"];
-  
+
+  // 1. Build flags map from any games if available
+  const teamFlags: { [teamName: string]: string } = {};
+  if (allGames && Array.isArray(allGames)) {
+    allGames.forEach(jogo => {
+      const ch = getGameChampionshipLocal(jogo);
+      const tCasa = getCanonicalTeamName(jogo.time_casa, ch);
+      const tFora = getCanonicalTeamName(jogo.time_fora, ch);
+      if (jogo.time_casa_bandeira) teamFlags[tCasa] = jogo.time_casa_bandeira;
+      if (jogo.time_fora_bandeira) teamFlags[tFora] = jogo.time_fora_bandeira;
+    });
+  }
+
   const groups: { [groupName: string]: StandingRow[] } = {};
   groupKeys.forEach(gKey => {
     groups[gKey] = [];
+
+    let defaultTeams: string[] = [];
+    if (campeonato === 'COPA_MUNDO') {
+      defaultTeams = WORLD_CUP_GROUPS_INITIAL_TEAMS[gKey] || [];
+    } else if (campeonato === 'LIBERTADORES') {
+      defaultTeams = LIBERTADORES_GROUPS_INITIAL_TEAMS[gKey] || [];
+    }
+
+    defaultTeams.forEach(team => {
+      const canonical = getCanonicalTeamName(team, campeonato);
+      groups[gKey].push({
+        time: canonical,
+        bandeira: teamFlags[canonical] || undefined,
+        pontos: 0,
+        jogos: 0,
+        vitorias: 0,
+        empates: 0,
+        derrotas: 0,
+        golsPro: 0,
+        golsContra: 0,
+        saldo: 0
+      });
+    });
   });
 
   const unmatched: StandingRow[] = [];
@@ -396,26 +497,35 @@ export function groupStandings(
   standings.forEach(row => {
     const group = guessGroupForTeamExplicit(row.time, campeonato);
     if (group && groups[group] !== undefined) {
-      groups[group].push(row);
+      // Find if we already pre-populated this team in that group
+      const cleanedRowTime = cleanTeamName(row.time);
+      const existingIdx = groups[group].findIndex(p => cleanTeamName(p.time) === cleanedRowTime);
+      
+      const rowWithFlag = {
+        ...row,
+        bandeira: row.bandeira || teamFlags[getCanonicalTeamName(row.time, campeonato)] || undefined
+      };
+
+      if (existingIdx !== -1) {
+        groups[group][existingIdx] = rowWithFlag;
+      } else {
+        groups[group].push(rowWithFlag);
+      }
     } else {
       unmatched.push(row);
     }
   });
 
-  // Sort unmatched deterministically by team name 
-  unmatched.sort((a, b) => a.time.localeCompare(b.time));
-
-  // Build sorted map containing only groups with teams
+  // Build sorted map for all groupKeys so empty groups with 0 points are also returned
   const sortedGroups: { [groupName: string]: StandingRow[] } = {};
   groupKeys.forEach(gName => {
-    if (groups[gName].length > 0) {
-      sortedGroups[gName] = groups[gName].sort((a, b) => {
-        if (b.pontos !== a.pontos) return b.pontos - a.pontos;
-        if (b.vitorias !== a.vitorias) return b.vitorias - a.vitorias;
-        if (b.saldo !== a.saldo) return b.saldo - a.saldo;
-        return b.golsPro - a.golsPro;
-      });
-    }
+    sortedGroups[gName] = [...groups[gName]].sort((a, b) => {
+      if (b.pontos !== a.pontos) return b.pontos - a.pontos;
+      if (b.vitorias !== a.vitorias) return b.vitorias - a.vitorias;
+      if (b.saldo !== a.saldo) return b.saldo - a.saldo;
+      if (b.golsPro !== a.golsPro) return b.golsPro - a.golsPro;
+      return a.time.localeCompare(b.time); // Deterministic tie-breaker
+    });
   });
 
   return sortedGroups;

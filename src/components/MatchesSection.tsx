@@ -1690,8 +1690,8 @@ export default function MatchesSection({
   }, [currentChampionshipGames]);
 
   const groupsData = React.useMemo(() => {
-    return groupStandings(standings, selectedCampeonato);
-  }, [standings, selectedCampeonato]);
+    return groupStandings(standings, selectedCampeonato, currentChampionshipGames);
+  }, [standings, selectedCampeonato, currentChampionshipGames]);
 
   const playOffsByRound = React.useMemo(() => {
     if (selectedCampeonato === 'LIBERTADORES') {
