@@ -5,6 +5,7 @@ import {
 import { REGRAS_PROG, PREMIACOES } from '../data';
 import { Jogo, ConfigCustom } from '../types';
 import { getFriendlyRoundName, getGameCampeonato } from './MatchesSection';
+import { calculateStandings, groupStandings } from '../utils/standingsCalculator';
 import { safeParseDate, safeLocaleDateString, safeLocaleTimeString } from '../utils/dateUtils';
 
 const flagEmojiToIso = (flag: string): string | null => {
@@ -174,6 +175,21 @@ const COPA_GROUPS = [
   }
 ];
 
+export const COPA_TEAMS_FLAGS: { [teamName: string]: string } = {
+  "México": "🇲🇽", "África do Sul": "🇿🇦", "Coreia do Sul": "🇰🇷", "Rep. Tcheca": "🇨🇿",
+  "Canadá": "🇨🇦", "Bósnia": "🇧🇦", "Qatar": "🇶🇦", "Suíça": "🇨🇭",
+  "Brasil": "🇧🇷", "Marrocos": "🇲🇦", "Haiti": "🇭🇹", "Escócia": "🏴󠁧󠁢󠁳󠁣󠁴󠁿",
+  "EUA": "🇺🇸", "Paraguai": "🇵🇾", "Austrália": "🇦🇺", "Turquia": "🇹🇷",
+  "Alemanha": "🇩🇪", "Curaçao": "🇨🇼", "Costa do Marfim": "🇨🇮", "Equador": "🇪🇨",
+  "Holanda": "🇳🇱", "Japão": "🇯🇵", "Suécia": "🇸🇪", "Tunísia": "🇹🇳",
+  "Bélgica": "🇧🇪", "Egito": "🇪🇬", "Irã": "🇮🇷", "N. Zelândia": "🇳🇿", "Nova Zelândia": "🇳🇿",
+  "Espanha": "🇪🇸", "Cabo Verde": "🇨🇻", "Arábia Saudita": "🇸🇦", "Uruguai": "🇺🇾",
+  "França": "🇫🇷", "Senegal": "🇸🇳", "Iraque": "🇮🇶", "Noruega": "🇳🇴",
+  "Argentina": "🇦🇷", "Argélia": "🇩🇿", "Áustria": "🇦🇹", "Jordânia": "🇯🇴",
+  "Portugal": "🇵🇹", "RD Congo": "🇨🇩", "Uzbequistão": "🇺🇿", "Colômbia": "🇨🇴",
+  "Inglaterra": "🏴󠁧󠁢󠁥󠁮󠁧󠁿", "Croácia": "🇭🇷", "Gana": "🇬🇭", "Panamá": "🇵🇦"
+};
+
 interface HomePublicProps {
   onParticipateCta: () => void;
   metrics: {
@@ -321,6 +337,13 @@ export default function HomePublic({
       })
       .map((r: any) => r.rodada);
   }, [vencedoresRodadas, usuarioLogado]);
+
+  // Dynamics Copa 2026 Standings calculated in real-time
+  const copaStandingsGroups = React.useMemo(() => {
+    const copaGames = (jogos || []).filter(j => getGameCampeonato(j) === 'COPA_MUNDO');
+    const standings = calculateStandings(copaGames);
+    return groupStandings(standings, 'COPA_MUNDO', copaGames);
+  }, [jogos]);
 
   React.useEffect(() => {
     const calculateTimeLeft = () => {
@@ -604,33 +627,43 @@ export default function HomePublic({
           <h2 className="text-xl font-bold text-slate-100">Grupos Oficiais - Copa do Mundo 2026</h2>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {COPA_GROUPS.map((group, gIdx) => (
+          {Object.keys(copaStandingsGroups).map((gName) => (
             <div 
-              key={gIdx} 
+              key={gName} 
               className="bg-slate-900/55 rounded-2xl border border-slate-800 p-4 space-y-3 shadow-md hover:border-brand-blue-accent/30 transition-all duration-300"
             >
-              <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+              <div className="flex items-center justify-between border-b border-slate-800/80 pb-2 font-mono text-[10px]">
                 <span className="text-xs font-black uppercase tracking-wider text-brand-blue-vibrant font-mono">
-                  {group.name}
+                  {gName}
                 </span>
-                <span className="text-[9px] bg-slate-950 px-2 py-0.5 rounded-full border border-slate-800/80 text-slate-400 font-mono">
-                  Fase de Grupos
-                </span>
+                <span className="text-[8px] font-mono text-slate-500 font-bold tracking-widest uppercase">P / SG</span>
               </div>
               <ul className="space-y-2">
-                {group.teams.map((team, tIdx) => (
-                  <li 
-                    key={tIdx} 
-                    className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-slate-950/40 hover:bg-slate-950/80 border border-transparent hover:border-slate-800/80 transition duration-150"
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      {renderBandeira(team.flag, "w-6 h-6", "text-sm")}
-                      <span className="text-xs font-semibold text-slate-300 truncate">
-                        {team.name}
-                      </span>
-                    </div>
-                  </li>
-                ))}
+                {copaStandingsGroups[gName].map((row, rIdx) => {
+                  const flag = row.bandeira || COPA_TEAMS_FLAGS[row.time] || "🏳️";
+                  return (
+                    <li 
+                      key={rIdx} 
+                      className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-slate-950/40 hover:bg-slate-950/80 border border-transparent hover:border-slate-800/80 transition duration-150"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className={`font-mono text-[10px] w-4 text-center font-bold ${rIdx < 2 ? 'text-emerald-400' : 'text-slate-600'}`}>
+                          {rIdx + 1}
+                        </span>
+                        {renderBandeira(flag, "w-5 h-5 rounded shadow-xs", "text-sm")}
+                        <span className={`text-xs truncate ${rIdx < 2 ? 'font-bold text-slate-200' : 'font-medium text-slate-400'}`}>
+                          {row.time}
+                        </span>
+                      </div>
+                      <div className="font-mono text-[10px] font-bold flex items-center gap-2.5 shrink-0">
+                        <span className={rIdx < 2 ? 'text-emerald-400 font-extrabold' : 'text-slate-300'}>{row.pontos}p</span>
+                        <span className={`w-5 text-right font-semibold ${row.saldo > 0 ? 'text-emerald-500' : row.saldo < 0 ? 'text-rose-500' : 'text-slate-500'}`}>
+                          {row.saldo > 0 ? `+${row.saldo}` : row.saldo}
+                        </span>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           ))}

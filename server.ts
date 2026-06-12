@@ -4976,6 +4976,7 @@ async function startServer() {
     res.json({
       total_usuarios: countUsers,
       total_palpites: countBets,
+      top_10: topUsers,
       top_15: topUsers,
       data_servidor: new Date().toISOString(),
       ixc_offline_mode: db.configs_ixc.offline_mode,
