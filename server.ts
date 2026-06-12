@@ -6657,22 +6657,57 @@ function generateDeterministicStats(jogoId: number) {
   ];
 }
 
-function parseApiStats(apiResponse: any[], jogo: any) {
-  let homeData = apiResponse[0];
-  let awayData = apiResponse[1];
-  
-  if (apiResponse.length >= 2) {
-    const apiTeamHomeName = apiResponse[0].team?.name?.toLowerCase() || "";
-    const dbTeamHomeName = jogo.time_casa?.toLowerCase() || "";
-    
-    if (dbTeamHomeName.includes(apiTeamHomeName) || apiTeamHomeName.includes(dbTeamHomeName)) {
-      homeData = apiResponse[0];
-      awayData = apiResponse[1];
+function cleanStringForSymmetricMatch(str: string): string {
+  if (!str) return "";
+  return str
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // remove accents
+    .replace(/[^a-z0-9]/g, "");     // remove all non-alphanumeric chars
+}
+
+function cleanCompare(s1: string, s2: string): boolean {
+  const c1 = cleanStringForSymmetricMatch(s1);
+  const c2 = cleanStringForSymmetricMatch(s2);
+  if (!c1 || !c2) return false;
+  return c1.includes(c2) || c2.includes(c1);
+}
+
+function alignHomeAwayData(apiList: any[], jogo: any): { homeData: any, awayData: any } {
+  let homeData = apiList[0];
+  let awayData = apiList[1];
+
+  if (apiList && apiList.length >= 2) {
+    const rawApi0 = apiList[0].team?.name || "";
+    const rawApi1 = apiList[1].team?.name || "";
+    const transApi0 = translateTeamToPt(rawApi0);
+    const transApi1 = translateTeamToPt(rawApi1);
+    const dbHome = jogo?.time_casa || "";
+    const dbAway = jogo?.time_fora || "";
+
+    // Score for apiList[0] as home
+    let score0Home = 0;
+    if (cleanCompare(dbHome, transApi0) || cleanCompare(dbHome, rawApi0)) score0Home += 10;
+    if (cleanCompare(dbAway, transApi1) || cleanCompare(dbAway, rawApi1)) score0Home += 10;
+
+    // Score for apiList[1] as home
+    let score1Home = 0;
+    if (cleanCompare(dbHome, transApi1) || cleanCompare(dbHome, rawApi1)) score1Home += 10;
+    if (cleanCompare(dbAway, transApi0) || cleanCompare(dbAway, rawApi0)) score1Home += 10;
+
+    if (score1Home > score0Home) {
+      homeData = apiList[1];
+      awayData = apiList[0];
     } else {
-      homeData = apiResponse[1];
-      awayData = apiResponse[0];
+      homeData = apiList[0];
+      awayData = apiList[1];
     }
   }
+  return { homeData, awayData };
+}
+
+function parseApiStats(apiResponse: any[], jogo: any) {
+  const { homeData, awayData } = alignHomeAwayData(apiResponse, jogo);
 
   const homeStats = homeData?.statistics || [];
   const awayStats = awayData?.statistics || [];
@@ -6743,21 +6778,7 @@ function parseApiStats(apiResponse: any[], jogo: any) {
 }
 
 function parseApiLineup(apiLineups: any[], jogo: any) {
-  let homeData = apiLineups[0];
-  let awayData = apiLineups[1];
-
-  if (apiLineups.length >= 2) {
-    const apiTeamHomeName = apiLineups[0].team?.name?.toLowerCase() || "";
-    const dbTeamHomeName = jogo.time_casa?.toLowerCase() || "";
-
-    if (dbTeamHomeName.includes(apiTeamHomeName) || apiTeamHomeName.includes(dbTeamHomeName)) {
-      homeData = apiLineups[0];
-      awayData = apiLineups[1];
-    } else {
-      homeData = apiLineups[1];
-      awayData = apiLineups[0];
-    }
-  }
+  const { homeData, awayData } = alignHomeAwayData(apiLineups, jogo);
 
   const formatXI = (startXIList: any[] = []) => {
     return startXIList.map((item: any) => {

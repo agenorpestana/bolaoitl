@@ -425,25 +425,6 @@ export default function HomePublic({
             {configsCustom?.header_description || "Mostre suas habilidades de palpite, crave placares exatos das maiores seleções e dispute um ano de internet grátis, TVs, consoles de última geração e prêmios incríveis!"}
           </p>
 
-          {/* Countdown Clock */}
-          <div className="flex justify-center gap-3 md:gap-5 py-4">
-            {[
-              { label: 'Dias', val: timeLeft.days },
-              { label: 'Horas', val: timeLeft.hours },
-              { label: 'Mins', val: timeLeft.mins },
-              { label: 'Segs', val: timeLeft.secs },
-            ].map((col, idx) => (
-              <div key={idx} className="flex flex-col items-center bg-slate-900/95 border border-brand-blue-light/40 rounded-2xl p-3 min-w-[70px] md:min-w-[90px] shadow-lg">
-                <span className="text-2xl md:text-4xl font-black text-yellow-400 font-mono tracking-tight">
-                  {col.val.toString().padStart(2, '0')}
-                </span>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-                  {col.label}
-                </span>
-              </div>
-            ))}
-          </div>
-
           {/* Core Action Call-To-Action */}
           <div className="flex flex-col sm:flex-row justify-center items-center gap-4 pt-3">
             <button
