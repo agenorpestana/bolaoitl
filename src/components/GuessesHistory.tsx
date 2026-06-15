@@ -43,9 +43,26 @@ interface GuessesHistoryProps {
   palpites: Palpite[];
   usuarioNome?: string;
   isCompact?: boolean;
+  correcoes?: {
+    id: number;
+    usuario_id: number;
+    tipo: 'VENCEDOR' | 'PLACAR_EXATO' | 'GOL';
+    quantidade: number;
+    pontos: number;
+    descricao: string;
+    created_at: string;
+  }[];
+  onDeleteCorrection?: (id: number) => void;
 }
 
-export default function GuessesHistory({ jogos, palpites, usuarioNome, isCompact = false }: GuessesHistoryProps) {
+export default function GuessesHistory({ 
+  jogos, 
+  palpites, 
+  usuarioNome, 
+  isCompact = false,
+  correcoes = [],
+  onDeleteCorrection
+}: GuessesHistoryProps) {
   const [filter, setFilter] = React.useState<'TODOS' | 'EXATOS' | 'VENCEDOR' | 'ERROS' | 'PENDENTES'>('TODOS');
   const [search, setSearch] = React.useState('');
 
@@ -168,8 +185,22 @@ export default function GuessesHistory({ jogos, palpites, usuarioNome, isCompact
       }
     });
 
+    // Merge manual corrections into the statistical outputs!
+    if (correcoes && Array.isArray(correcoes)) {
+      correcoes.forEach(c => {
+        pontosSomados += c.pontos;
+        if (c.tipo === 'PLACAR_EXATO') {
+          exatos += c.quantidade;
+        } else if (c.tipo === 'VENCEDOR') {
+          vencedor += c.quantidade;
+        } else if (c.tipo === 'GOL') {
+          acertosArtilheiro += c.quantidade;
+        }
+      });
+    }
+
     return { total, exatos, vencedor, erros, pendentes, pontosSomados, acertosArtilheiro };
-  }, [historyData]);
+  }, [historyData, correcoes]);
 
   // Filter & Search
   const filteredData = React.useMemo(() => {
@@ -264,6 +295,51 @@ export default function GuessesHistory({ jogos, palpites, usuarioNome, isCompact
           <span className="text-sm sm:text-base font-black text-slate-400 mt-0.5 font-mono">{stats.pendentes}</span>
         </div>
       </div>
+
+      {/* Manual Corrections Section */}
+      {correcoes && correcoes.length > 0 && (
+        <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-4 sm:p-5 space-y-3">
+          <div className="flex items-center gap-2 text-amber-500">
+            <Trophy className="h-4 w-4" />
+            <h4 className="text-xs font-black uppercase tracking-wider font-sans">Ajustes / Correções de Pontos Creditadas</h4>
+          </div>
+          <p className="text-[10px] sm:text-xs text-slate-450 font-sans font-medium">
+            Registros de correções de palpites e artilharia inseridas pela administração para este participante.
+          </p>
+          <div className="divide-y divide-slate-800/50 bg-slate-950/30 border border-slate-900/60 rounded-xl px-4 font-sans">
+            {correcoes.map((c) => (
+              <div key={c.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-bold text-slate-205">
+                      {c.tipo === 'PLACAR_EXATO' ? '🎯 Placar Exato' : c.tipo === 'VENCEDOR' ? '🟢 Resultado da Partida' : '⚽ Autor do Gol'}
+                    </span>
+                    <span className="text-[9px] font-black uppercase bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded">
+                      +{c.quantidade} {c.quantidade === 1 ? 'Acerto' : 'Acertos'}
+                    </span>
+                    <span className="text-[9px] font-mono font-bold bg-slate-900 border border-slate-800 text-slate-400 px-1.5 py-0.5 rounded">
+                      +{c.pontos} Pontos
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1">Motivo: <span className="font-bold text-amber-500/80 italic font-sans">"{c.descricao}"</span></p>
+                </div>
+                <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
+                  <span className="text-[10px] text-slate-500 font-semibold font-mono">{safeLocaleString(c.created_at)}</span>
+                  {onDeleteCorrection && (
+                    <button
+                      type="button"
+                      onClick={() => onDeleteCorrection(c.id)}
+                      className="text-[9px] uppercase font-black text-slate-950 bg-red-400 hover:bg-red-500 px-2 py-1 rounded transition cursor-pointer"
+                    >
+                      Excluir
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Filter and Search Bar */}
       <div className="flex flex-col md:flex-row gap-3 bg-slate-950/40 p-2.5 sm:p-3 rounded-xl border border-slate-900">

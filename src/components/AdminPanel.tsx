@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
   Sliders, Users, Shield, Database, Activity, FileSpreadsheet, PlusCircle, Trash2, 
-  Save, RefreshCw, Check, Search, Download, Trash, Edit2, Play, Power, AlertTriangle, ShieldCheck, Trophy, Key, Eye, Palette
+  Save, RefreshCw, Check, Search, Download, Trash, Edit2, Play, Power, AlertTriangle, ShieldCheck, Trophy, Key, Eye, Palette, Wrench
 } from 'lucide-react';
 import { Usuario, Jogo, ConfigPoints, ConfigIXC, ConfigFootballApi, AuditLog } from '../types';
 import { CIDADES_ATENDIDAS } from '../data';
@@ -238,11 +238,20 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
   // Participant betting history state variables
   const [selectedUserForHistory, setSelectedUserForHistory] = React.useState<any | null>(null);
   const [selectedUserGuesses, setSelectedUserGuesses] = React.useState<any[]>([]);
+  const [selectedUserCorrections, setSelectedUserCorrections] = React.useState<any[]>([]);
   const [isLoadingUserGuesses, setIsLoadingUserGuesses] = React.useState(false);
+
+  // Manual corrections state declarations
+  const [selectedUserForCorrection, setSelectedUserForCorrection] = React.useState<any | null>(null);
+  const [correctionType, setCorrectionType] = React.useState<'VENCEDOR' | 'PLACAR_EXATO' | 'GOL'>('PLACAR_EXATO');
+  const [correctionQty, setCorrectionQty] = React.useState<number>(1);
+  const [correctionReason, setCorrectionReason] = React.useState<string>("");
+  const [savingCorrection, setSavingCorrection] = React.useState<boolean>(false);
 
   const handleViewUserHistory = async (user: any) => {
     setSelectedUserForHistory(user);
     setSelectedUserGuesses([]);
+    setSelectedUserCorrections([]);
     setIsLoadingUserGuesses(true);
     try {
       const response = await fetch(`/api/admin/usuarios/${user.id}/palpites`, {
@@ -251,11 +260,81 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
       if (response.ok) {
         const data = await response.json();
         setSelectedUserGuesses(data.palpites || []);
+        setSelectedUserCorrections(data.correcoes || []);
       }
     } catch (err) {
       console.error("Error loading user bets:", err);
     } finally {
       setIsLoadingUserGuesses(false);
+    }
+  };
+
+  const handleOpenCorrectionModal = (user: any) => {
+    setSelectedUserForCorrection(user);
+    setCorrectionType('PLACAR_EXATO');
+    setCorrectionQty(1);
+    setCorrectionReason("");
+  };
+
+  const handleSaveCorrection = async () => {
+    if (!selectedUserForCorrection) return;
+    if (!correctionReason.trim()) {
+      alert("Por favor, informe uma justificativa ou motivo para a correção.");
+      return;
+    }
+    setSavingCorrection(true);
+    try {
+      const response = await fetch(`/api/admin/correcoes`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          usuario_id: selectedUserForCorrection.id,
+          tipo: correctionType,
+          quantidade: Number(correctionQty),
+          descricao: correctionReason
+        })
+      });
+      if (response.ok) {
+        alert("Correção adicionada com sucesso!");
+        setSelectedUserForCorrection(null);
+        onRefreshLeaderboard();
+      } else {
+        const err = await response.json();
+        alert(`Erro ao salvar correção: ${err.error || 'Erro desconhecido'}`);
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Erro de conexão ao salvar correção.");
+    } finally {
+      setSavingCorrection(false);
+    }
+  };
+
+  const handleDeleteCorrection = async (id: number) => {
+    if (!window.confirm("Tem certeza que deseja excluir esta correção de pontos? Todos os rankings e contadores serão recalculados automaticamente.")) {
+      return;
+    }
+    try {
+      const response = await fetch(`/api/admin/correcoes/${id}`, {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (response.ok) {
+        alert("Correção excluída com sucesso!");
+        if (selectedUserForHistory) {
+          handleViewUserHistory(selectedUserForHistory);
+        }
+        onRefreshLeaderboard();
+      } else {
+        const err = await response.json();
+        alert(`Erro ao excluir: ${err.error || 'Erro desconhecido'}`);
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Erro ao excluir correção.");
     }
   };
 
@@ -2442,7 +2521,7 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
                             className={`p-1 px-2 text-[10px] font-bold rounded transition ${
                               user.bloqueado 
                                 ? 'bg-red-500 text-slate-950' 
-                                : 'bg-slate-950 text-red-400 hover:bg-slate-900'
+                                : 'bg-slate-950 text-red-500 hover:bg-slate-900'
                             }`}
                           >
                             {user.bloqueado ? "BLOQUEADO" : "SUSPENDER"}
@@ -2454,6 +2533,14 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
                             title="Ver histórico de palpites"
                           >
                             <Eye className="h-3 w-3" />
+                          </button>
+
+                          <button
+                            onClick={() => handleOpenCorrectionModal(user)}
+                            className="p-1.5 bg-slate-950 border border-slate-800 hover:text-amber-500 text-slate-400 rounded"
+                            title="Adicionar Correção Manual"
+                          >
+                            <Wrench className="h-3 w-3" />
                           </button>
 
                           <button
@@ -2521,8 +2608,129 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
                       palpites={selectedUserGuesses}
                       usuarioNome={selectedUserForHistory.nome}
                       isCompact={true}
+                      correcoes={selectedUserCorrections}
+                      onDeleteCorrection={handleDeleteCorrection}
                     />
                   )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Adicionar Correção Manual Popup Modal */}
+          {selectedUserForCorrection !== null && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
+              <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl shadow-2xl flex flex-col overflow-hidden text-left font-sans">
+                {/* Header */}
+                <div className="p-4 border-b border-slate-800 flex items-center justify-between text-left">
+                  <div>
+                    <h3 className="text-xs font-black uppercase text-amber-400 tracking-wider">
+                      🛠️ Lançar Correção de Pontos
+                    </h3>
+                    <p className="text-[10px] text-slate-400 font-bold mt-0.5">
+                      Participante: <span className="text-slate-250 font-black">{selectedUserForCorrection.nome}</span>
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setSelectedUserForCorrection(null)}
+                    className="p-1 px-2.5 rounded bg-slate-950 hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-bold font-sans cursor-pointer"
+                  >
+                    Fechar ✕
+                  </button>
+                </div>
+
+                {/* Form Body */}
+                <div className="p-5 space-y-4 text-left">
+                  {/* Correction type select dropdown */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Tipo de Ajuste</label>
+                    <select
+                      value={correctionType}
+                      onChange={(e: any) => setCorrectionType(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-850 focus:border-amber-500 p-2.5 rounded-xl text-xs font-bold text-slate-200"
+                    >
+                      <option value="PLACAR_EXATO">Placar Exato (Soma pontos e incrementa acertos de placar)</option>
+                      <option value="VENCEDOR">Vencedor ou Empate (Soma pontos e incrementa acertos de vencedor)</option>
+                      <option value="GOL">Gol de Artilheiro (Soma pontos e incrementa acertos de gols)</option>
+                    </select>
+                  </div>
+
+                  {/* Quantity slider / input */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider font-sans">Quantidade de Ocorrências</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={correctionQty}
+                      onChange={(e) => setCorrectionQty(Math.max(1, Number(e.target.value)))}
+                      className="w-full bg-slate-950 border border-slate-850 focus:border-amber-500 p-2.5 rounded-xl text-xs mt-0.5 font-bold text-slate-200 font-mono"
+                    />
+                    <p className="text-[10px] text-slate-500 font-sans mt-1">
+                      Ex: Se o cliente acertou o placar exato de +2 partidas que foram perdidas devido ao reinício, informe 2.
+                    </p>
+                  </div>
+
+                  {/* Dynamically display points addition */}
+                  <div className="bg-amber-500/10 border border-amber-500/20 p-3 rounded-xl flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] font-black uppercase text-amber-400 tracking-wider font-sans">Simulação de Pontos</span>
+                      <p className="text-[10px] text-slate-400 mt-0.5 leading-relaxed font-sans">
+                        Regra de Pontuação Atual:
+                        <br />
+                        {correctionType === 'PLACAR_EXATO' ? `Placar Exato = ${ptsExact} pts cada` : 
+                         correctionType === 'VENCEDOR' ? `Resultado/Empate = ${ptsWinner} pts cada` : 
+                         `Gol de Artilheiro = ${ptsScorer !== undefined ? ptsScorer : 7} pts cada`}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="text-xl font-black text-amber-500 font-mono">
+                        +{correctionQty * (
+                          correctionType === 'PLACAR_EXATO' ? ptsExact :
+                          correctionType === 'VENCEDOR' ? ptsWinner :
+                          (ptsScorer !== undefined ? ptsScorer : 7)
+                        )} Pts
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Justification Text area */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Justificativa / Motivo</label>
+                    <textarea
+                      value={correctionReason}
+                      onChange={(e) => setCorrectionReason(e.target.value)}
+                      placeholder="Ex: Jogo Brasil x Sérvia perdeu o palpite na reinicialização"
+                      rows={3}
+                      className="w-full bg-slate-950 border border-slate-850 focus:border-amber-500 p-2.5 rounded-xl text-xs text-slate-205 mt-1"
+                    />
+                  </div>
+
+                  {/* Submit buttons */}
+                  <div className="flex gap-2.5 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedUserForCorrection(null)}
+                      className="flex-1 py-2.5 rounded-xl text-xs font-black bg-slate-950 text-slate-450 hover:text-slate-100 transition cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      disabled={savingCorrection}
+                      onClick={handleSaveCorrection}
+                      className="flex-1 py-2.5 rounded-xl text-xs font-black bg-amber-500 hover:bg-amber-600 text-slate-950 transition flex items-center justify-center gap-1 cursor-pointer"
+                    >
+                      {savingCorrection ? (
+                        <>
+                          <RefreshCw className="h-3 w-3 animate-spin" />
+                          Gravando...
+                        </>
+                      ) : (
+                        'Adicionar Ajuste'
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

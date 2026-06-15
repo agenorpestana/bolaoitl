@@ -1,3 +1,13 @@
+export interface Correcao {
+  id: number;
+  usuario_id: number;
+  tipo: 'VENCEDOR' | 'PLACAR_EXATO' | 'GOL';
+  quantidade: number;
+  pontos: number;
+  descricao: string;
+  created_at: string;
+}
+
 export interface Usuario {
   id: number;
   ixc_id: string;
@@ -10,6 +20,7 @@ export interface Usuario {
   pontos_total: number;
   acertos_exato: number;
   acertos_vencedor: number;
+  acertos_artilheiro?: number;
   erros: number;
   bloqueado: boolean;
   created_at: string;

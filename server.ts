@@ -22,7 +22,8 @@ import {
   ConfigIXC, 
   ConfigFootballApi, 
   AuditLog, 
-  AdminUser 
+  AdminUser,
+  Correcao
 } from "./src/types";
 import { INITIAL_GAMES, INITIAL_POINTS_CONFIG, CIDADES_ATENDIDAS } from "./src/data";
 import { enrichGameDetails, lookupRoster, generateGenericRoster } from "./src/utils/gameEnricher";
@@ -65,6 +66,7 @@ interface LocalDatabase {
   usuarios: Usuario[];
   jogos: Jogo[];
   palpites: Palpite[];
+  correcoes?: Correcao[];
   configs_ixc: ConfigIXC;
   configs_points: ConfigPoints;
   configs_football: ConfigFootballApi;
@@ -1710,6 +1712,10 @@ function loadDatabase(): LocalDatabase {
       cachedDb.push_subscriptions = [];
     }
     
+    if (!cachedDb.correcoes) {
+      cachedDb.correcoes = [];
+    }
+    
     translateAllGamesInDb(cachedDb);
     return cachedDb;
   }
@@ -1717,6 +1723,10 @@ function loadDatabase(): LocalDatabase {
 
   if (!cachedDb.push_subscriptions) {
     cachedDb.push_subscriptions = [];
+  }
+
+  if (!cachedDb.correcoes) {
+    cachedDb.correcoes = [];
   }
 
   if (cachedDb.configs_points && !cachedDb.configs_points.pontos_acertar_autor_gol) {
@@ -3419,24 +3429,39 @@ function refreshLeaderboard() {
   db.palpites.forEach(p => {
     const jogo = db.jogos.find(j => j.id === p.jogo_id);
     if (jogo && (jogo.status === 'ENCERRADO' || jogo.status === 'AO_VIVO')) {
-      const pontos = calculatePointsForBet(p, jogo, points_cfg);
-      p.pontos = pontos;
+       const pontos = calculatePointsForBet(p, jogo, points_cfg);
+       p.pontos = pontos;
 
-      const usuario = db.usuarios.find(u => u.id === p.usuario_id);
-      if (usuario) {
-        usuario.pontos_total += pontos;
+       const usuario = db.usuarios.find(u => u.id === p.usuario_id);
+       if (usuario) {
+         usuario.pontos_total += pontos;
 
-        const maxPossivelExact = points_cfg.pontos_acertar_vencedor + points_cfg.pontos_acertar_placar_exato;
-        if (pontos === maxPossivelExact) {
-          usuario.acertos_exato += 1;
-        } else if (pontos > 0) {
-          usuario.acertos_vencedor += 1;
-        } else {
-          usuario.erros += 1;
-        }
-      }
+         const maxPossivelExact = points_cfg.pontos_acertar_vencedor + points_cfg.pontos_acertar_placar_exato;
+         if (pontos === maxPossivelExact) {
+           usuario.acertos_exato += 1;
+         } else if (pontos > 0) {
+           usuario.acertos_vencedor += 1;
+         } else {
+           usuario.erros += 1;
+         }
+       }
     }
   });
+
+  // Apply corrections to user tallies
+  if (db.correcoes && Array.isArray(db.correcoes)) {
+    db.correcoes.forEach(c => {
+      const usuario = db.usuarios.find(u => u.id === c.usuario_id);
+      if (usuario) {
+        usuario.pontos_total += c.pontos;
+        if (c.tipo === 'PLACAR_EXATO') {
+          usuario.acertos_exato += c.quantidade;
+        } else if (c.tipo === 'VENCEDOR') {
+          usuario.acertos_vencedor += c.quantidade;
+        }
+      }
+    });
+  }
 
   saveDatabase(db);
 }
@@ -4262,6 +4287,28 @@ async function startServer() {
       if (!isAdmin) {
         const u = db.usuarios.find(user => user.id === userId);
         if (u) {
+          let finalTotalPontos = u.pontos_total;
+          let finalExatos = u.acertos_exato;
+          let finalVencedores = u.acertos_vencedor;
+          let finalArtilheiro = 0;
+
+          // Count artilheiro hits from guesses:
+          const userBets = db.palpites.filter(pb => pb.usuario_id === u.id);
+          userBets.forEach(pb => {
+            const jg = db.jogos.find(g => g.id === pb.jogo_id);
+            if (jg && (jg.status === 'AO_VIVO' || jg.status === 'ENCERRADO')) {
+              finalArtilheiro += calculateArtilheiroHitsForBet(pb, jg);
+            }
+          });
+
+          // Add corrections:
+          const userCorrections = (db.correcoes || []).filter(c => c.usuario_id === u.id);
+          userCorrections.forEach(c => {
+            if (c.tipo === 'PLACAR_EXATO') finalExatos += c.quantidade;
+            if (c.tipo === 'VENCEDOR') finalVencedores += c.quantidade;
+            if (c.tipo === 'GOL') finalArtilheiro += c.quantidade;
+          });
+
           matchedUser = {
             id: u.id,
             ixc_id: u.ixc_id,
@@ -4271,9 +4318,10 @@ async function startServer() {
             email: u.email,
             cidade: u.cidade,
             avatar: u.avatar || "⚽",
-            pontos_total: u.pontos_total,
-            acertos_exato: u.acertos_exato,
-            acertos_vencedor: u.acertos_vencedor,
+            pontos_total: finalTotalPontos,
+            acertos_exato: finalExatos,
+            acertos_vencedor: finalVencedores,
+            acertos_artilheiro: finalArtilheiro,
             erros: u.erros,
             bloqueado: u.bloqueado,
             created_at: u.created_at
@@ -4288,6 +4336,7 @@ async function startServer() {
       jogos: enriched,
       palpites: rawUserGuesses,
       usuario: matchedUser,
+      correcoes: userId ? (db.correcoes || []).filter(c => c.usuario_id === userId) : [],
       configs_points: db.configs_points,
       configs_custom: db.configs_custom,
       data_servidor: new Date().toISOString()
@@ -4897,6 +4946,19 @@ async function startServer() {
           }
         });
 
+        // Apply active corrections for this user!
+        const corrList = (db.correcoes || []).filter(c => c.usuario_id === u.id);
+        corrList.forEach(c => {
+          pontos += c.pontos;
+          if (c.tipo === 'PLACAR_EXATO') {
+            acertos_exato += c.quantidade;
+          } else if (c.tipo === 'VENCEDOR') {
+            acertos_vencedor += c.quantidade;
+          } else if (c.tipo === 'GOL') {
+            acertos_artilheiro += c.quantidade;
+          }
+        });
+
         const isSelf = loggedInUserId !== null && loggedInUserId === u.id;
         const displayName = isSelf ? u.nome : maskName(u.nome);
 
@@ -5144,10 +5206,98 @@ async function startServer() {
       return res.status(404).json({ error: "Participante não localizado." });
     }
     const userPalpites = db.palpites.filter(p => p.usuario_id === id);
+    const userCorrecoes = db.correcoes ? db.correcoes.filter(c => c.usuario_id === id) : [];
     res.json({
       usuario: user,
-      palpites: userPalpites
+      palpites: userPalpites,
+      correcoes: userCorrecoes
     });
+  });
+
+  // Add a manual correction to a participant
+  app.post("/api/admin/correcoes", verifyAdminToken, (req: any, res) => {
+    if (!req.admin.permissions.podeEditar) {
+      return res.status(403).json({ error: "Sua conta de administrador não possui permissão para editar dados." });
+    }
+
+    const { usuario_id, tipo, quantidade, descricao } = req.body;
+    if (!usuario_id || !tipo || !quantidade || !descricao) {
+      return res.status(400).json({ error: "Parâmetros inválidos ou em falta." });
+    }
+
+    const db = loadDatabase();
+    const user = db.usuarios.find(u => u.id === Number(usuario_id));
+    if (!user) {
+      return res.status(404).json({ error: "Participante não localizado." });
+    }
+
+    // Auto-calculate points based on current points configurations
+    const points_cfg = db.configs_points;
+    let pointsPerItem = 0;
+    if (tipo === 'PLACAR_EXATO') {
+      pointsPerItem = points_cfg.pontos_acertar_vencedor + points_cfg.pontos_acertar_placar_exato; // e.g. 4 + 6 = 10
+    } else if (tipo === 'VENCEDOR') {
+      pointsPerItem = points_cfg.pontos_acertar_vencedor; // e.g. 4
+    } else if (tipo === 'GOL') {
+      pointsPerItem = points_cfg.pontos_acertar_autor_gol !== undefined ? points_cfg.pontos_acertar_autor_gol : 7; // e.g. 7
+    }
+
+    const calculatedPoints = Number(quantidade) * pointsPerItem;
+
+    if (!db.correcoes) {
+      db.correcoes = [];
+    }
+
+    const newId = db.correcoes.length > 0 ? Math.max(...db.correcoes.map(c => c.id)) + 1 : 1;
+    const newCorrection = {
+      id: newId,
+      usuario_id: Number(usuario_id),
+      tipo,
+      quantidade: Number(quantidade),
+      pontos: calculatedPoints,
+      descricao,
+      created_at: new Date().toISOString()
+    };
+
+    db.correcoes.push(newCorrection);
+    saveDatabase(db);
+    refreshLeaderboard(); // Recalculate everything and sync back!
+
+    addLog(req.admin.name || "Admin", "ADICIONAR_CORRECAO", `Adicionou correção do tipo ${tipo} (${quantidade}x) com ${calculatedPoints} pontos para ${user.nome}`, req);
+
+    res.json({ success: true, correcao: newCorrection });
+  });
+
+  // Delete a manual correction
+  app.delete("/api/admin/correcoes/:id", verifyAdminToken, (req: any, res) => {
+    if (!req.admin.permissions.podeExcluir) {
+      return res.status(403).json({ error: "Sua conta de administrador não possui permissão para excluir dados." });
+    }
+
+    const id = Number(req.params.id);
+    const db = loadDatabase();
+    
+    if (!db.correcoes) {
+      db.correcoes = [];
+    }
+
+    const corrIndex = db.correcoes.findIndex(c => c.id === id);
+    if (corrIndex === -1) {
+      return res.status(404).json({ error: "Correção não localizada." });
+    }
+
+    const corr = db.correcoes[corrIndex];
+    const user = db.usuarios.find(u => u.id === corr.usuario_id);
+    const userName = user ? user.nome : `Usuário #${corr.usuario_id}`;
+
+    // Remove from array
+    db.correcoes.splice(corrIndex, 1);
+    saveDatabase(db);
+    refreshLeaderboard(); // Recalculate perfectly and sync
+
+    addLog(req.admin.name || "Admin", "EXCLUIR_CORRECAO", `Removeu correção do tipo ${corr.tipo} para ${userName}`, req);
+
+    res.json({ success: true });
   });
 
   // Update client data or points

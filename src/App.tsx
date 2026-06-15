@@ -83,6 +83,12 @@ export default function App() {
       return saved ? JSON.parse(saved) : null;
     } catch { return null; }
   });
+  const [correcoes, setCorrecoes] = React.useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem('bolao_correcoes');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
   const [dataServidor, setDataServidor] = React.useState<string>(new Date().toISOString());
   const [ixcOfflineMode, setIxcOfflineMode] = React.useState<boolean>(true);
   const [configsCustom, setConfigsCustom] = React.useState<any | null>(() => {
@@ -314,6 +320,10 @@ export default function App() {
         if (gData.usuario) {
           setUsuario(gData.usuario);
           localStorage.setItem('bolao_usuario', JSON.stringify(gData.usuario));
+        }
+        if (gData.correcoes) {
+          setCorrecoes(gData.correcoes);
+          localStorage.setItem('bolao_correcoes', JSON.stringify(gData.correcoes));
         }
       }
 
@@ -573,6 +583,7 @@ export default function App() {
                 jogos={jogos}
                 palpites={palpites}
                 usuarioNome={usuario.nome}
+                correcoes={correcoes}
               />
             )}
 
