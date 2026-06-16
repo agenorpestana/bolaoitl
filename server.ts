@@ -3436,10 +3436,14 @@ function refreshLeaderboard() {
        if (usuario) {
          usuario.pontos_total += pontos;
 
-         const maxPossivelExact = points_cfg.pontos_acertar_vencedor + points_cfg.pontos_acertar_placar_exato;
-         if (pontos === maxPossivelExact) {
+         const isExact = p.placar_casa === jogo.placar_casa && p.placar_fora === jogo.placar_fora;
+         const pResultado = p.placar_casa > p.placar_fora ? 'CASA' : (p.placar_casa < p.placar_fora ? 'FORA' : 'EMPATE');
+         const rResultado = jogo.placar_casa > jogo.placar_fora ? 'CASA' : (jogo.placar_casa < jogo.placar_fora ? 'FORA' : 'EMPATE');
+         const isOutcome = pResultado === rResultado;
+
+         if (isExact) {
            usuario.acertos_exato += 1;
-         } else if (pontos > 0) {
+         } else if (isOutcome) {
            usuario.acertos_vencedor += 1;
          } else {
            usuario.erros += 1;
@@ -4287,16 +4291,33 @@ async function startServer() {
       if (!isAdmin) {
         const u = db.usuarios.find(user => user.id === userId);
         if (u) {
-          let finalTotalPontos = u.pontos_total;
-          let finalExatos = u.acertos_exato;
-          let finalVencedores = u.acertos_vencedor;
+          let finalTotalPontos = 0;
+          let finalExatos = 0;
+          let finalVencedores = 0;
           let finalArtilheiro = 0;
+          let finalErros = 0;
 
-          // Count artilheiro hits from guesses:
+          const points_cfg = db.configs_points;
           const userBets = db.palpites.filter(pb => pb.usuario_id === u.id);
           userBets.forEach(pb => {
             const jg = db.jogos.find(g => g.id === pb.jogo_id);
             if (jg && (jg.status === 'AO_VIVO' || jg.status === 'ENCERRADO')) {
+              const pts = calculatePointsForBet(pb, jg, points_cfg);
+              finalTotalPontos += pts;
+
+              const isExact = pb.placar_casa === jg.placar_casa && pb.placar_fora === jg.placar_fora;
+              const pResultado = pb.placar_casa > pb.placar_fora ? 'CASA' : (pb.placar_casa < pb.placar_fora ? 'FORA' : 'EMPATE');
+              const rResultado = jg.placar_casa > jg.placar_fora ? 'CASA' : (jg.placar_casa < jg.placar_fora ? 'FORA' : 'EMPATE');
+              const isOutcome = pResultado === rResultado;
+
+              if (isExact) {
+                finalExatos += 1;
+              } else if (isOutcome) {
+                finalVencedores += 1;
+              } else {
+                finalErros += 1;
+              }
+
               finalArtilheiro += calculateArtilheiroHitsForBet(pb, jg);
             }
           });
@@ -4304,6 +4325,7 @@ async function startServer() {
           // Add corrections:
           const userCorrections = (db.correcoes || []).filter(c => c.usuario_id === u.id);
           userCorrections.forEach(c => {
+            finalTotalPontos += c.pontos;
             if (c.tipo === 'PLACAR_EXATO') finalExatos += c.quantidade;
             if (c.tipo === 'VENCEDOR') finalVencedores += c.quantidade;
             if (c.tipo === 'GOL') finalArtilheiro += c.quantidade;
@@ -4322,7 +4344,7 @@ async function startServer() {
             acertos_exato: finalExatos,
             acertos_vencedor: finalVencedores,
             acertos_artilheiro: finalArtilheiro,
-            erros: u.erros,
+            erros: finalErros,
             bloqueado: u.bloqueado,
             created_at: u.created_at
           };
@@ -4821,16 +4843,49 @@ async function startServer() {
               const pts = calculatePointsForBet(bet, jogo, points_cfg);
               roundPoints += pts;
 
-              const maxPossivelExact = points_cfg.pontos_acertar_vencedor + points_cfg.pontos_acertar_placar_exato;
-              if (pts === maxPossivelExact) {
+              const isExact = bet.placar_casa === jogo.placar_casa && bet.placar_fora === jogo.placar_fora;
+              const pResultado = bet.placar_casa > bet.placar_fora ? 'CASA' : (bet.placar_casa < bet.placar_fora ? 'FORA' : 'EMPATE');
+              const rResultado = jogo.placar_casa > jogo.placar_fora ? 'CASA' : (jogo.placar_casa < jogo.placar_fora ? 'FORA' : 'EMPATE');
+              const isOutcome = pResultado === rResultado;
+
+              if (isExact) {
                 roundExacts += 1;
-              } else if (pts > 0) {
+              } else if (isOutcome) {
                 // simple winner
               } else {
                 roundErrors += 1;
               }
             }
           });
+
+          // Apply manual corrections for this specific round or fallback to round 1 if unmapped
+          if (db.correcoes && Array.isArray(db.correcoes)) {
+            db.correcoes.forEach(c => {
+              if (c.usuario_id === u.id) {
+                let belongsToRound = false;
+                if (c.rodada !== undefined && c.rodada !== null) {
+                  belongsToRound = Number(c.rodada) === rodadaNum;
+                } else if (c.descricao) {
+                  const descLower = c.descricao.toLowerCase();
+                  const m = descLower.match(/rodada\s*(\d+)/i);
+                  if (m) {
+                    belongsToRound = Number(m[1]) === rodadaNum;
+                  } else {
+                    belongsToRound = rodadaNum === 1;
+                  }
+                } else {
+                  belongsToRound = rodadaNum === 1;
+                }
+
+                if (belongsToRound) {
+                  roundPoints += c.pontos;
+                  if (c.tipo === 'PLACAR_EXATO') {
+                    roundExacts += c.quantidade;
+                  }
+                }
+              }
+            });
+          }
 
           return {
             id: u.id,
@@ -4844,7 +4899,20 @@ async function startServer() {
         })
         .filter(u => {
           const userBetsInRound = db.palpites.some(p => p.usuario_id === u.id && gamesInRoundIds.includes(p.jogo_id));
-          return userBetsInRound;
+          const hasCorrectionInRound = (db.correcoes || []).some(c => {
+            if (c.usuario_id === u.id) {
+              if (c.rodada !== undefined && c.rodada !== null) {
+                return Number(c.rodada) === rodadaNum;
+              } else if (c.descricao) {
+                const descLower = c.descricao.toLowerCase();
+                const m = descLower.match(/rodada\s*(\d+)/i);
+                if (m) return Number(m[1]) === rodadaNum;
+              }
+              return rodadaNum === 1;
+            }
+            return false;
+          });
+          return userBetsInRound || hasCorrectionInRound;
         });
 
       // Sort by points desc, exacts desc, errors asc, name asc
@@ -4931,10 +4999,14 @@ async function startServer() {
             const betPoints = calculatePointsForBet(p, jogo, points_cfg);
             pontos += betPoints;
 
-            const maxPossivelExact = points_cfg.pontos_acertar_vencedor + points_cfg.pontos_acertar_placar_exato;
-            if (betPoints === maxPossivelExact) {
+            const isExact = p.placar_casa === jogo.placar_casa && p.placar_fora === jogo.placar_fora;
+            const pResultado = p.placar_casa > p.placar_fora ? 'CASA' : (p.placar_casa < p.placar_fora ? 'FORA' : 'EMPATE');
+            const rResultado = jogo.placar_casa > jogo.placar_fora ? 'CASA' : (jogo.placar_casa < jogo.placar_fora ? 'FORA' : 'EMPATE');
+            const isOutcome = pResultado === rResultado;
+
+            if (isExact) {
               acertos_exato += 1;
-            } else if (betPoints > 0) {
+            } else if (isOutcome) {
               acertos_vencedor += 1;
             } else {
               erros += 1;
@@ -4946,8 +5018,21 @@ async function startServer() {
           }
         });
 
-        // Apply active corrections for this user!
-        const corrList = (db.correcoes || []).filter(c => c.usuario_id === u.id);
+        // Apply active corrections for this user (filtering by rodada if scoped)
+        let corrList = (db.correcoes || []).filter(c => c.usuario_id === u.id);
+        if (useRodada) {
+          const rodadaNum = Number(rodada);
+          corrList = corrList.filter(c => {
+            if (c.rodada !== undefined && c.rodada !== null) {
+              return Number(c.rodada) === rodadaNum;
+            } else if (c.descricao) {
+              const descLower = c.descricao.toLowerCase();
+              const m = descLower.match(/rodada\s*(\d+)/i);
+              if (m) return Number(m[1]) === rodadaNum;
+            }
+            return rodadaNum === 1;
+          });
+        }
         corrList.forEach(c => {
           pontos += c.pontos;
           if (c.tipo === 'PLACAR_EXATO') {
@@ -5220,7 +5305,7 @@ async function startServer() {
       return res.status(403).json({ error: "Sua conta de administrador não possui permissão para editar dados." });
     }
 
-    const { usuario_id, tipo, quantidade, descricao } = req.body;
+    const { usuario_id, tipo, quantidade, descricao, rodada } = req.body;
     if (!usuario_id || !tipo || !quantidade || !descricao) {
       return res.status(400).json({ error: "Parâmetros inválidos ou em falta." });
     }
@@ -5256,7 +5341,8 @@ async function startServer() {
       quantidade: Number(quantidade),
       pontos: calculatedPoints,
       descricao,
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
+      rodada: rodada !== undefined && rodada !== null && rodada !== "" ? Number(rodada) : undefined
     };
 
     db.correcoes.push(newCorrection);

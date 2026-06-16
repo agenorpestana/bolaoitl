@@ -246,6 +246,7 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
   const [correctionType, setCorrectionType] = React.useState<'VENCEDOR' | 'PLACAR_EXATO' | 'GOL'>('PLACAR_EXATO');
   const [correctionQty, setCorrectionQty] = React.useState<number>(1);
   const [correctionReason, setCorrectionReason] = React.useState<string>("");
+  const [correctionRodada, setCorrectionRodada] = React.useState<string>("1");
   const [savingCorrection, setSavingCorrection] = React.useState<boolean>(false);
 
   const handleViewUserHistory = async (user: any) => {
@@ -274,6 +275,7 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
     setCorrectionType('PLACAR_EXATO');
     setCorrectionQty(1);
     setCorrectionReason("");
+    setCorrectionRodada("1");
   };
 
   const handleSaveCorrection = async () => {
@@ -294,7 +296,8 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
           usuario_id: selectedUserForCorrection.id,
           tipo: correctionType,
           quantidade: Number(correctionQty),
-          descricao: correctionReason
+          descricao: correctionReason,
+          rodada: correctionRodada !== "GERAL" ? Number(correctionRodada) : undefined
         })
       });
       if (response.ok) {
@@ -2641,6 +2644,25 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
 
                 {/* Form Body */}
                 <div className="p-5 space-y-4 text-left">
+                  {/* Scope Rodada select dropdown */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Rodada Associada</label>
+                    <select
+                      value={correctionRodada}
+                      onChange={(e: any) => setCorrectionRodada(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-850 focus:border-amber-500 p-2.5 rounded-xl text-xs font-bold text-slate-200"
+                    >
+                      <option value="1">Fase de Grupos - Rodada 1</option>
+                      <option value="2">Fase de Grupos - Rodada 2</option>
+                      <option value="3">Fase de Grupos - Rodada 3</option>
+                      <option value="4">Oitavas de Final - Rodada 4</option>
+                      <option value="5">Quartas de Final - Rodada 5</option>
+                      <option value="6">Semifinal - Rodada 6</option>
+                      <option value="7">Disputa 3º Lugar - Rodada 7</option>
+                      <option value="GERAL">Geral (Apenas na tabela geral, sem rodada específica)</option>
+                    </select>
+                  </div>
+
                   {/* Correction type select dropdown */}
                   <div className="space-y-1">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Tipo de Ajuste</label>

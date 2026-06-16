@@ -6,6 +6,7 @@ export interface Correcao {
   pontos: number;
   descricao: string;
   created_at: string;
+  rodada?: number | string;
 }
 
 export interface Usuario {
