@@ -37,6 +37,10 @@ export interface Jogo {
   data_jogo: string; // ISO String
   placar_casa: number | null;
   placar_fora: number | null;
+  placar_casa_prorrogacao?: number | null;
+  placar_fora_prorrogacao?: number | null;
+  placar_casa_penaltis?: number | null;
+  placar_fora_penaltis?: number | null;
   status: 'PENDENTE' | 'AO_VIVO' | 'ENCERRADO';
   rodada: number;
   // ENRICHMENTS
@@ -85,6 +89,10 @@ export interface Palpite {
   jogo_id: number;
   placar_casa: number;
   placar_fora: number;
+  placar_casa_prorrogacao?: number | null;
+  placar_fora_prorrogacao?: number | null;
+  placar_casa_penaltis?: number | null;
+  placar_fora_penaltis?: number | null;
   pontos: number | null;
   palpites_gols_jogadores?: PalpiteGolJogador[];
   created_at: string;

@@ -353,6 +353,10 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
   const [editingMatchId, setEditingMatchId] = React.useState<number | null>(null);
   const [editMatchCasaPlacar, setEditMatchCasaPlacar] = React.useState("");
   const [editMatchForaPlacar, setEditMatchForaPlacar] = React.useState("");
+  const [editMatchCasaProrrogacao, setEditMatchCasaProrrogacao] = React.useState("");
+  const [editMatchForaProrrogacao, setEditMatchForaProrrogacao] = React.useState("");
+  const [editMatchCasaPenaltis, setEditMatchCasaPenaltis] = React.useState("");
+  const [editMatchForaPenaltis, setEditMatchForaPenaltis] = React.useState("");
   const [editMatchStatus, setEditMatchStatus] = React.useState<'PENDENTE' | 'AO_VIVO' | 'ENCERRADO'>('PENDENTE');
 
   // Sub-admins management states
@@ -1022,6 +1026,10 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
     setEditingMatchId(jogo.id);
     setEditMatchCasaPlacar(jogo.placar_casa !== null ? String(jogo.placar_casa) : "");
     setEditMatchForaPlacar(jogo.placar_fora !== null ? String(jogo.placar_fora) : "");
+    setEditMatchCasaProrrogacao(jogo.placar_casa_prorrogacao !== null && jogo.placar_casa_prorrogacao !== undefined ? String(jogo.placar_casa_prorrogacao) : "");
+    setEditMatchForaProrrogacao(jogo.placar_fora_prorrogacao !== null && jogo.placar_fora_prorrogacao !== undefined ? String(jogo.placar_fora_prorrogacao) : "");
+    setEditMatchCasaPenaltis(jogo.placar_casa_penaltis !== null && jogo.placar_casa_penaltis !== undefined ? String(jogo.placar_casa_penaltis) : "");
+    setEditMatchForaPenaltis(jogo.placar_fora_penaltis !== null && jogo.placar_fora_penaltis !== undefined ? String(jogo.placar_fora_penaltis) : "");
     setEditMatchStatus(jogo.status);
   };
 
@@ -1036,6 +1044,10 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
         body: JSON.stringify({
           placar_casa: editMatchCasaPlacar === "" ? null : Number(editMatchCasaPlacar),
           placar_fora: editMatchForaPlacar === "" ? null : Number(editMatchForaPlacar),
+          placar_casa_prorrogacao: editMatchCasaProrrogacao === "" ? null : Number(editMatchCasaProrrogacao),
+          placar_fora_prorrogacao: editMatchForaProrrogacao === "" ? null : Number(editMatchForaProrrogacao),
+          placar_casa_penaltis: editMatchCasaPenaltis === "" ? null : Number(editMatchCasaPenaltis),
+          placar_fora_penaltis: editMatchForaPenaltis === "" ? null : Number(editMatchForaPenaltis),
           status: editMatchStatus
         })
       });
@@ -2969,27 +2981,85 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
                             
                             <td className="px-4 py-3 text-center">
                               {isEditingThis ? (
-                                <div className="flex items-center gap-1.5 justify-center">
-                                  <input
-                                    type="number"
-                                    placeholder="-"
-                                    value={editMatchCasaPlacar}
-                                    onChange={(e) => setEditMatchCasaPlacar(e.target.value)}
-                                    className="w-10 p-1 bg-slate-950 border border-slate-800 rounded font-mono font-bold text-center text-xs text-yellow-500"
-                                  />
-                                  <span className="text-slate-650">x</span>
-                                  <input
-                                    type="number"
-                                    placeholder="-"
-                                    value={editMatchForaPlacar}
-                                    onChange={(e) => setEditMatchForaPlacar(e.target.value)}
-                                    className="w-10 p-1 bg-slate-950 border border-slate-800 rounded font-mono font-bold text-center text-xs text-yellow-500"
-                                  />
+                                <div className="space-y-1.5 flex flex-col items-center justify-center">
+                                  <div className="flex items-center gap-1.5 justify-center">
+                                    <input
+                                      type="number"
+                                      placeholder="-"
+                                      value={editMatchCasaPlacar}
+                                      onChange={(e) => setEditMatchCasaPlacar(e.target.value)}
+                                      className="w-10 p-1 bg-slate-950 border border-slate-800 rounded font-mono font-bold text-center text-xs text-yellow-500"
+                                    />
+                                    <span className="text-slate-650">x</span>
+                                    <input
+                                      type="number"
+                                      placeholder="-"
+                                      value={editMatchForaPlacar}
+                                      onChange={(e) => setEditMatchForaPlacar(e.target.value)}
+                                      className="w-10 p-1 bg-slate-950 border border-slate-800 rounded font-mono font-bold text-center text-xs text-yellow-500"
+                                    />
+                                  </div>
+                                  {(jogo.rodada >= 4 && editMatchCasaPlacar !== "" && editMatchCasaPlacar === editMatchForaPlacar) && (
+                                    <div className="space-y-1 bg-slate-900 border border-slate-800 p-1 rounded">
+                                      <div className="text-[8px] uppercase font-bold text-slate-400">⏱️ Prorrog.</div>
+                                      <div className="flex items-center gap-1 justify-center">
+                                        <input
+                                          type="number"
+                                          placeholder="-"
+                                          value={editMatchCasaProrrogacao}
+                                          onChange={(e) => setEditMatchCasaProrrogacao(e.target.value)}
+                                          className="w-8 p-0.5 bg-slate-950 border border-slate-800 rounded font-mono text-center text-[10px] text-brand-blue-vibrant"
+                                        />
+                                        <span className="text-slate-600 text-[10px]">x</span>
+                                        <input
+                                          type="number"
+                                          placeholder="-"
+                                          value={editMatchForaProrrogacao}
+                                          onChange={(e) => setEditMatchForaProrrogacao(e.target.value)}
+                                          className="w-8 p-0.5 bg-slate-950 border border-slate-800 rounded font-mono text-center text-[10px] text-brand-blue-vibrant"
+                                        />
+                                      </div>
+                                      {(editMatchCasaProrrogacao !== "" && editMatchCasaProrrogacao === editMatchForaProrrogacao) && (
+                                        <div className="space-y-1 mt-1 border-t border-slate-805 pt-1">
+                                          <div className="text-[8px] uppercase font-bold text-purple-400">🎯 Pênaltis</div>
+                                          <div className="flex items-center gap-1 justify-center">
+                                            <input
+                                              type="number"
+                                              placeholder="-"
+                                              value={editMatchCasaPenaltis}
+                                              onChange={(e) => setEditMatchCasaPenaltis(e.target.value)}
+                                              className="w-8 p-0.5 bg-slate-950 border border-slate-800 rounded font-mono text-center text-[10px] text-purple-400"
+                                            />
+                                            <span className="text-slate-650 text-[10px]">x</span>
+                                            <input
+                                              type="number"
+                                              placeholder="-"
+                                              value={editMatchForaPenaltis}
+                                              onChange={(e) => setEditMatchForaPenaltis(e.target.value)}
+                                              className="w-8 p-0.5 bg-slate-950 border border-slate-800 rounded font-mono text-center text-[10px] text-purple-400"
+                                            />
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                               ) : (
-                                <span className="font-mono font-extrabold text-sm text-yellow-500 bg-slate-950 px-2 py-0.5 rounded">
-                                  {jogo.placar_casa !== null ? jogo.placar_casa : '-'} x {jogo.placar_fora !== null ? jogo.placar_fora : '-'}
-                                </span>
+                                <div className="flex flex-col items-center justify-center font-mono">
+                                  <span className="font-mono font-extrabold text-sm text-yellow-500 bg-slate-950 px-2 py-0.5 rounded">
+                                    {jogo.placar_casa !== null ? jogo.placar_casa : '-'} x {jogo.placar_fora !== null ? jogo.placar_fora : '-'}
+                                  </span>
+                                  {(jogo.rodada >= 4 && jogo.placar_casa !== null && jogo.placar_casa === jogo.placar_fora) && (
+                                    <div className="text-[9px] text-slate-400 bg-slate-900 border border-slate-850 px-1 py-0.5 rounded mt-1">
+                                      ⏱️ {jogo.placar_casa_prorrogacao ?? 0} x {jogo.placar_fora_prorrogacao ?? 0}
+                                      {jogo.placar_casa_prorrogacao !== null && jogo.placar_casa_prorrogacao === jogo.placar_fora_prorrogacao && (
+                                        <div className="text-purple-400 border-t border-slate-800 mt-0.5 pt-0.5">
+                                          🎯 {jogo.placar_casa_penaltis ?? 0} x {jogo.placar_fora_penaltis ?? 0}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
                               )}
                             </td>
 
@@ -3145,11 +3215,23 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
                                 </div>
                               </div>
 
-                              <div className="col-span-1 text-center font-mono font-bold text-yellow-500">
+                              <div className="col-span-1 flex flex-col items-center justify-center font-mono font-bold text-yellow-500">
                                 {jogo.status === 'PENDENTE' ? (
                                   <span className="text-slate-550">- x -</span>
                                 ) : (
-                                  <span>{jogo.placar_casa} x {jogo.placar_fora}</span>
+                                  <>
+                                    <span>{jogo.placar_casa} x {jogo.placar_fora}</span>
+                                    {(jogo.rodada >= 7 && jogo.placar_casa !== null && jogo.placar_casa === jogo.placar_fora) && (
+                                      <div className="text-[8px] text-slate-400 bg-slate-950 border border-slate-850 px-1 py-0.5 rounded mt-0.5 font-sans">
+                                        ⏱️ {jogo.placar_casa_prorrogacao ?? 0} x {jogo.placar_fora_prorrogacao ?? 0}
+                                        {jogo.placar_casa_prorrogacao !== null && jogo.placar_casa_prorrogacao === jogo.placar_fora_prorrogacao && (
+                                          <div className="text-purple-400 border-t border-slate-800 mt-0.5 pt-0.5 font-sans">
+                                            🎯 {jogo.placar_casa_penaltis ?? 0} x {jogo.placar_fora_penaltis ?? 0}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </>
                                 )}
                               </div>
 
@@ -3185,6 +3267,50 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
                                         className="w-10 text-center bg-slate-900 border border-slate-700 text-yellow-500 text-xs py-1 rounded-md"
                                       />
                                     </div>
+                                    {(jogo.rodada >= 7 && editMatchCasaPlacar !== "" && editMatchCasaPlacar === editMatchForaPlacar) && (
+                                      <div className="space-y-1 bg-slate-900 border border-slate-800 p-1 rounded-lg">
+                                        <div className="text-[8px] uppercase font-bold text-slate-400 text-center">⏱️ Prorrog.</div>
+                                        <div className="flex items-center gap-1 justify-center">
+                                          <input
+                                            type="number"
+                                            placeholder="-"
+                                            value={editMatchCasaProrrogacao}
+                                            onChange={(e) => setEditMatchCasaProrrogacao(e.target.value)}
+                                            className="w-8 p-0.5 bg-slate-950 border border-slate-800 rounded font-mono text-center text-[10px] text-brand-blue-vibrant"
+                                          />
+                                          <span className="text-slate-600 text-[10px]">x</span>
+                                          <input
+                                            type="number"
+                                            placeholder="-"
+                                            value={editMatchForaProrrogacao}
+                                            onChange={(e) => setEditMatchForaProrrogacao(e.target.value)}
+                                            className="w-8 p-0.5 bg-slate-950 border border-slate-800 rounded font-mono text-center text-[10px] text-brand-blue-vibrant"
+                                          />
+                                        </div>
+                                        {(editMatchCasaProrrogacao !== "" && editMatchCasaProrrogacao === editMatchForaProrrogacao) && (
+                                          <div className="space-y-1 mt-1 border-t border-slate-800 pt-1">
+                                            <div className="text-[8px] uppercase font-bold text-purple-400 text-center">🎯 Pênaltis</div>
+                                            <div className="flex items-center gap-1 justify-center">
+                                              <input
+                                                type="number"
+                                                placeholder="-"
+                                                value={editMatchCasaPenaltis}
+                                                onChange={(e) => setEditMatchCasaPenaltis(e.target.value)}
+                                                className="w-8 p-0.5 bg-slate-950 border border-slate-800 rounded font-mono text-center text-[10px] text-purple-400"
+                                              />
+                                              <span className="text-slate-650 text-[10px]">x</span>
+                                              <input
+                                                type="number"
+                                                placeholder="-"
+                                                value={editMatchForaPenaltis}
+                                                onChange={(e) => setEditMatchForaPenaltis(e.target.value)}
+                                                className="w-8 p-0.5 bg-slate-950 border border-slate-800 rounded font-mono text-center text-[10px] text-purple-400"
+                                              />
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
                                     <select
                                       value={editMatchStatus}
                                       onChange={(e: any) => setEditMatchStatus(e.target.value)}
@@ -3213,12 +3339,7 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
                                   <div className="space-y-2 text-right">
                                     <div className="flex gap-1.5 justify-end">
                                       <button
-                                        onClick={() => {
-                                          setEditingMatchId(jogo.id);
-                                          setEditMatchCasaPlacar(jogo.placar_casa !== null ? String(jogo.placar_casa) : "");
-                                          setEditMatchForaPlacar(jogo.placar_fora !== null ? String(jogo.placar_fora) : "");
-                                          setEditMatchStatus(jogo.status);
-                                        }}
+                                        onClick={() => handleOpenMatchScoreEditor(jogo)}
                                         className="px-2 py-1 bg-slate-900 border border-slate-850 hover:border-slate-700 hover:text-yellow-500 rounded text-[10px] font-semibold text-slate-400 transition cursor-pointer"
                                       >
                                         Oficializar Placar
@@ -3436,12 +3557,7 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
                                   <div className="space-y-2 text-right">
                                     <div className="flex gap-1.5 justify-end">
                                       <button
-                                        onClick={() => {
-                                          setEditingMatchId(jogo.id);
-                                          setEditMatchCasaPlacar(jogo.placar_casa !== null ? String(jogo.placar_casa) : "");
-                                          setEditMatchForaPlacar(jogo.placar_fora !== null ? String(jogo.placar_fora) : "");
-                                          setEditMatchStatus(jogo.status);
-                                        }}
+                                        onClick={() => handleOpenMatchScoreEditor(jogo)}
                                         className="px-2 py-1 bg-slate-900 border border-slate-850 hover:border-slate-700 hover:text-yellow-500 rounded text-[10px] font-semibold text-slate-400 transition cursor-pointer"
                                       >
                                         Oficializar Placar

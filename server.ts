@@ -2226,6 +2226,10 @@ async function saveDatabaseToMySqlIncremental(db: LocalDatabase | null) {
                     data_jogo: new Date(g.data_jogo),
                     placar_casa: g.placar_casa,
                     placar_fora: g.placar_fora,
+                    placar_casa_prorrogacao: g.placar_casa_prorrogacao,
+                    placar_fora_prorrogacao: g.placar_fora_prorrogacao,
+                    placar_casa_penaltis: g.placar_casa_penaltis,
+                    placar_fora_penaltis: g.placar_fora_penaltis,
                     status: g.status,
                     status_detalhado: g.status_detalhado || "NS",
                     rodada: g.rodada
@@ -2240,6 +2244,10 @@ async function saveDatabaseToMySqlIncremental(db: LocalDatabase | null) {
                     data_jogo: new Date(g.data_jogo),
                     placar_casa: g.placar_casa,
                     placar_fora: g.placar_fora,
+                    placar_casa_prorrogacao: g.placar_casa_prorrogacao,
+                    placar_fora_prorrogacao: g.placar_fora_prorrogacao,
+                    placar_casa_penaltis: g.placar_casa_penaltis,
+                    placar_fora_penaltis: g.placar_fora_penaltis,
                     status: g.status,
                     status_detalhado: g.status_detalhado || "NS",
                     rodada: g.rodada
@@ -2287,6 +2295,10 @@ async function saveDatabaseToMySqlIncremental(db: LocalDatabase | null) {
                   update: {
                     placar_casa: p.placar_casa,
                     placar_fora: p.placar_fora,
+                    placar_casa_prorrogacao: p.placar_casa_prorrogacao,
+                    placar_fora_prorrogacao: p.placar_fora_prorrogacao,
+                    placar_casa_penaltis: p.placar_casa_penaltis,
+                    placar_fora_penaltis: p.placar_fora_penaltis,
                     pontos: p.pontos,
                     gols_jogadores: p.palpites_gols_jogadores ? JSON.stringify(p.palpites_gols_jogadores) : null
                   },
@@ -2295,6 +2307,10 @@ async function saveDatabaseToMySqlIncremental(db: LocalDatabase | null) {
                     jogo_id: p.jogo_id,
                     placar_casa: p.placar_casa,
                     placar_fora: p.placar_fora,
+                    placar_casa_prorrogacao: p.placar_casa_prorrogacao,
+                    placar_fora_prorrogacao: p.placar_fora_prorrogacao,
+                    placar_casa_penaltis: p.placar_casa_penaltis,
+                    placar_fora_penaltis: p.placar_fora_penaltis,
                     pontos: p.pontos,
                     gols_jogadores: p.palpites_gols_jogadores ? JSON.stringify(p.palpites_gols_jogadores) : null,
                     created_at: new Date(p.created_at)
@@ -3240,9 +3256,9 @@ function calculateArtilheiroHitsForBet(palpite: Palpite, jogo: Jogo): number {
         }
       }
 
-      const hitGoals = Math.min(matchedActualGoals, guessedGoals);
-      if (hitGoals > 0) {
-        acertosArtilheiro += hitGoals;
+      const creditGoals = Math.min(matchedActualGoals, guessedGoals);
+      if (creditGoals > 0) {
+        acertosArtilheiro += creditGoals;
       }
     });
   }
@@ -3250,42 +3266,129 @@ function calculateArtilheiroHitsForBet(palpite: Palpite, jogo: Jogo): number {
 }
 
 // Score Calculator Engine
-function calculatePointsForBet(palpite: Palpite, jogo: Jogo, points_cfg: ConfigPoints): number {
-  if (jogo.placar_casa === null || jogo.placar_fora === null) return 0;
+function isKnockoutMatch(jogo: Jogo): boolean {
+  const campeonato = getGameCampeonato(jogo);
+  if (campeonato === 'BRASILEIRAO') return false;
+  if (campeonato === 'LIBERTADORES') return jogo.rodada >= 7;
+  return jogo.rodada >= 4;
+}
 
+interface DetailedBetStats {
+  pontos: number;
+  acertos_exato: number;
+  acertos_vencedor: number;
+  erros: number;
+}
+
+function calculateDetailedStatsForBet(palpite: Palpite, jogo: Jogo, points_cfg: ConfigPoints): DetailedBetStats {
+  const stats = { pontos: 0, acertos_exato: 0, acertos_vencedor: 0, erros: 0 };
+  if (jogo.placar_casa === null || jogo.placar_fora === null) return stats;
+
+  const isKnockout = isKnockoutMatch(jogo);
+
+  // 1. Regular Time (Jogo Normal)
   const palpiteCasa = palpite.placar_casa;
   const palpiteFora = palpite.placar_fora;
   const realCasa = jogo.placar_casa;
   const realFora = jogo.placar_fora;
 
-  let basePoints = 0;
+  const isExactReg = palpiteCasa === realCasa && palpiteFora === realFora;
+  const palpiteEmpateReg = palpiteCasa === palpiteFora;
+  const realEmpateReg = realCasa === realFora;
 
-  // Exact scorecard match
-  if (palpiteCasa === realCasa && palpiteFora === realFora) {
-    // Winner hit points + Exact score bônus
-    basePoints = points_cfg.pontos_acertar_vencedor + points_cfg.pontos_acertar_placar_exato;
+  let isOutcomeReg = false;
+  if (realEmpateReg && palpiteEmpateReg) {
+    isOutcomeReg = true;
+  } else if (!realEmpateReg && !palpiteEmpateReg) {
+    const palpiteWinnerReg = palpiteCasa > palpiteFora;
+    const realWinnerReg = realCasa > realFora;
+    if (palpiteWinnerReg === realWinnerReg) {
+      isOutcomeReg = true;
+    }
+  }
+
+  // scoring regular time
+  if (isExactReg) {
+    stats.pontos += points_cfg.pontos_acertar_vencedor + points_cfg.pontos_acertar_placar_exato;
+    stats.acertos_exato += 1;
+  } else if (isOutcomeReg) {
+    stats.pontos += palpiteEmpateReg ? points_cfg.pontos_acertar_empate : points_cfg.pontos_acertar_vencedor;
+    stats.acertos_vencedor += 1;
   } else {
-    // Draw check
-    const palpiteEmpate = palpiteCasa === palpiteFora;
-    const realEmpate = realCasa === realFora;
+    stats.erros += 1;
+  }
 
-    if (realEmpate && palpiteEmpate) {
-      basePoints = points_cfg.pontos_acertar_empate;
-    } else {
-      // Winner check (not a drawing score)
-      const palpiteVencedorCasa = palpiteCasa > palpiteFora;
-      const realVencedorCasa = realCasa > realFora;
+  if (isKnockout) {
+    // 2. Extra Time (Prorrogação)
+    // Only played and predicted if regular time finished as a draw and predicted as a draw
+    const extraTimeApplicable = palpiteEmpateReg && realEmpateReg;
+    if (extraTimeApplicable) {
+      const pC_extra = palpite.placar_casa_prorrogacao;
+      const pF_extra = palpite.placar_fora_prorrogacao;
+      const rC_extra = jogo.placar_casa_prorrogacao;
+      const rF_extra = jogo.placar_fora_prorrogacao;
 
-      const palpiteVencedorFora = palpiteCasa < palpiteFora;
-      const realVencedorFora = realCasa < realFora;
+      // Ensure both predictions and real scores exist before scoring extra time
+      if (pC_extra !== undefined && pC_extra !== null && pF_extra !== undefined && pF_extra !== null &&
+          rC_extra !== undefined && rC_extra !== null && rF_extra !== undefined && rF_extra !== null) {
+        const isExactExtra = pC_extra === rC_extra && pF_extra === rF_extra;
+        const pEmpateExtra = pC_extra === pF_extra;
+        const rEmpateExtra = rC_extra === rF_extra;
 
-      if ((palpiteVencedorCasa && realVencedorCasa) || (palpiteVencedorFora && realVencedorFora)) {
-        basePoints = points_cfg.pontos_acertar_vencedor;
+        let isOutcomeExtra = false;
+        if (rEmpateExtra && pEmpateExtra) {
+          isOutcomeExtra = true;
+        } else if (!rEmpateExtra && !pEmpateExtra) {
+          const pWinnerExtra = pC_extra > pF_extra;
+          const rWinnerExtra = rC_extra > rF_extra;
+          if (pWinnerExtra === rWinnerExtra) {
+            isOutcomeExtra = true;
+          }
+        }
+
+        if (isExactExtra) {
+          stats.pontos += 4; // 4 points for exact score of extra time
+          stats.acertos_exato += 1;
+        } else if (isOutcomeExtra) {
+          stats.pontos += 2; // 2 points for winner/draw of extra time
+          stats.acertos_vencedor += 1;
+        } else {
+          stats.erros += 1;
+        }
+
+        // 3. Penalty Shootout (Pênaltis)
+        // Only played and predicted if extra time ended in a draw too!
+        const penaltyApplicable = pEmpateExtra && rEmpateExtra;
+        if (penaltyApplicable) {
+          const pC_pen = palpite.placar_casa_penaltis;
+          const pF_pen = palpite.placar_fora_penaltis;
+          const rC_pen = jogo.placar_casa_penaltis;
+          const rF_pen = jogo.placar_fora_penaltis;
+
+          if (pC_pen !== undefined && pC_pen !== null && pF_pen !== undefined && pF_pen !== null &&
+              rC_pen !== undefined && rC_pen !== null && rF_pen !== undefined && rF_pen !== null) {
+            const isExactPen = pC_pen === rC_pen && pF_pen === rF_pen;
+            // penalty shootout must have a winner (cannot draw in shootout)
+            const pWinnerPen = pC_pen > pF_pen;
+            const rWinnerPen = rC_pen > rF_pen;
+            const isOutcomePen = pWinnerPen === rWinnerPen;
+
+            if (isExactPen) {
+              stats.pontos += 10; // 10 points for exact penalties score
+              stats.acertos_exato += 1;
+            } else if (isOutcomePen) {
+              stats.pontos += 4; // 4 points for correct outcome/winner of penalties
+              stats.acertos_vencedor += 1;
+            } else {
+              stats.erros += 1;
+            }
+          }
+        }
       }
     }
   }
 
-  // Scorer predictions points
+  // 4. Scorer predictions points (Artilheiro, only regular + extra time, NOT penalties!)
   let scorerPoints = 0;
   const pointsPerGoal = points_cfg.pontos_acertar_autor_gol !== undefined ? points_cfg.pontos_acertar_autor_gol : 7;
 
@@ -3306,7 +3409,7 @@ function calculatePointsForBet(palpite: Palpite, jogo: Jogo, points_cfg: ConfigP
         if (evtName && gNameNormal) {
           let score = 0;
           if (evtName === gNameNormal) {
-            score = 100; // Perfect match
+            score = 100;
           } else {
             const cleanWord = (w: string) => w.replace(/[^a-z0-9]/gi, "").toLowerCase();
             const prepositions = ["de", "da", "do", "la", "el", "di", "del", "du", "van", "von", "y", "dos", "das", "der"];
@@ -3329,13 +3432,13 @@ function calculatePointsForBet(palpite: Palpite, jogo: Jogo, points_cfg: ConfigP
               const commonSig = evtSig.filter(w => guessSig.includes(w));
               if (commonSig.length > 0) {
                 const overlap = commonSig.length / Math.max(evtSig.length, guessSig.length);
-                score = overlap * 80; // High matching score for strong subsets
+                score = overlap * 80;
               }
             } else {
               const commonAll = evtCleaned.filter(w => guessCleaned.includes(w));
               if (commonAll.length > 0) {
                 const overlap = commonAll.length / Math.max(evtCleaned.length, guessCleaned.length);
-                score = overlap * 80; // High matching score for strong subsets
+                score = overlap * 80;
               }
             }
           }
@@ -3354,7 +3457,12 @@ function calculatePointsForBet(palpite: Palpite, jogo: Jogo, points_cfg: ConfigP
     });
   }
 
-  return basePoints + scorerPoints;
+  stats.pontos += scorerPoints;
+  return stats;
+}
+
+function calculatePointsForBet(palpite: Palpite, jogo: Jogo, points_cfg: ConfigPoints): number {
+  return calculateDetailedStatsForBet(palpite, jogo, points_cfg).pontos;
 }
 
 // Background helper to fetch and synchronize real goals/cards events from Football API-Sports for live and recently-finished matches
@@ -3422,6 +3530,7 @@ function refreshLeaderboard() {
     u.pontos_total = 0;
     u.acertos_exato = 0;
     u.acertos_vencedor = 0;
+    u.acertos_artilheiro = 0;
     u.erros = 0;
   });
 
@@ -3429,25 +3538,16 @@ function refreshLeaderboard() {
   db.palpites.forEach(p => {
     const jogo = db.jogos.find(j => j.id === p.jogo_id);
     if (jogo && (jogo.status === 'ENCERRADO' || jogo.status === 'AO_VIVO')) {
-       const pontos = calculatePointsForBet(p, jogo, points_cfg);
-       p.pontos = pontos;
+       const stats = calculateDetailedStatsForBet(p, jogo, points_cfg);
+       p.pontos = stats.pontos;
 
        const usuario = db.usuarios.find(u => u.id === p.usuario_id);
-       if (usuario) {
-         usuario.pontos_total += pontos;
-
-         const isExact = p.placar_casa === jogo.placar_casa && p.placar_fora === jogo.placar_fora;
-         const pResultado = p.placar_casa > p.placar_fora ? 'CASA' : (p.placar_casa < p.placar_fora ? 'FORA' : 'EMPATE');
-         const rResultado = jogo.placar_casa > jogo.placar_fora ? 'CASA' : (jogo.placar_casa < jogo.placar_fora ? 'FORA' : 'EMPATE');
-         const isOutcome = pResultado === rResultado;
-
-         if (isExact) {
-           usuario.acertos_exato += 1;
-         } else if (isOutcome) {
-           usuario.acertos_vencedor += 1;
-         } else {
-           usuario.erros += 1;
-         }
+       if (usuario && jogo.placar_casa !== null && jogo.placar_fora !== null) {
+         usuario.pontos_total += stats.pontos;
+         usuario.acertos_exato += stats.acertos_exato;
+         usuario.acertos_vencedor += stats.acertos_vencedor;
+         usuario.erros += stats.erros;
+         usuario.acertos_artilheiro = (usuario.acertos_artilheiro || 0) + calculateArtilheiroHitsForBet(p, jogo);
        }
     }
   });
@@ -4302,23 +4402,15 @@ async function startServer() {
           userBets.forEach(pb => {
             const jg = db.jogos.find(g => g.id === pb.jogo_id);
             if (jg && (jg.status === 'AO_VIVO' || jg.status === 'ENCERRADO')) {
-              const pts = calculatePointsForBet(pb, jg, points_cfg);
-              finalTotalPontos += pts;
+              const stats = calculateDetailedStatsForBet(pb, jg, points_cfg);
+              finalTotalPontos += stats.pontos;
 
-              const isExact = pb.placar_casa === jg.placar_casa && pb.placar_fora === jg.placar_fora;
-              const pResultado = pb.placar_casa > pb.placar_fora ? 'CASA' : (pb.placar_casa < pb.placar_fora ? 'FORA' : 'EMPATE');
-              const rResultado = jg.placar_casa > jg.placar_fora ? 'CASA' : (jg.placar_casa < jg.placar_fora ? 'FORA' : 'EMPATE');
-              const isOutcome = pResultado === rResultado;
-
-              if (isExact) {
-                finalExatos += 1;
-              } else if (isOutcome) {
-                finalVencedores += 1;
-              } else {
-                finalErros += 1;
+              if (jg.placar_casa !== null && jg.placar_fora !== null) {
+                finalExatos += stats.acertos_exato;
+                finalVencedores += stats.acertos_vencedor;
+                finalErros += stats.erros;
+                finalArtilheiro += calculateArtilheiroHitsForBet(pb, jg);
               }
-
-              finalArtilheiro += calculateArtilheiroHitsForBet(pb, jg);
             }
           });
 
@@ -4388,7 +4480,16 @@ async function startServer() {
       return res.status(403).json({ error: "Sua seção expirou ou o token é inválido." });
     }
 
-    const { jogo_id, placar_casa, placar_fora, palpites_gols_jogadores } = req.body;
+    const { 
+      jogo_id, 
+      placar_casa, 
+      placar_fora, 
+      palpites_gols_jogadores,
+      placar_casa_prorrogacao,
+      placar_fora_prorrogacao,
+      placar_casa_penaltis,
+      placar_fora_penaltis 
+    } = req.body;
 
     if (jogo_id === undefined || placar_casa === undefined || placar_fora === undefined) {
       return res.status(400).json({ error: "Dados incompletos para envio do palpite." });
@@ -4400,6 +4501,17 @@ async function startServer() {
     if (isNaN(numPlacarCasa) || isNaN(numPlacarFora) || numPlacarCasa < 0 || numPlacarFora < 0) {
       return res.status(400).json({ error: "Os placares informados devem ser números positivos." });
     }
+
+    const parseOptionalScore = (val: any) => {
+      if (val === undefined || val === null || val === "") return null;
+      const parsed = parseInt(val, 10);
+      return isNaN(parsed) ? null : parsed;
+    };
+
+    const numCasaProrrogacao = parseOptionalScore(placar_casa_prorrogacao);
+    const numForaProrrogacao = parseOptionalScore(placar_fora_prorrogacao);
+    const numCasaPenaltis = parseOptionalScore(placar_casa_penaltis);
+    const numForaPenaltis = parseOptionalScore(placar_fora_penaltis);
 
     const db = loadDatabase();
 
@@ -4447,6 +4559,10 @@ async function startServer() {
     if (existingBet) {
       existingBet.placar_casa = numPlacarCasa;
       existingBet.placar_fora = numPlacarFora;
+      existingBet.placar_casa_prorrogacao = numCasaProrrogacao;
+      existingBet.placar_fora_prorrogacao = numForaProrrogacao;
+      existingBet.placar_casa_penaltis = numCasaPenaltis;
+      existingBet.placar_fora_penaltis = numForaPenaltis;
       existingBet.palpites_gols_jogadores = Array.isArray(palpites_gols_jogadores) ? palpites_gols_jogadores : undefined;
       existingBet.created_at = new Date().toISOString();
     } else {
@@ -4457,6 +4573,10 @@ async function startServer() {
         jogo_id: Number(jogo_id),
         placar_casa: numPlacarCasa,
         placar_fora: numPlacarFora,
+        placar_casa_prorrogacao: numCasaProrrogacao,
+        placar_fora_prorrogacao: numForaProrrogacao,
+        placar_casa_penaltis: numCasaPenaltis,
+        placar_fora_penaltis: numForaPenaltis,
         pontos: null,
         palpites_gols_jogadores: Array.isArray(palpites_gols_jogadores) ? palpites_gols_jogadores : undefined,
         created_at: new Date().toISOString()
@@ -4840,20 +4960,12 @@ async function startServer() {
           userBetsInRound.forEach(bet => {
             const jogo = gamesInRound.find(g => g.id === bet.jogo_id);
             if (jogo && (jogo.status === 'ENCERRADO' || jogo.status === 'AO_VIVO')) {
-              const pts = calculatePointsForBet(bet, jogo, points_cfg);
-              roundPoints += pts;
+              const stats = calculateDetailedStatsForBet(bet, jogo, points_cfg);
+              roundPoints += stats.pontos;
 
-              const isExact = bet.placar_casa === jogo.placar_casa && bet.placar_fora === jogo.placar_fora;
-              const pResultado = bet.placar_casa > bet.placar_fora ? 'CASA' : (bet.placar_casa < bet.placar_fora ? 'FORA' : 'EMPATE');
-              const rResultado = jogo.placar_casa > jogo.placar_fora ? 'CASA' : (jogo.placar_casa < jogo.placar_fora ? 'FORA' : 'EMPATE');
-              const isOutcome = pResultado === rResultado;
-
-              if (isExact) {
-                roundExacts += 1;
-              } else if (isOutcome) {
-                // simple winner
-              } else {
-                roundErrors += 1;
+              if (jogo.placar_casa !== null && jogo.placar_fora !== null) {
+                roundExacts += stats.acertos_exato;
+                roundErrors += stats.erros;
               }
             }
           });
@@ -4996,25 +5108,15 @@ async function startServer() {
           if (!filteredGameIds.has(p.jogo_id)) return;
           const jogo = filteredGames.find(g => g.id === p.jogo_id);
           if (jogo && (jogo.status === 'ENCERRADO' || jogo.status === 'AO_VIVO')) {
-            const betPoints = calculatePointsForBet(p, jogo, points_cfg);
-            pontos += betPoints;
+            const stats = calculateDetailedStatsForBet(p, jogo, points_cfg);
+            pontos += stats.pontos;
 
-            const isExact = p.placar_casa === jogo.placar_casa && p.placar_fora === jogo.placar_fora;
-            const pResultado = p.placar_casa > p.placar_fora ? 'CASA' : (p.placar_casa < p.placar_fora ? 'FORA' : 'EMPATE');
-            const rResultado = jogo.placar_casa > jogo.placar_fora ? 'CASA' : (jogo.placar_casa < jogo.placar_fora ? 'FORA' : 'EMPATE');
-            const isOutcome = pResultado === rResultado;
-
-            if (isExact) {
-              acertos_exato += 1;
-            } else if (isOutcome) {
-              acertos_vencedor += 1;
-            } else {
-              erros += 1;
+            if (jogo.placar_casa !== null && jogo.placar_fora !== null) {
+              acertos_exato += stats.acertos_exato;
+              acertos_vencedor += stats.acertos_vencedor;
+              erros += stats.erros;
+              acertos_artilheiro += calculateArtilheiroHitsForBet(p, jogo);
             }
-
-            // Calculate correct scorers/artilheiro hits for this bet
-            const artilheiroHits = calculateArtilheiroHitsForBet(p, jogo);
-            acertos_artilheiro += artilheiroHits;
           }
         });
 

@@ -124,7 +124,16 @@ interface MatchesSectionProps {
   jogos: Jogo[];
   palpites: Palpite[];
   token: string | null;
-  onSavePalpite: (jogoId: number, placarCasa: number, placarFora: number, palpitesGolsJogadores?: any[]) => Promise<boolean>;
+  onSavePalpite: (
+    jogoId: number, 
+    placarCasa: number, 
+    placarFora: number, 
+    palpitesGolsJogadores?: any[],
+    placarCasaProrrogacao?: number | null,
+    placarForaProrrogacao?: number | null,
+    placarCasaPenaltis?: number | null,
+    placarForaPenaltis?: number | null
+  ) => Promise<boolean>;
   onCtaLogin: () => void;
   dataServidor: string;
   pointsConfig?: any;
@@ -405,7 +414,14 @@ export default function MatchesSection({
   }, [token]);
 
   // Temporary score inputs state mapped to game id
-  const [inputs, setInputs] = React.useState<{ [key: string]: { casa: string; fora: string } }>({});
+  const [inputs, setInputs] = React.useState<{ [key: string]: { 
+    casa: string; 
+    fora: string;
+    casa_prorrogacao?: string;
+    fora_prorrogacao?: string;
+    casa_penaltis?: string;
+    fora_penaltis?: string;
+  } }>({});
   const [savingKeys, setSavingKeys] = React.useState<{ [key: string]: boolean }>({});
   
   // Track games being currently modified so background pollers do not overwrite them
@@ -658,7 +674,11 @@ export default function MatchesSection({
         if (!dirtyGameIds.has(p.jogo_id)) {
           updatedInputs[p.jogo_id] = {
             casa: String(p.placar_casa),
-            fora: String(p.placar_fora)
+            fora: String(p.placar_fora),
+            casa_prorrogacao: p.placar_casa_prorrogacao !== undefined && p.placar_casa_prorrogacao !== null ? String(p.placar_casa_prorrogacao) : "",
+            fora_prorrogacao: p.placar_fora_prorrogacao !== undefined && p.placar_fora_prorrogacao !== null ? String(p.placar_fora_prorrogacao) : "",
+            casa_penaltis: p.placar_casa_penaltis !== undefined && p.placar_casa_penaltis !== null ? String(p.placar_casa_penaltis) : "",
+            fora_penaltis: p.placar_fora_penaltis !== undefined && p.placar_fora_penaltis !== null ? String(p.placar_fora_penaltis) : ""
           };
         }
       });
@@ -680,7 +700,7 @@ export default function MatchesSection({
     });
   }, [palpites, dirtyGameIds]);
 
-  const handleInputChange = (jogoId: number, side: 'casa' | 'fora', val: string) => {
+  const handleInputChange = (jogoId: number, side: 'casa' | 'fora' | 'casa_prorrogacao' | 'fora_prorrogacao' | 'casa_penaltis' | 'fora_penaltis', val: string) => {
     // Only allow positive integers
     const sanitizedValue = val.replace(/\D/g, "");
     markGameAsDirty(jogoId);
@@ -700,8 +720,44 @@ export default function MatchesSection({
       return;
     }
 
-    // ENFORCE EXACT SCORE LIMIT RULES BEFORE SAVING
     const jogo = jogos.find(j => j.id === jogoId);
+    const camp = jogo ? getGameCampeonato(jogo) : undefined;
+    const isKnockoutGame = jogo ? (jogo.rodada >= 4 && camp !== 'BRASILEIRAO') : false;
+
+    // Validate Draw -> Extra Time logic
+    let extraTimeCasa: number | null = null;
+    let extraTimeFora: number | null = null;
+    let penaltiesCasa: number | null = null;
+    let penaltiesFora: number | null = null;
+
+    if (isKnockoutGame) {
+      const regularDraw = vals.casa === vals.fora;
+      if (regularDraw) {
+        if (vals.casa_prorrogacao === undefined || vals.casa_prorrogacao === "" || vals.fora_prorrogacao === undefined || vals.fora_prorrogacao === "") {
+          alert("Esta partida é de mata-mata. Como você apostou em empate no tempo regulamentar, preencha também o placar da prorrogação.");
+          return;
+        }
+        extraTimeCasa = Number(vals.casa_prorrogacao);
+        extraTimeFora = Number(vals.fora_prorrogacao);
+
+        const prorrogaDraw = extraTimeCasa === extraTimeFora;
+        if (prorrogaDraw) {
+          if (vals.casa_penaltis === undefined || vals.casa_penaltis === "" || vals.fora_penaltis === undefined || vals.fora_penaltis === "") {
+            alert("Como você apostou em empate na prorrogação, preencha também o placar dos pênaltis.");
+            return;
+          }
+          penaltiesCasa = Number(vals.casa_penaltis);
+          penaltiesFora = Number(vals.fora_penaltis);
+
+          if (penaltiesCasa === penaltiesFora) {
+            alert("No futebol, uma disputa de pênaltis não pode terminar empatada. Escolha um vencedor para as de cobranças.");
+            return;
+          }
+        }
+      }
+    }
+
+    // ENFORCE EXACT SCORE LIMIT RULES BEFORE SAVING
     const teamCasaName = jogo ? jogo.time_casa : "Time Casa";
     const teamForaName = jogo ? jogo.time_fora : "Time Fora";
     const maxCasa = Number(vals.casa) || 0;
@@ -720,7 +776,16 @@ export default function MatchesSection({
     setSavingKeys(prev => ({ ...prev, [jogoId]: true }));
     const scorers = scorerInputs[jogoId] || [];
     const filteredScorers = scorers.filter(s => s.jogador && s.jogador.trim() !== "");
-    const success = await onSavePalpite(jogoId, Number(vals.casa), Number(vals.fora), filteredScorers);
+    const success = await onSavePalpite(
+      jogoId, 
+      Number(vals.casa), 
+      Number(vals.fora), 
+      filteredScorers,
+      extraTimeCasa,
+      extraTimeFora,
+      penaltiesCasa,
+      penaltiesFora
+    );
     
     if (success) {
       setDirtyGameIds(prev => {
@@ -1074,6 +1139,144 @@ export default function MatchesSection({
           </div>
 
         </div>
+
+        {/* Dynamic extra sections for Knockout Matches */}
+        {(() => {
+          const camp = getGameCampeonato(jogo);
+          const isKnockoutGame = jogo.rodada >= 4 && camp !== 'BRASILEIRAO';
+          if (!isKnockoutGame) return null;
+
+          // 1. Is the game Completed or Live? Show official Extra Time and Penalties results if it was a draw
+          const isGameOverOrLive = jogo.status === 'ENCERRADO' || isGameLive;
+          if (isGameOverOrLive) {
+            const isMatchDraw = jogo.placar_casa !== null && jogo.placar_casa === jogo.placar_fora;
+            if (!isMatchDraw) return null;
+
+            const isExtraTimeDraw = jogo.placar_casa_prorrogacao !== null && jogo.placar_casa_prorrogacao !== undefined && jogo.placar_casa_prorrogacao === jogo.placar_fora_prorrogacao;
+
+            return (
+              <div className="mt-2 text-center p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 flex flex-col items-center gap-1.5 max-w-sm mx-auto">
+                <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-brand-blue-vibrant uppercase">
+                  ⏱️ Resultado Prorrogação:
+                  <span className="text-white font-black font-mono ml-1">
+                    {jogo.placar_casa_prorrogacao !== null && jogo.placar_casa_prorrogacao !== undefined ? jogo.placar_casa_prorrogacao : '-'} x {jogo.placar_fora_prorrogacao !== null && jogo.placar_fora_prorrogacao !== undefined ? jogo.placar_fora_prorrogacao : '-'}
+                  </span>
+                </div>
+                {isExtraTimeDraw && (
+                  <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-purple-400 uppercase border-t border-slate-850 pt-1.5 w-full justify-center">
+                    🎯 Decisão por Pênaltis:
+                    <span className="text-purple-300 font-black font-mono ml-1">
+                      {jogo.placar_casa_penaltis !== null && jogo.placar_casa_penaltis !== undefined ? jogo.placar_casa_penaltis : '-'} x {jogo.placar_fora_penaltis !== null && jogo.placar_fora_penaltis !== undefined ? jogo.placar_fora_penaltis : '-'}
+                    </span>
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          // 2. Is the game prediction editable or read-only/closed?
+          // If read-only/unlocked, and user has bet, show user guess summary
+          if (isReadonly || isBlocked || isCanceled) {
+            if (!userBet) return null;
+            const isBetDraw = userBet.placar_casa === userBet.placar_fora;
+            if (!isBetDraw) return null;
+
+            const isBetExtraTimeDraw = userBet.placar_casa_prorrogacao !== null && userBet.placar_casa_prorrogacao !== undefined && userBet.placar_casa_prorrogacao === userBet.placar_fora_prorrogacao;
+
+            return (
+              <div className="mt-2 p-2 border border-slate-900 bg-slate-950/40 rounded-xl space-y-1.5 max-w-sm mx-auto font-medium">
+                <div className="flex justify-between items-center text-[10px] text-slate-400 font-sans">
+                  <span>Palpite Prorrogação:</span>
+                  <span className="text-brand-blue-vibrant font-black font-mono">
+                    {userBet.placar_casa_prorrogacao !== null && userBet.placar_casa_prorrogacao !== undefined ? userBet.placar_casa_prorrogacao : '-'} x {userBet.placar_fora_prorrogacao !== null && userBet.placar_fora_prorrogacao !== undefined ? userBet.placar_fora_prorrogacao : '-'}
+                  </span>
+                </div>
+                {isBetExtraTimeDraw && (
+                  <div className="flex justify-between items-center text-[10px] text-slate-400 font-sans border-t border-slate-900/60 pt-1.5">
+                    <span>Palpite Pênaltis:</span>
+                    <span className="text-purple-400 font-black font-mono">
+                      {userBet.placar_casa_penaltis !== null && userBet.placar_casa_penaltis !== undefined ? userBet.placar_casa_penaltis : '-'} x {userBet.placar_fora_penaltis !== null && userBet.placar_fora_penaltis !== undefined ? userBet.placar_fora_penaltis : '-'}
+                    </span>
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          // 3. Game is OPEN/EDITABLE: render inputs dynamically based on user's choices
+          const hasRegularDraw = inputVal.casa !== "" && inputVal.fora !== "" && inputVal.casa === inputVal.fora;
+          if (!hasRegularDraw) return null;
+
+          const hasProrrogaDraw = inputVal.casa_prorrogacao !== "" && inputVal.fora_prorrogacao !== "" && inputVal.casa_prorrogacao === inputVal.fora_prorrogacao;
+
+          return (
+            <div className="mt-2 space-y-2 max-w-sm mx-auto p-1 animate-fadeIn">
+              {/* Extra Time Inputs */}
+              <div className="p-2.5 rounded-xl bg-slate-900/50 border border-brand-blue-accent/20 flex flex-col items-center space-y-1.5">
+                <span className="text-[10px] font-extrabold text-brand-blue-vibrant uppercase tracking-wider">
+                  ⏱️ Palpitar Prorrogação
+                </span>
+                <span className="text-[9px] text-slate-400 text-center font-sans tracking-wide leading-tight">
+                  Qual o placar final acumulado (tempo regulamentar + gols da prorrogação)?
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    maxLength={2}
+                    placeholder="-"
+                    disabled={!token}
+                    value={inputVal.casa_prorrogacao || ""}
+                    onChange={(e) => handleInputChange(jogo.id, 'casa_prorrogacao', e.target.value)}
+                    className="w-9 h-9 text-center text-xs font-black font-mono rounded-lg border bg-slate-950 border-brand-blue-light text-brand-blue-vibrant focus:border-brand-blue-accent focus:ring-1 focus:ring-brand-blue-accent"
+                  />
+                  <span className="text-slate-500 font-mono text-xs">x</span>
+                  <input
+                    type="text"
+                    maxLength={2}
+                    placeholder="-"
+                    disabled={!token}
+                    value={inputVal.fora_prorrogacao || ""}
+                    onChange={(e) => handleInputChange(jogo.id, 'fora_prorrogacao', e.target.value)}
+                    className="w-9 h-9 text-center text-xs font-black font-mono rounded-lg border bg-slate-950 border-brand-blue-light text-brand-blue-vibrant focus:border-brand-blue-accent focus:ring-1 focus:ring-brand-blue-accent"
+                  />
+                </div>
+              </div>
+
+              {/* Penalty Shootout Inputs */}
+              {hasProrrogaDraw && (
+                <div className="p-2.5 rounded-xl bg-purple-950/20 border border-purple-900/40 flex flex-col items-center space-y-1.5 animate-fadeIn">
+                  <span className="text-[10px] font-extrabold text-purple-400 uppercase tracking-wider">
+                    🎯 Palpitar Pênaltis
+                  </span>
+                  <span className="text-[9px] text-slate-400 text-center font-sans tracking-wide leading-tight">
+                    Escolha quem vence! Placar das cobranças de pênalti:
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      maxLength={2}
+                      placeholder="-"
+                      disabled={!token}
+                      value={inputVal.casa_penaltis || ""}
+                      onChange={(e) => handleInputChange(jogo.id, 'casa_penaltis', e.target.value)}
+                      className="w-9 h-9 text-center text-xs font-black font-mono rounded-lg border bg-slate-950 border-purple-900/60 text-purple-400 focus:border-purple-500"
+                    />
+                    <span className="text-purple-500/60 font-mono text-xs">x</span>
+                    <input
+                      type="text"
+                      maxLength={2}
+                      placeholder="-"
+                      disabled={!token}
+                      value={inputVal.fora_penaltis || ""}
+                      onChange={(e) => handleInputChange(jogo.id, 'fora_penaltis', e.target.value)}
+                      className="w-9 h-9 text-center text-xs font-black font-mono rounded-lg border bg-slate-950 border-purple-900/60 text-purple-400 focus:border-purple-500"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* SEÇÃO ARTILHEIROS: PALPITE DE QUEM FAZ O GOL */}
         <div className="mt-2.5 pt-2.5 border-t border-slate-900/60 text-xs">
