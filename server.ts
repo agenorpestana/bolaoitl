@@ -1976,6 +1976,10 @@ function isJogoDifferent(j1: any, j2: any): boolean {
     d1 !== d2 ||
     (j1.placar_casa !== null && j1.placar_casa !== undefined ? Number(j1.placar_casa) : null) !== (j2.placar_casa !== null && j2.placar_casa !== undefined ? Number(j2.placar_casa) : null) ||
     (j1.placar_fora !== null && j1.placar_fora !== undefined ? Number(j1.placar_fora) : null) !== (j2.placar_fora !== null && j2.placar_fora !== undefined ? Number(j2.placar_fora) : null) ||
+    (j1.placar_casa_prorrogacao !== null && j1.placar_casa_prorrogacao !== undefined ? Number(j1.placar_casa_prorrogacao) : null) !== (j2.placar_casa_prorrogacao !== null && j2.placar_casa_prorrogacao !== undefined ? Number(j2.placar_casa_prorrogacao) : null) ||
+    (j1.placar_fora_prorrogacao !== null && j1.placar_fora_prorrogacao !== undefined ? Number(j1.placar_fora_prorrogacao) : null) !== (j2.placar_fora_prorrogacao !== null && j2.placar_fora_prorrogacao !== undefined ? Number(j2.placar_fora_prorrogacao) : null) ||
+    (j1.placar_casa_penaltis !== null && j1.placar_casa_penaltis !== undefined ? Number(j1.placar_casa_penaltis) : null) !== (j2.placar_casa_penaltis !== null && j2.placar_casa_penaltis !== undefined ? Number(j2.placar_casa_penaltis) : null) ||
+    (j1.placar_fora_penaltis !== null && j1.placar_fora_penaltis !== undefined ? Number(j1.placar_fora_penaltis) : null) !== (j2.placar_fora_penaltis !== null && j2.placar_fora_penaltis !== undefined ? Number(j2.placar_fora_penaltis) : null) ||
     (j1.status || "PENDENTE") !== (j2.status || "PENDENTE") ||
     (j1.status_detalhado || "NS") !== (j2.status_detalhado || "NS") ||
     Number(j1.rodada || 1) !== Number(j2.rodada || 1)
@@ -1987,6 +1991,10 @@ function isPalpiteDifferent(p1: any, p2: any): boolean {
   return (
     (p1.placar_casa !== null && p1.placar_casa !== undefined ? Number(p1.placar_casa) : null) !== (p2.placar_casa !== null && p2.placar_casa !== undefined ? Number(p2.placar_casa) : null) ||
     (p1.placar_fora !== null && p1.placar_fora !== undefined ? Number(p1.placar_fora) : null) !== (p2.placar_fora !== null && p2.placar_fora !== undefined ? Number(p2.placar_fora) : null) ||
+    (p1.placar_casa_prorrogacao !== null && p1.placar_casa_prorrogacao !== undefined ? Number(p1.placar_casa_prorrogacao) : null) !== (p2.placar_casa_prorrogacao !== null && p2.placar_casa_prorrogacao !== undefined ? Number(p2.placar_casa_prorrogacao) : null) ||
+    (p1.placar_fora_prorrogacao !== null && p1.placar_fora_prorrogacao !== undefined ? Number(p1.placar_fora_prorrogacao) : null) !== (p2.placar_fora_prorrogacao !== null && p2.placar_fora_prorrogacao !== undefined ? Number(p2.placar_fora_prorrogacao) : null) ||
+    (p1.placar_casa_penaltis !== null && p1.placar_casa_penaltis !== undefined ? Number(p1.placar_casa_penaltis) : null) !== (p2.placar_casa_penaltis !== null && p2.placar_casa_penaltis !== undefined ? Number(p2.placar_casa_penaltis) : null) ||
+    (p1.placar_fora_penaltis !== null && p1.placar_fora_penaltis !== undefined ? Number(p1.placar_fora_penaltis) : null) !== (p2.placar_fora_penaltis !== null && p2.placar_fora_penaltis !== undefined ? Number(p2.placar_fora_penaltis) : null) ||
     Number(p1.pontos || 0) !== Number(p2.pontos || 0) ||
     JSON.stringify(p1.palpites_gols_jogadores || null) !== JSON.stringify(p2.palpites_gols_jogadores || null)
   );
@@ -2912,6 +2920,27 @@ async function initializeDatabase() {
           // Will fail if column already exists, which is fine and expected
           console.log("[MySql Sync] Safe check for 'gols_jogadores' column in 'palpites' table ready: ", colErr.message);
         }
+
+        // Add knockout columns to 'jogos'
+        for (const col of ["placar_casa_prorrogacao", "placar_fora_prorrogacao", "placar_casa_penaltis", "placar_fora_penaltis"]) {
+          try {
+            await prisma.$executeRawUnsafe(`ALTER TABLE jogos ADD COLUMN ${col} INT DEFAULT NULL`);
+            console.log(`[MySql Sync] Column '${col}' added to 'jogos' successfully.`);
+          } catch (colErr: any) {
+            console.log(`[MySql Sync] Safe check for '${col}' in 'jogos' ready:`, colErr.message);
+          }
+        }
+
+        // Add knockout columns to 'palpites'
+        for (const col of ["placar_casa_prorrogacao", "placar_fora_prorrogacao", "placar_casa_penaltis", "placar_fora_penaltis"]) {
+          try {
+            await prisma.$executeRawUnsafe(`ALTER TABLE palpites ADD COLUMN ${col} INT DEFAULT NULL`);
+            console.log(`[MySql Sync] Column '${col}' added to 'palpites' successfully.`);
+          } catch (colErr: any) {
+            console.log(`[MySql Sync] Safe check for '${col}' in 'palpites' ready:`, colErr.message);
+          }
+        }
+
         try {
           await prisma.$executeRawUnsafe("ALTER TABLE admins ADD COLUMN senha VARCHAR(255) DEFAULT '200616'");
           console.log("[MySql Sync] Column 'senha' added to 'admins' successfully.");
