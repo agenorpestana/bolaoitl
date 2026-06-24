@@ -4582,6 +4582,20 @@ async function startServer() {
       return res.status(400).json({ error: "Esta partida já iniciou ou foi encerrada." });
     }
 
+    // Verify no duplicate scorers in submission
+    if (Array.isArray(palpites_gols_jogadores)) {
+      const seen = new Set<string>();
+      for (const sg of palpites_gols_jogadores) {
+        if (sg.jogador && sg.jogador.trim() !== "" && sg.jogador !== "custom_value_typing") {
+          const norm = sg.jogador.trim().toLowerCase();
+          if (seen.has(norm)) {
+            return res.status(400).json({ error: `O jogador "${sg.jogador}" está listado mais de uma vez nos palpites.` });
+          }
+          seen.add(norm);
+        }
+      }
+    }
+
     // Check existing
     let existingBet = db.palpites.find(p => p.usuario_id === userId && p.jogo_id === Number(jogo_id));
 
@@ -5806,6 +5820,85 @@ async function startServer() {
 
     addLog("Admin (Suporte)", "EXCLUI_JOGO", `Parada excluída do calendário. ID: ${id}`, req);
     res.json({ success: true });
+  });
+
+  // Backup database endpoint - ONLY for suporte@unityautomacoes.com.br
+  app.get("/api/admin/backup", verifyAdminToken, (req: any, res) => {
+    if (req.admin.email.toLowerCase() !== "suporte@unityautomacoes.com.br") {
+      return res.status(403).json({ error: "Apenas o super administrador (suporte@unityautomacoes.com.br) tem permissão para realizar o backup." });
+    }
+    try {
+      const db = loadDatabase();
+      res.setHeader("Content-Type", "application/json");
+      res.setHeader("Content-Disposition", "attachment; filename=backup_bolao.json");
+      res.send(JSON.stringify(db, null, 2));
+    } catch (err: any) {
+      console.error("[Backup API] Failed to generate backup:", err.message);
+      res.status(500).json({ error: "Erro interno ao gerar backup do sistema." });
+    }
+  });
+
+  // Restore database endpoint - ONLY for suporte@unityautomacoes.com.br
+  app.post("/api/admin/restore", verifyAdminToken, async (req: any, res) => {
+    if (req.admin.email.toLowerCase() !== "suporte@unityautomacoes.com.br") {
+      return res.status(403).json({ error: "Apenas o super administrador (suporte@unityautomacoes.com.br) tem permissão para restaurar o backup." });
+    }
+    try {
+      const { database } = req.body;
+      if (!database || typeof database !== "object") {
+        return res.status(400).json({ error: "Estrutura de dados inválida para restauração." });
+      }
+
+      // Check essential structures
+      if (!Array.isArray(database.usuarios) || !Array.isArray(database.jogos) || !Array.isArray(database.palpites)) {
+        return res.status(400).json({ error: "O backup fornecido é inválido. Ele deve conter as tabelas de usuários, jogos e palpites." });
+      }
+
+      console.log(`[Backup Restore] Restoring database request from superadmin. Users: ${database.usuarios.length}, Games: ${database.jogos.length}, Bets: ${database.palpites.length}`);
+
+      // Clear the local state in-memory cache and state database variables
+      cachedDb = database;
+      lastSyncedDbState = null; // force complete synchronization
+
+      // Save to local file system
+      saveDatabase(cachedDb);
+
+      // Perform a clean state reset in MySQL database if running
+      if (prisma) {
+        try {
+          console.log("[Backup Restore] MySQL DB connected. Wiping tables for complete restoration...");
+          // Delete in order to avoid foreign key violations (palpites first)
+          await prisma.palpite.deleteMany({});
+          if ((prisma as any).pontuacoes) {
+            await (prisma as any).pontuacoes.deleteMany({});
+          }
+          await prisma.usuario.deleteMany({});
+          await prisma.jogo.deleteMany({});
+          await prisma.admin.deleteMany({});
+          console.log("[Backup Restore] Tables cleaned successfully. Triggering full synchronisation...");
+        } catch (dbErr: any) {
+          console.error("[Backup Restore] MySQL clearing warning (will try upserting anyway):", dbErr.message);
+        }
+      }
+
+      // Explicitly trigger the MySQL sync instantly
+      triggerMySqlSync();
+
+      addLog("Admin (Suporte)", "RESTAURAR_BACKUP", `Restauração completa de backup realizada com sucesso. Usuários: ${database.usuarios.length}, Jogos: ${database.jogos.length}, Palpites: ${database.palpites.length}`, req);
+
+      res.json({ 
+        success: true, 
+        message: "O backup foi restaurado com sucesso! O sistema está processando a sincronização em segundo plano.",
+        stats: {
+          usuarios: database.usuarios.length,
+          jogos: database.jogos.length,
+          palpites: database.palpites.length
+        }
+      });
+    } catch (err: any) {
+      console.error("[Backup API] Failed to restore backup:", err.message);
+      res.status(500).json({ error: `Erro interno ao restaurar o backup: ${err.message}` });
+    }
   });
 
   // Synchronize score parameters

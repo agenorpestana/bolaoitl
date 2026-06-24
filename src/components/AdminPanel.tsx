@@ -10,6 +10,21 @@ import GuessesHistory from './GuessesHistory';
 import { safeParseDate, safeLocaleDateString, safeLocaleTimeString, safeLocaleString } from '../utils/dateUtils';
 
 
+function getAdminEmailFromToken(token: string | null): string {
+  if (!token) return "";
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    const parsed = JSON.parse(jsonPayload);
+    return parsed.email || "";
+  } catch (e) {
+    return "";
+  }
+}
+
 interface AdminPanelProps {
   token: string | null;
   onRefreshLeaderboard: () => void;
@@ -17,6 +32,102 @@ interface AdminPanelProps {
 
 export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelProps) {
   const [activeSubTab, setActiveSubTab] = React.useState<'METRICAS' | 'IXC' | 'REGRAS' | 'SOCCER_API' | 'JOGADORES' | 'JOGOS' | 'RELATORIOS' | 'LOGS' | 'ADMINS' | 'BRANDS'>('METRICAS');
+
+  const adminEmail = React.useMemo(() => getAdminEmailFromToken(token), [token]);
+  const isSuperAdmin = adminEmail.toLowerCase() === "suporte@unityautomacoes.com.br";
+
+  // Backup & Restore Database states
+  const [isRestoring, setIsRestoring] = React.useState(false);
+  const [restoreMessage, setRestoreMessage] = React.useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const backupRestoreFileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleDownloadBackup = async () => {
+    try {
+      const res = await fetch("/api/admin/backup", {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        alert(errData.error || "Erro ao baixar backup");
+        return;
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `backup_bolao_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert("Erro ao realizar backup: " + err.message);
+    }
+  };
+
+  const handleRestoreBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!window.confirm("ATENÇÃO: Restaurar o backup substituirá COMPLETAMENTE os dados atuais do banco de dados (Usuários, Jogos, Palpites e Configurações). Esta ação é IRREVERSÍVEL e o sistema será reiniciado. Deseja continuar?")) {
+      e.target.value = "";
+      return;
+    }
+
+    setIsRestoring(true);
+    setRestoreMessage(null);
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const text = event.target?.result;
+        if (typeof text !== 'string') throw new Error("Falha na leitura do arquivo.");
+        
+        const database = JSON.parse(text);
+        
+        const res = await fetch("/api/admin/restore", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({ database })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          setRestoreMessage({
+            type: 'success',
+            text: `Backup restaurado com sucesso! ${data.stats.usuarios} usuários, ${data.stats.jogos} jogos e ${data.stats.palpites} palpites importados. Atualizando a página em instantes...`
+          });
+          onRefreshLeaderboard();
+          setTimeout(() => {
+            window.location.reload();
+          }, 3500);
+        } else {
+          setRestoreMessage({
+            type: 'error',
+            text: data.error || "Erro desconhecido ao restaurar o backup."
+          });
+        }
+      } catch (err: any) {
+        setRestoreMessage({
+          type: 'error',
+          text: "Erro ao decodificar ou restaurar o arquivo JSON: " + err.message
+        });
+      } finally {
+        setIsRestoring(false);
+        e.target.value = "";
+      }
+    };
+    reader.onerror = () => {
+      setRestoreMessage({ type: 'error', text: "Erro ao ler o arquivo selecionado." });
+      setIsRestoring(false);
+    };
+    reader.readAsText(file);
+  };
   
   // Custom Site Branding state managers
   const [headerTitle1, setHeaderTitle1] = React.useState("CARTOLA ITL");
@@ -3755,6 +3866,80 @@ export default function AdminPanel({ token, onRefreshLeaderboard }: AdminPanelPr
               Imprimir / Salvar PDF do Ranking
             </button>
           </div>
+
+          {/* SUPER ADMIN ONLY - DATABASE BACKUP & RESTORE */}
+          {isSuperAdmin && (
+            <div className="bg-slate-955 border border-slate-900 p-5 rounded-xl text-left space-y-4">
+              <h4 className="text-sm font-bold text-slate-205 flex items-center gap-1.5">
+                <Database className="h-4 w-4 text-emerald-400 animate-pulse" /> Backup e Restauração do Banco de Dados (Super Admin)
+              </h4>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Ferramenta exclusiva para <strong className="text-yellow-500">suporte@unityautomacoes.com.br</strong>. Faça o download de uma cópia de segurança completa do banco de dados (JSON) ou restaure um arquivo de backup previamente salvo para restabelecer todo o histórico do bolão.
+              </p>
+              
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="bg-slate-950 p-4 rounded-xl border border-slate-900/50 space-y-3 flex flex-col justify-between">
+                  <div>
+                    <span className="text-xs font-bold text-slate-200 block">Exportar Backup</span>
+                    <p className="text-[10px] text-slate-450 mt-1 leading-relaxed">
+                      Gera e faz o download de um arquivo contendo a exportação completa de usuários, palpites, jogos, logs de auditoria e configurações em formato de arquivo JSON.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleDownloadBackup}
+                    className="w-full py-2 bg-emerald-500/10 border border-emerald-500/25 hover:bg-emerald-500/20 text-emerald-400 text-xs font-bold rounded flex items-center justify-center gap-1.5 transition select-none cursor-pointer"
+                  >
+                    <Download className="h-3.5 w-3.5" /> Baixar Cópia de Segurança
+                  </button>
+                </div>
+
+                <div className="bg-slate-950 p-4 rounded-xl border border-slate-900/50 space-y-3 flex flex-col justify-between">
+                  <div>
+                    <span className="text-xs font-bold text-slate-200 block">Restaurar de um Backup</span>
+                    <p className="text-[10px] text-slate-450 mt-1 leading-relaxed">
+                      Selecione um arquivo de backup <strong className="text-red-400">(.json)</strong> gerado anteriormente para restaurar todas as tabelas. <strong className="text-red-400 font-bold">Aviso: Isso apagará todos os dados atuais!</strong>
+                    </p>
+                  </div>
+                  
+                  <div className="relative">
+                    <input
+                      type="file"
+                      ref={backupRestoreFileInputRef}
+                      onChange={handleRestoreBackup}
+                      accept=".json"
+                      className="hidden"
+                      disabled={isRestoring}
+                    />
+                    <button
+                      onClick={() => backupRestoreFileInputRef.current?.click()}
+                      disabled={isRestoring}
+                      className="w-full py-2 bg-yellow-500/10 border border-yellow-500/25 hover:bg-yellow-500/20 text-yellow-500 text-xs font-bold rounded flex items-center justify-center gap-1.5 transition select-none disabled:opacity-50 cursor-pointer"
+                    >
+                      {isRestoring ? (
+                        <>
+                          <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Restaurando...
+                        </>
+                      ) : (
+                        <>
+                          <ShieldCheck className="h-3.5 w-3.5" /> Enviar e Restaurar Banco de Dados
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {restoreMessage && (
+                <div className={`p-3 rounded-lg text-xs leading-relaxed ${
+                  restoreMessage.type === 'success' 
+                    ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400' 
+                    : 'bg-red-500/10 border border-red-500/20 text-red-400'
+                }`}>
+                  {restoreMessage.text}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

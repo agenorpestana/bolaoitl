@@ -577,6 +577,19 @@ export default function MatchesSection({
       
       // Auto-determine time_lado if player changed
       if (field === 'jogador') {
+        if (val && val !== 'custom_value_typing' && val.trim() !== '') {
+          const isFromList = gamePlayers && (gamePlayers.jogadores_casa.includes(val) || gamePlayers.jogadores_fora.includes(val));
+          if (isFromList) {
+            const isDuplicate = rows.some((r, rIdx) => {
+              if (rIdx === idx) return false;
+              return r.jogador && r.jogador.trim().toLowerCase() === val.trim().toLowerCase();
+            });
+            if (isDuplicate) {
+              alert(`O jogador "${val}" já está na lista! Se ele marcou mais de um gol, por favor utilize o campo "Gols" ao lado para aumentar a quantidade em vez de adicionar o mesmo jogador em uma nova linha.`);
+              return prev;
+            }
+          }
+        }
         if (gamePlayers) {
           if (gamePlayers.jogadores_casa.includes(val)) {
             updatedRow.time_lado = 'casa';
@@ -771,6 +784,20 @@ export default function MatchesSection({
     if (totals.totalFora > maxFora) {
       alert(`Não é possível salvar: A soma de gols dos artilheiros do ${teamForaName} (${totals.totalFora}) é maior do que o placar previsto (${maxFora}). Por favor, ajuste os artilheiros.`);
       return;
+    }
+
+    // ENFORCE NO DUPLICATE SCORER NAMES
+    const scorersListToCheck = scorerInputs[jogoId] || [];
+    const playerNamesSeen = new Set<string>();
+    for (const s of scorersListToCheck) {
+      if (s.jogador && s.jogador.trim() !== "" && s.jogador !== "custom_value_typing") {
+        const normalizedName = s.jogador.trim().toLowerCase();
+        if (playerNamesSeen.has(normalizedName)) {
+          alert(`Não é possível salvar: O jogador "${s.jogador}" está listado mais de uma vez para este jogo. Se ele marcou mais de um gol, por favor remova as linhas duplicadas e aumente a quantidade de gols dele utilizando o campo correspondente.`);
+          return;
+        }
+        playerNamesSeen.add(normalizedName);
+      }
     }
 
     setSavingKeys(prev => ({ ...prev, [jogoId]: true }));
