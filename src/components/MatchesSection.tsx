@@ -578,16 +578,14 @@ export default function MatchesSection({
       // Auto-determine time_lado if player changed
       if (field === 'jogador') {
         if (val && val !== 'custom_value_typing' && val.trim() !== '') {
-          const isFromList = gamePlayers && (gamePlayers.jogadores_casa.includes(val) || gamePlayers.jogadores_fora.includes(val));
-          if (isFromList) {
-            const isDuplicate = rows.some((r, rIdx) => {
-              if (rIdx === idx) return false;
-              return r.jogador && r.jogador.trim().toLowerCase() === val.trim().toLowerCase();
-            });
-            if (isDuplicate) {
-              alert(`O jogador "${val}" já está na lista! Se ele marcou mais de um gol, por favor utilize o campo "Gols" ao lado para aumentar a quantidade em vez de adicionar o mesmo jogador em uma nova linha.`);
-              return prev;
-            }
+          const normalizedVal = val.trim().toLowerCase();
+          const isDuplicate = rows.some((r, rIdx) => {
+            if (rIdx === idx) return false;
+            return r.jogador && r.jogador.trim().toLowerCase() === normalizedVal;
+          });
+          if (isDuplicate) {
+            alert(`O jogador "${val}" já está na lista! Se ele marcou mais de um gol, por favor utilize o campo "Gols" ao lado para aumentar a quantidade em vez de adicionar o mesmo jogador em uma nova linha.`);
+            return prev;
           }
         }
         if (gamePlayers) {
@@ -1179,22 +1177,55 @@ export default function MatchesSection({
             const isMatchDraw = jogo.placar_casa !== null && jogo.placar_casa === jogo.placar_fora;
             if (!isMatchDraw) return null;
 
-            const isExtraTimeDraw = jogo.placar_casa_prorrogacao !== null && jogo.placar_casa_prorrogacao !== undefined && jogo.placar_casa_prorrogacao === jogo.placar_fora_prorrogacao;
+            const extraCasaReal = jogo.placar_casa_prorrogacao !== null && jogo.placar_casa_prorrogacao !== undefined 
+              ? jogo.placar_casa_prorrogacao 
+              : jogo.placar_casa;
+            const extraForaReal = jogo.placar_fora_prorrogacao !== null && jogo.placar_fora_prorrogacao !== undefined 
+              ? jogo.placar_fora_prorrogacao 
+              : jogo.placar_fora;
+
+            const isExtraTimeDraw = extraCasaReal !== null && extraForaReal !== null && extraCasaReal === extraForaReal;
+
+            const isBetDraw = userBet && userBet.placar_casa === userBet.placar_fora;
+            const isBetExtraTimeDraw = userBet && userBet.placar_casa_prorrogacao !== null && userBet.placar_casa_prorrogacao !== undefined && userBet.placar_casa_prorrogacao === userBet.placar_fora_prorrogacao;
 
             return (
-              <div className="mt-2 text-center p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 flex flex-col items-center gap-1.5 max-w-sm mx-auto">
-                <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-brand-blue-vibrant uppercase">
-                  ⏱️ Resultado Prorrogação:
-                  <span className="text-white font-black font-mono ml-1">
-                    {jogo.placar_casa_prorrogacao !== null && jogo.placar_casa_prorrogacao !== undefined ? jogo.placar_casa_prorrogacao : '-'} x {jogo.placar_fora_prorrogacao !== null && jogo.placar_fora_prorrogacao !== undefined ? jogo.placar_fora_prorrogacao : '-'}
-                  </span>
-                </div>
-                {isExtraTimeDraw && (
-                  <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-purple-400 uppercase border-t border-slate-850 pt-1.5 w-full justify-center">
-                    🎯 Decisão por Pênaltis:
-                    <span className="text-purple-300 font-black font-mono ml-1">
-                      {jogo.placar_casa_penaltis !== null && jogo.placar_casa_penaltis !== undefined ? jogo.placar_casa_penaltis : '-'} x {jogo.placar_fora_penaltis !== null && jogo.placar_fora_penaltis !== undefined ? jogo.placar_fora_penaltis : '-'}
+              <div className="mt-2 space-y-2 max-w-sm mx-auto w-full">
+                {/* Official extra-time and penalty results */}
+                <div className="text-center p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 flex flex-col items-center gap-1.5 w-full">
+                  <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-brand-blue-vibrant uppercase">
+                    ⏱️ Resultado Prorrogação:
+                    <span className="text-white font-black font-mono ml-1">
+                      {extraCasaReal !== null ? extraCasaReal : '-'} x {extraForaReal !== null ? extraForaReal : '-'}
                     </span>
+                  </div>
+                  {isExtraTimeDraw && (
+                    <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-purple-400 uppercase border-t border-slate-850 pt-1.5 w-full justify-center">
+                      🎯 Decisão por Pênaltis:
+                      <span className="text-purple-300 font-black font-mono ml-1">
+                        {jogo.placar_casa_penaltis !== null && jogo.placar_casa_penaltis !== undefined ? jogo.placar_casa_penaltis : '-'} x {jogo.placar_fora_penaltis !== null && jogo.placar_fora_penaltis !== undefined ? jogo.placar_fora_penaltis : '-'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* User's guess/prediction for extra-time and penalties */}
+                {userBet && isBetDraw && (
+                  <div className="p-2.5 border border-slate-900 bg-slate-950/40 rounded-xl space-y-1.5 w-full font-medium">
+                    <div className="flex justify-between items-center text-[10px] text-slate-400 font-sans">
+                      <span>Palpite Prorrogação:</span>
+                      <span className="text-brand-blue-vibrant font-black font-mono">
+                        {userBet.placar_casa_prorrogacao !== null && userBet.placar_casa_prorrogacao !== undefined ? userBet.placar_casa_prorrogacao : '-'} x {userBet.placar_fora_prorrogacao !== null && userBet.placar_fora_prorrogacao !== undefined ? userBet.placar_fora_prorrogacao : '-'}
+                      </span>
+                    </div>
+                    {isBetExtraTimeDraw && (
+                      <div className="flex justify-between items-center text-[10px] text-slate-400 font-sans border-t border-slate-900/60 pt-1.5">
+                        <span>Palpite Pênaltis:</span>
+                        <span className="text-purple-400 font-black font-mono">
+                          {userBet.placar_casa_penaltis !== null && userBet.placar_casa_penaltis !== undefined ? userBet.placar_casa_penaltis : '-'} x {userBet.placar_fora_penaltis !== null && userBet.placar_fora_penaltis !== undefined ? userBet.placar_fora_penaltis : '-'}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

@@ -1107,8 +1107,10 @@ async function syncLeagueFromApi(db: LocalDatabase, leagueId: number): Promise<{
 
       let placarCasa: number | null = null;
       let placarFora: number | null = null;
-      if (item.goals.home !== null && item.goals.home !== undefined) placarCasa = Number(item.goals.home);
-      if (item.goals.away !== null && item.goals.away !== undefined) placarFora = Number(item.goals.away);
+      let placarCasaProrrogacao: number | null = null;
+      let placarForaProrrogacao: number | null = null;
+      let placarCasaPenaltis: number | null = null;
+      let placarForaPenaltis: number | null = null;
 
       const shortStatus = item.fixture.status.short;
       let mappedStatus = "PENDENTE";
@@ -1116,6 +1118,34 @@ async function syncLeagueFromApi(db: LocalDatabase, leagueId: number): Promise<{
         mappedStatus = "ENCERRADO";
       } else if (["1H", "HT", "2H", "ET", "P", "BT", "LIVE", "SUSP", "INT"].includes(shortStatus)) {
         mappedStatus = "AO_VIVO";
+      }
+
+      const isKnockout = mappedRound >= 7; // Libertadores oitavas is round 7
+
+      const hasFulltimeScore = item.score && item.score.fulltime && item.score.fulltime.home !== null && item.score.fulltime.away !== null;
+      const hasExtratimeScore = item.score && item.score.extratime && item.score.extratime.home !== null && item.score.extratime.away !== null;
+      const hasPenaltyScore = item.score && item.score.penalty && item.score.penalty.home !== null && item.score.penalty.away !== null;
+      
+      const isETStatus = ["ET", "AET", "PEN", "P"].includes(shortStatus);
+
+      if (isKnockout && (isETStatus || hasExtratimeScore || hasPenaltyScore)) {
+        if (hasFulltimeScore) {
+          placarCasa = Number(item.score.fulltime.home);
+          placarFora = Number(item.score.fulltime.away);
+        } else {
+          const minGoals = Math.min(Number(item.goals.home || 0), Number(item.goals.away || 0));
+          placarCasa = minGoals;
+          placarFora = minGoals;
+        }
+        placarCasaProrrogacao = Number(item.goals.home);
+        placarForaProrrogacao = Number(item.goals.away);
+        if (hasPenaltyScore) {
+          placarCasaPenaltis = Number(item.score.penalty.home);
+          placarForaPenaltis = Number(item.score.penalty.away);
+        }
+      } else {
+        if (item.goals.home !== null && item.goals.home !== undefined) placarCasa = Number(item.goals.home);
+        if (item.goals.away !== null && item.goals.away !== undefined) placarFora = Number(item.goals.away);
       }
 
       let existing = db.jogos.find(j => j.api_id === apiId);
@@ -1137,6 +1167,10 @@ async function syncLeagueFromApi(db: LocalDatabase, leagueId: number): Promise<{
           data_jogo: dataJogoStr,
           placar_casa: placarCasa,
           placar_fora: placarFora,
+          placar_casa_prorrogacao: placarCasaProrrogacao,
+          placar_fora_prorrogacao: placarForaProrrogacao,
+          placar_casa_penaltis: placarCasaPenaltis,
+          placar_fora_penaltis: placarForaPenaltis,
           status: mappedStatus as any,
           rodada: mappedRound,
           status_detalhado: shortStatus
@@ -1151,6 +1185,10 @@ async function syncLeagueFromApi(db: LocalDatabase, leagueId: number): Promise<{
         existing.data_jogo = dataJogoStr;
         existing.placar_casa = placarCasa;
         existing.placar_fora = placarFora;
+        existing.placar_casa_prorrogacao = placarCasaProrrogacao;
+        existing.placar_fora_prorrogacao = placarForaProrrogacao;
+        existing.placar_casa_penaltis = placarCasaPenaltis;
+        existing.placar_fora_penaltis = placarForaPenaltis;
         existing.status = mappedStatus as any;
         existing.status_detalhado = shortStatus;
         existing.rodada = mappedRound;
@@ -1365,14 +1403,14 @@ async function syncFootballApiReal(db: LocalDatabase, req?: express.Request): Pr
       }
     }
 
+    const mappedRound = parseRoundNumber(item.league.round || "Group Stage - 1");
+
     let placarCasa: number | null = null;
     let placarFora: number | null = null;
-    if (item.goals.home !== null && item.goals.home !== undefined) {
-      placarCasa = Number(item.goals.home);
-    }
-    if (item.goals.away !== null && item.goals.away !== undefined) {
-      placarFora = Number(item.goals.away);
-    }
+    let placarCasaProrrogacao: number | null = null;
+    let placarForaProrrogacao: number | null = null;
+    let placarCasaPenaltis: number | null = null;
+    let placarForaPenaltis: number | null = null;
 
     let shortStatus = item.fixture.status.short;
     let mappedStatus = "PENDENTE";
@@ -1402,7 +1440,37 @@ async function syncFootballApiReal(db: LocalDatabase, req?: express.Request): Pr
       }
     }
 
-    const mappedRound = parseRoundNumber(item.league.round || "Group Stage - 1");
+    const isKnockout = isKnockoutMatch({ rodada: mappedRound } as Jogo);
+
+    const hasFulltimeScore = item.score && item.score.fulltime && item.score.fulltime.home !== null && item.score.fulltime.away !== null;
+    const hasExtratimeScore = item.score && item.score.extratime && item.score.extratime.home !== null && item.score.extratime.away !== null;
+    const hasPenaltyScore = item.score && item.score.penalty && item.score.penalty.home !== null && item.score.penalty.away !== null;
+    
+    const isETStatus = ["ET", "AET", "PEN", "P"].includes(shortStatus);
+
+    if (isKnockout && (isETStatus || hasExtratimeScore || hasPenaltyScore)) {
+      if (hasFulltimeScore) {
+        placarCasa = Number(item.score.fulltime.home);
+        placarFora = Number(item.score.fulltime.away);
+      } else {
+        const minGoals = Math.min(Number(item.goals.home || 0), Number(item.goals.away || 0));
+        placarCasa = minGoals;
+        placarFora = minGoals;
+      }
+      placarCasaProrrogacao = Number(item.goals.home);
+      placarForaProrrogacao = Number(item.goals.away);
+      if (hasPenaltyScore) {
+        placarCasaPenaltis = Number(item.score.penalty.home);
+        placarForaPenaltis = Number(item.score.penalty.away);
+      }
+    } else {
+      if (item.goals.home !== null && item.goals.home !== undefined) {
+        placarCasa = Number(item.goals.home);
+      }
+      if (item.goals.away !== null && item.goals.away !== undefined) {
+        placarFora = Number(item.goals.away);
+      }
+    }
 
     let existingJogo = db.jogos.find(j => j.api_id === apiId);
     if (!existingJogo) {
@@ -1420,6 +1488,10 @@ async function syncFootballApiReal(db: LocalDatabase, req?: express.Request): Pr
       existingJogo.data_jogo = dataJogoStr;
       existingJogo.placar_casa = placarCasa;
       existingJogo.placar_fora = placarFora;
+      existingJogo.placar_casa_prorrogacao = placarCasaProrrogacao;
+      existingJogo.placar_fora_prorrogacao = placarForaProrrogacao;
+      existingJogo.placar_casa_penaltis = placarCasaPenaltis;
+      existingJogo.placar_fora_penaltis = placarForaPenaltis;
       existingJogo.status = mappedStatus as any;
       existingJogo.rodada = mappedRound;
       existingJogo.status_detalhado = shortStatus;
@@ -1436,6 +1508,10 @@ async function syncFootballApiReal(db: LocalDatabase, req?: express.Request): Pr
         data_jogo: dataJogoStr,
         placar_casa: placarCasa,
         placar_fora: placarFora,
+        placar_casa_prorrogacao: placarCasaProrrogacao,
+        placar_fora_prorrogacao: placarForaProrrogacao,
+        placar_casa_penaltis: placarCasaPenaltis,
+        placar_fora_penaltis: placarForaPenaltis,
         status: mappedStatus as any,
         rodada: mappedRound,
         status_detalhado: shortStatus
@@ -3354,8 +3430,13 @@ function calculateDetailedStatsForBet(palpite: Palpite, jogo: Jogo, points_cfg: 
     if (extraTimeApplicable) {
       const pC_extra = palpite.placar_casa_prorrogacao;
       const pF_extra = palpite.placar_fora_prorrogacao;
-      const rC_extra = jogo.placar_casa_prorrogacao;
-      const rF_extra = jogo.placar_fora_prorrogacao;
+      // Fallback to the regular score as the starting extra-time score if no explicit extra-time score is set
+      const rC_extra = (jogo.placar_casa_prorrogacao !== null && jogo.placar_casa_prorrogacao !== undefined)
+        ? jogo.placar_casa_prorrogacao
+        : realCasa;
+      const rF_extra = (jogo.placar_fora_prorrogacao !== null && jogo.placar_fora_prorrogacao !== undefined)
+        ? jogo.placar_fora_prorrogacao
+        : realFora;
 
       // Ensure both predictions and real scores exist before scoring extra time
       if (pC_extra !== undefined && pC_extra !== null && pF_extra !== undefined && pF_extra !== null &&
@@ -3376,10 +3457,10 @@ function calculateDetailedStatsForBet(palpite: Palpite, jogo: Jogo, points_cfg: 
         }
 
         if (isExactExtra) {
-          stats.pontos += 4; // 4 points for exact score of extra time
+          stats.pontos += 10; // 10 points for exact score of extra time
           stats.acertos_exato += 1;
         } else if (isOutcomeExtra) {
-          stats.pontos += 2; // 2 points for winner/draw of extra time
+          stats.pontos += 4; // 4 points for winner/draw of extra time
           stats.acertos_vencedor += 1;
         } else {
           stats.erros += 1;
@@ -5761,7 +5842,19 @@ async function startServer() {
       return res.status(403).json({ error: "Sua conta de administrador não possui permissão para editar resultados ou alterar dados." });
     }
     const id = Number(req.params.id);
-    const { time_casa, time_fora, data_jogo, placar_casa, placar_fora, status, rodada } = req.body;
+    const { 
+      time_casa, 
+      time_fora, 
+      data_jogo, 
+      placar_casa, 
+      placar_fora, 
+      placar_casa_prorrogacao,
+      placar_fora_prorrogacao,
+      placar_casa_penaltis,
+      placar_fora_penaltis,
+      status, 
+      rodada 
+    } = req.body;
 
     const db = loadDatabase();
     const game = db.jogos.find(g => g.id === id);
@@ -5776,11 +5869,23 @@ async function startServer() {
     if (rodada) game.rodada = Number(rodada);
 
     // Score checks
-    if (placar_casa !== undefined && placar_casa !== null) {
-      game.placar_casa = placar_casa === "" ? null : Number(placar_casa);
+    if (placar_casa !== undefined) {
+      game.placar_casa = placar_casa === "" || placar_casa === null ? null : Number(placar_casa);
     }
-    if (placar_fora !== undefined && placar_fora !== null) {
-      game.placar_fora = placar_fora === "" ? null : Number(placar_fora);
+    if (placar_fora !== undefined) {
+      game.placar_fora = placar_fora === "" || placar_fora === null ? null : Number(placar_fora);
+    }
+    if (placar_casa_prorrogacao !== undefined) {
+      game.placar_casa_prorrogacao = placar_casa_prorrogacao === "" || placar_casa_prorrogacao === null ? null : Number(placar_casa_prorrogacao);
+    }
+    if (placar_fora_prorrogacao !== undefined) {
+      game.placar_fora_prorrogacao = placar_fora_prorrogacao === "" || placar_fora_prorrogacao === null ? null : Number(placar_fora_prorrogacao);
+    }
+    if (placar_casa_penaltis !== undefined) {
+      game.placar_casa_penaltis = placar_casa_penaltis === "" || placar_casa_penaltis === null ? null : Number(placar_casa_penaltis);
+    }
+    if (placar_fora_penaltis !== undefined) {
+      game.placar_fora_penaltis = placar_fora_penaltis === "" || placar_fora_penaltis === null ? null : Number(placar_fora_penaltis);
     }
 
     // Checking status shifts to ENC_ERRADO to trigger scores calculation
