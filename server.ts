@@ -3283,6 +3283,14 @@ function getGoalsFromGameEvents(jogo: Jogo): { [playerName: string]: number } {
   const goalsMap: { [playerName: string]: number } = {};
   rawEvents.forEach(evt => {
     if (evt.type === "Goal" && evt.player && evt.player.name) {
+      // Exclude penalty shootout goals
+      const detailStr = String(evt.detail || "").toLowerCase();
+      const commentsStr = String(evt.comments || "").toLowerCase();
+      if (detailStr.includes("shootout") || detailStr.includes("shoot-out") ||
+          commentsStr.includes("shootout") || commentsStr.includes("shoot-out")) {
+        return;
+      }
+
       const pName = normalizePlayerName(evt.player.name);
       
       let side: "casa" | "fora" = "casa";
@@ -3423,10 +3431,18 @@ function calculateDetailedStatsForBet(palpite: Palpite, jogo: Jogo, points_cfg: 
     stats.erros += 1;
   }
 
+  const isETActiveOrFinished = 
+    (jogo.placar_casa_prorrogacao !== null && jogo.placar_casa_prorrogacao !== undefined) ||
+    (jogo.status === 'AO_VIVO' && ["ET", "BT", "P", "PEN", "AET"].includes(jogo.status_detalhado || ""));
+
+  const isPenaltiesActiveOrFinished = 
+    (jogo.placar_casa_penaltis !== null && jogo.placar_casa_penaltis !== undefined) ||
+    (jogo.status === 'AO_VIVO' && ["P", "PEN"].includes(jogo.status_detalhado || ""));
+
   if (isKnockout) {
     // 2. Extra Time (Prorrogação)
-    // Only played and predicted if regular time finished as a draw and predicted as a draw
-    const extraTimeApplicable = palpiteEmpateReg && realEmpateReg;
+    // Only played and predicted if regular time finished as a draw, predicted as a draw, and extra time actually occurred/started
+    const extraTimeApplicable = palpiteEmpateReg && realEmpateReg && isETActiveOrFinished;
     if (extraTimeApplicable) {
       const pC_extra = palpite.placar_casa_prorrogacao;
       const pF_extra = palpite.placar_fora_prorrogacao;
@@ -3467,8 +3483,8 @@ function calculateDetailedStatsForBet(palpite: Palpite, jogo: Jogo, points_cfg: 
         }
 
         // 3. Penalty Shootout (Pênaltis)
-        // Only played and predicted if extra time ended in a draw too!
-        const penaltyApplicable = pEmpateExtra && rEmpateExtra;
+        // Only played and predicted if extra time ended in a draw too, and penalties actually started/happened
+        const penaltyApplicable = pEmpateExtra && rEmpateExtra && isPenaltiesActiveOrFinished;
         if (penaltyApplicable) {
           const pC_pen = palpite.placar_casa_penaltis;
           const pF_pen = palpite.placar_fora_penaltis;

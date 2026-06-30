@@ -19,6 +19,14 @@ function getGoalsFromGameEvents(jogo: Jogo): { [playerKey: string]: number } {
   if (jogo.real_events && Array.isArray(jogo.real_events)) {
     jogo.real_events.forEach(evt => {
       if (evt.type === "Goal" && evt.player && evt.player.name) {
+        // Exclude penalty shootout goals
+        const detailStr = String(evt.detail || "").toLowerCase();
+        const commentsStr = String(evt.comments || "").toLowerCase();
+        if (detailStr.includes("shootout") || detailStr.includes("shoot-out") ||
+            commentsStr.includes("shootout") || commentsStr.includes("shoot-out")) {
+          return;
+        }
+
         const pName = normalizePlayerName(evt.player.name);
         
         let side: "casa" | "fora" = "casa";
