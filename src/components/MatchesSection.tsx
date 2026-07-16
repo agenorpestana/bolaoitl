@@ -10,7 +10,7 @@ import { calculateStandings, groupStandings } from '../utils/standingsCalculator
 import { safeParseDate, safeLocaleDateString, safeLocaleTimeString } from '../utils/dateUtils';
 
 
-export function getFriendlyRoundName(rdNum: number | string, campeonato?: 'COPA_MUNDO' | 'LIBERTADORES' | 'BRASILEIRAO'): string {
+export function getFriendlyRoundName(rdNum: number | string, campeonato?: 'COPA_MUNDO' | 'LIBERTADORES' | 'BRASILEIRAO', jogo?: Jogo): string {
   const num = Number(rdNum);
   if (isNaN(num)) return String(rdNum);
   if (campeonato === 'BRASILEIRAO') {
@@ -39,7 +39,21 @@ export function getFriendlyRoundName(rdNum: number | string, campeonato?: 'COPA_
     case 5: return "Oitavas de Final";
     case 6: return "Quartas de Final";
     case 7: return "Semifinal";
-    case 8: return "Grande Final";
+    case 8: {
+      if (jogo) {
+        const home = (jogo.time_casa || "").toLowerCase();
+        const away = (jogo.time_fora || "").toLowerCase();
+        const containsSpainOrArg = home.includes("espanha") || home.includes("spain") || home.includes("argentina") ||
+                                   away.includes("espanha") || away.includes("spain") || away.includes("argentina");
+        if (!containsSpainOrArg && (home.includes("frança") || home.includes("france") || home.includes("inglaterra") || home.includes("england"))) {
+          return "Disputa de 3º Lugar";
+        }
+        if (!containsSpainOrArg) {
+          return "Disputa de 3º Lugar";
+        }
+      }
+      return "Grande Final";
+    }
     default: return `Rodada ${num}`;
   }
 }
@@ -1041,7 +1055,7 @@ export default function MatchesSection({
         <div className="flex flex-col sm:flex-row gap-1.5 sm:gap-0 sm:items-center justify-between text-[10px] font-bold uppercase">
           <div className="flex items-center gap-1 text-slate-400 font-sans">
             <span className="bg-slate-950 border border-slate-800 px-2 py-0.5 rounded font-mono">
-              {getFriendlyRoundName(jogo.rodada, getGameCampeonato(jogo))}
+              {getFriendlyRoundName(jogo.rodada, getGameCampeonato(jogo), jogo)}
             </span>
             <span>•</span>
             <span className="font-mono">
@@ -2022,7 +2036,15 @@ export default function MatchesSection({
       5: currentChampionshipGames.filter(j => j.rodada === 5).sort((a,b) => a.id - b.id), // Oitavas (8 games)
       6: currentChampionshipGames.filter(j => j.rodada === 6).sort((a,b) => a.id - b.id), // Quartas (4 games)
       7: currentChampionshipGames.filter(j => j.rodada === 7).sort((a,b) => a.id - b.id), // Semifinais (2 games)
-      8: currentChampionshipGames.filter(j => j.rodada === 8).sort((a,b) => a.id - b.id), // Finals (1 game)
+      8: currentChampionshipGames.filter(j => {
+        if (j.rodada !== 8) return false;
+        const h = (j.time_casa || "").toLowerCase();
+        const a = (j.time_fora || "").toLowerCase();
+        // Spain vs Argentina is the final. We exclude matches containing none of the final teams.
+        const isFinal = h.includes("espanha") || h.includes("spain") || h.includes("argentina") ||
+                        a.includes("espanha") || a.includes("spain") || a.includes("argentina");
+        return isFinal;
+      }).sort((a,b) => a.id - b.id), // Finals (1 game)
     };
   }, [currentChampionshipGames, selectedCampeonato]);
 

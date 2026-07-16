@@ -115,7 +115,7 @@ export default function RankingSection({ ranking, jogos, token, usuarioLogado }:
     });
 
     const rounds = Array.from(new Set(matchingGames.map(g => g.rodada)))
-      .filter(r => typeof r === 'number' && r > 0)
+      .filter(r => typeof r === 'number' && r > 0 && !(selectedCampeonato === 'COPA_MUNDO' && r === 8))
       .sort((a, b) => a - b);
 
     return rounds;

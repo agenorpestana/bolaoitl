@@ -231,7 +231,7 @@ export default function GuessesHistory({
     });
   }, [historyData, filter, search]);
 
-  const getFriendlyRoundName = (round: number, champ: string) => {
+  const getFriendlyRoundName = (round: number, champ: string, jogo?: Jogo) => {
     if (champ === 'BRASILEIRAO') return `Série A - Rodada ${round}`;
     if (champ === 'LIBERTADORES') {
       if (round <= 6) return `Libertadores - Fase de Grupos (R${round})`;
@@ -246,6 +246,21 @@ export default function GuessesHistory({
     if (round === 5) return `Copa do Mundo - Oitavas`;
     if (round === 6) return `Copa do Mundo - Quartas`;
     if (round === 7) return `Copa do Mundo - Semifinal`;
+    if (round === 8) {
+      if (jogo) {
+        const home = (jogo.time_casa || "").toLowerCase();
+        const away = (jogo.time_fora || "").toLowerCase();
+        const containsSpainOrArg = home.includes("espanha") || home.includes("spain") || home.includes("argentina") ||
+                                   away.includes("espanha") || away.includes("spain") || away.includes("argentina");
+        if (!containsSpainOrArg && (home.includes("frança") || home.includes("france") || home.includes("inglaterra") || home.includes("england"))) {
+          return `Copa do Mundo - Disputa de 3º Lugar 🥉`;
+        }
+        if (!containsSpainOrArg) {
+          return `Copa do Mundo - Disputa de 3º Lugar 🥉`;
+        }
+      }
+      return `Copa do Mundo - Grande Final 🏆`;
+    }
     return `Copa do Mundo - Grande Final 🏆`;
   };
 
@@ -412,7 +427,7 @@ export default function GuessesHistory({
                 <div className="flex flex-col space-y-1 align-left text-left w-full xs:w-auto">
                   <span className="text-[8px] font-mono font-bold tracking-widest text-slate-500 uppercase flex items-center gap-1">
                     <Calendar className="h-3 w-3" />
-                    {safeLocaleString(jogo.data_jogo, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} • {getFriendlyRoundName(jogo.rodada, champ)}
+                    {safeLocaleString(jogo.data_jogo, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} • {getFriendlyRoundName(jogo.rodada, champ, jogo)}
                   </span>
                   
                   {/* Scoreboard visual alignment */}
