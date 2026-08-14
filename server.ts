@@ -5260,8 +5260,14 @@ async function startServer() {
           }
         });
 
-        // Apply active corrections for this user (filtering by rodada if scoped)
+        // Apply active corrections for this user (filtering by championship and rodada if scoped)
         let corrList = (db.correcoes || []).filter(c => c.usuario_id === u.id);
+        if (useCamp) {
+          corrList = corrList.filter(c => {
+            const cCamp = c.campeonato || 'COPA_MUNDO';
+            return cCamp === campeonato;
+          });
+        }
         if (useRodada) {
           const rodadaNum = Number(rodada);
           corrList = corrList.filter(c => {

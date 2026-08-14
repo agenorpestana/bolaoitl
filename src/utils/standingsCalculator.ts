@@ -197,6 +197,32 @@ function getCanonicalTeamName(teamName: string, campeonato?: 'COPA_MUNDO' | 'LIB
   if (!teamName) return "";
   const cleaned = cleanTeamName(teamName);
   
+  if (campeonato === 'BRASILEIRAO') {
+    if (cleaned === "flamengo" || cleaned === "flamingo") return "Flamengo";
+    if (cleaned === "palmeiras") return "Palmeiras";
+    if (cleaned === "botafogo") return "Botafogo";
+    if (cleaned === "saopaulo" || cleaned === "spfc") return "São Paulo";
+    if (cleaned === "corinthians" || cleaned === "corintians") return "Corinthians";
+    if (cleaned === "fluminense" || cleaned === "flu") return "Fluminense";
+    if (cleaned === "gremio" || cleaned === "grêmio") return "Grêmio";
+    if (cleaned === "internacional" || cleaned === "inter") return "Internacional";
+    if (cleaned.includes("atleticomg") || cleaned === "atletico" || cleaned === "galo" || cleaned === "atleticomineiro" || cleaned === "atléticomg") return "Atlético-MG";
+    if (cleaned === "cruzeiro") return "Cruzeiro";
+    if (cleaned === "vasco" || cleaned === "vascodagama") return "Vasco da Gama";
+    if (cleaned === "bahia") return "Bahia";
+    if (cleaned === "fortaleza") return "Fortaleza";
+    if (cleaned.includes("athletico") || cleaned.includes("atleticopr") || cleaned === "cap" || cleaned === "athleticopr") return "Athletico-PR";
+    if (cleaned.includes("bragantino") || cleaned === "redbullbragantino" || cleaned === "rbb") return "Red Bull Bragantino";
+    if (cleaned === "vitoria" || cleaned === "vitória") return "Vitória";
+    if (cleaned === "juventude") return "Juventude";
+    if (cleaned === "criciuma" || cleaned === "criciúma") return "Criciúma";
+    if (cleaned.includes("atleticogo") || cleaned === "atleticogoianiense") return "Atlético-GO";
+    if (cleaned === "cuiaba" || cleaned === "cuiabá") return "Cuiabá";
+    if (cleaned === "santos") return "Santos";
+    if (cleaned === "mirassol") return "Mirassol";
+    if (cleaned === "sport" || cleaned === "sportrecife") return "Sport";
+  }
+
   if (campeonato === 'LIBERTADORES') {
     if (cleaned === "flamengo" || cleaned === "flamingo") return "Flamengo";
     if (cleaned.includes("estudiantes")) return "Estudiantes L.P.";
@@ -299,6 +325,134 @@ function getCanonicalTeamName(teamName: string, campeonato?: 'COPA_MUNDO' | 'LIB
   }
 
   return teamName;
+}
+
+export const BRASILEIRAO_DEFAULT_CLUBS: { name: string; badge: string; short: string }[] = [
+  { name: "Botafogo", badge: "https://media.api-sports.io/football/teams/120.png", short: "BOT" },
+  { name: "Palmeiras", badge: "https://media.api-sports.io/football/teams/121.png", short: "PAL" },
+  { name: "Flamengo", badge: "https://media.api-sports.io/football/teams/127.png", short: "FLA" },
+  { name: "Fortaleza", badge: "https://media.api-sports.io/football/teams/154.png", short: "FOR" },
+  { name: "Internacional", badge: "https://media.api-sports.io/football/teams/119.png", short: "INT" },
+  { name: "São Paulo", badge: "https://media.api-sports.io/football/teams/126.png", short: "SAO" },
+  { name: "Corinthians", badge: "https://media.api-sports.io/football/teams/131.png", short: "COR" },
+  { name: "Bahia", badge: "https://media.api-sports.io/football/teams/118.png", short: "BAH" },
+  { name: "Cruzeiro", badge: "https://media.api-sports.io/football/teams/135.png", short: "CRU" },
+  { name: "Vasco da Gama", badge: "https://media.api-sports.io/football/teams/133.png", short: "VAS" },
+  { name: "Vitória", badge: "https://media.api-sports.io/football/teams/136.png", short: "VIT" },
+  { name: "Atlético-MG", badge: "https://media.api-sports.io/football/teams/1062.png", short: "CAM" },
+  { name: "Fluminense", badge: "https://media.api-sports.io/football/teams/124.png", short: "FLU" },
+  { name: "Grêmio", badge: "https://media.api-sports.io/football/teams/130.png", short: "GRE" },
+  { name: "Juventude", badge: "https://media.api-sports.io/football/teams/152.png", short: "JUV" },
+  { name: "Red Bull Bragantino", badge: "https://media.api-sports.io/football/teams/794.png", short: "RBB" },
+  { name: "Athletico-PR", badge: "https://media.api-sports.io/football/teams/134.png", short: "CAP" },
+  { name: "Criciúma", badge: "https://media.api-sports.io/football/teams/140.png", short: "CRI" },
+  { name: "Atlético-GO", badge: "https://media.api-sports.io/football/teams/144.png", short: "ACG" },
+  { name: "Cuiabá", badge: "https://media.api-sports.io/football/teams/1193.png", short: "CUI" },
+];
+
+export function calculateBrasileiraoStandings(jogos: Jogo[]): StandingRow[] {
+  const standingsMap: { [key: string]: StandingRow } = {};
+
+  // 1. Initialize all 20 Série A clubs with 0 points
+  BRASILEIRAO_DEFAULT_CLUBS.forEach(club => {
+    standingsMap[club.name] = {
+      time: club.name,
+      bandeira: club.badge,
+      pontos: 0,
+      jogos: 0,
+      vitorias: 0,
+      empates: 0,
+      derrotas: 0,
+      golsPro: 0,
+      golsContra: 0,
+      saldo: 0
+    };
+  });
+
+  // 2. Filter games that belong to Brasileirão
+  const brasJogos = (jogos || []).filter(j => getGameChampionshipLocal(j) === 'BRASILEIRAO');
+
+  // 3. Process completed/live games
+  brasJogos.forEach(jogo => {
+    if (jogo.status !== 'ENCERRADO' && jogo.status !== 'AO_VIVO') return;
+    if (jogo.placar_casa === null || jogo.placar_fora === null) return;
+
+    const tCasa = getCanonicalTeamName(jogo.time_casa, 'BRASILEIRAO');
+    const tFora = getCanonicalTeamName(jogo.time_fora, 'BRASILEIRAO');
+    const pCasa = jogo.placar_casa;
+    const pFora = jogo.placar_fora;
+
+    if (!standingsMap[tCasa]) {
+      standingsMap[tCasa] = {
+        time: tCasa,
+        bandeira: jogo.time_casa_bandeira || undefined,
+        pontos: 0,
+        jogos: 0,
+        vitorias: 0,
+        empates: 0,
+        derrotas: 0,
+        golsPro: 0,
+        golsContra: 0,
+        saldo: 0
+      };
+    } else if (jogo.time_casa_bandeira && (!standingsMap[tCasa].bandeira || standingsMap[tCasa].bandeira.includes("default"))) {
+      standingsMap[tCasa].bandeira = jogo.time_casa_bandeira;
+    }
+
+    if (!standingsMap[tFora]) {
+      standingsMap[tFora] = {
+        time: tFora,
+        bandeira: jogo.time_fora_bandeira || undefined,
+        pontos: 0,
+        jogos: 0,
+        vitorias: 0,
+        empates: 0,
+        derrotas: 0,
+        golsPro: 0,
+        golsContra: 0,
+        saldo: 0
+      };
+    } else if (jogo.time_fora_bandeira && (!standingsMap[tFora].bandeira || standingsMap[tFora].bandeira.includes("default"))) {
+      standingsMap[tFora].bandeira = jogo.time_fora_bandeira;
+    }
+
+    const rowCasa = standingsMap[tCasa];
+    const rowFora = standingsMap[tFora];
+
+    rowCasa.jogos++;
+    rowFora.jogos++;
+
+    rowCasa.golsPro += pCasa;
+    rowCasa.golsContra += pFora;
+    rowCasa.saldo = rowCasa.golsPro - rowCasa.golsContra;
+
+    rowFora.golsPro += pFora;
+    rowFora.golsContra += pCasa;
+    rowFora.saldo = rowFora.golsPro - rowFora.golsContra;
+
+    if (pCasa > pFora) {
+      rowCasa.pontos += 3;
+      rowCasa.vitorias++;
+      rowFora.derrotas++;
+    } else if (pFora > pCasa) {
+      rowFora.pontos += 3;
+      rowFora.vitorias++;
+      rowCasa.derrotas++;
+    } else {
+      rowCasa.pontos += 1;
+      rowFora.pontos += 1;
+      rowCasa.empates++;
+      rowFora.empates++;
+    }
+  });
+
+  return Object.values(standingsMap).sort((a, b) => {
+    if (b.pontos !== a.pontos) return b.pontos - a.pontos;
+    if (b.vitorias !== a.vitorias) return b.vitorias - a.vitorias;
+    if (b.saldo !== a.saldo) return b.saldo - a.saldo;
+    if (b.golsPro !== a.golsPro) return b.golsPro - a.golsPro;
+    return a.time.localeCompare(b.time);
+  });
 }
 
 export function calculateStandings(jogos: Jogo[]): StandingRow[] {

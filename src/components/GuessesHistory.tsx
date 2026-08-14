@@ -72,6 +72,7 @@ export default function GuessesHistory({
   onDeleteCorrection
 }: GuessesHistoryProps) {
   const [filter, setFilter] = React.useState<'TODOS' | 'EXATOS' | 'VENCEDOR' | 'ERROS' | 'PENDENTES'>('TODOS');
+  const [selectedCampeonato, setSelectedCampeonato] = React.useState<'TODOS' | 'BRASILEIRAO' | 'COPA_MUNDO' | 'LIBERTADORES'>('TODOS');
   const [search, setSearch] = React.useState('');
 
   // Combine palpites with games
@@ -80,6 +81,11 @@ export default function GuessesHistory({
       .map(p => {
         const jogo = jogos.find(j => j.id === p.jogo_id);
         if (!jogo) return null;
+
+        const champ = getGameCampeonato(jogo);
+        if (selectedCampeonato !== 'TODOS' && champ !== selectedCampeonato) {
+          return null;
+        }
 
         const isExact = jogo.placar_casa !== null && jogo.placar_fora !== null && 
                         p.placar_casa === jogo.placar_casa && p.placar_fora === jogo.placar_fora;
@@ -109,7 +115,7 @@ export default function GuessesHistory({
       })
       .filter((item): item is NonNullable<typeof item> => item !== null)
       .sort((a, b) => safeParseDate(b.jogo.data_jogo).getTime() - safeParseDate(a.jogo.data_jogo).getTime());
-  }, [jogos, palpites]);
+  }, [jogos, palpites, selectedCampeonato]);
 
   // Stats Counters
   const stats = React.useMemo(() => {
@@ -364,22 +370,55 @@ export default function GuessesHistory({
         </div>
       )}
 
-      {/* Filter and Search Bar */}
-      <div className="flex flex-col md:flex-row gap-3 bg-slate-950/40 p-2.5 sm:p-3 rounded-xl border border-slate-900">
-        {/* Search */}
-        <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-500" />
-          <input
-            type="text"
-            placeholder="Filtrar por nome de time..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 bg-slate-900 border border-slate-850 hover:border-slate-800 focus:border-yellow-500 rounded-lg text-xs font-semibold text-slate-200 font-sans"
-          />
+      {/* Championship and Status Filter Bar */}
+      <div className="space-y-3 bg-slate-950/40 p-2.5 sm:p-3 rounded-xl border border-slate-900">
+        {/* Championship Pills */}
+        <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-900 pb-2.5">
+          <span className="text-[10px] font-black uppercase text-slate-500 mr-1 tracking-wider">Campeonato:</span>
+          {(['TODOS', 'BRASILEIRAO', 'COPA_MUNDO', 'LIBERTADORES'] as const).map((camp) => {
+            const campLabels = {
+              'TODOS': '🌐 Todos',
+              'BRASILEIRAO': '🇧🇷 Brasileirão Série A',
+              'COPA_MUNDO': '🏆 Copa do Mundo 2026',
+              'LIBERTADORES': '🌎 Libertadores'
+            };
+            return (
+              <button
+                key={camp}
+                type="button"
+                onClick={() => setSelectedCampeonato(camp)}
+                className={`px-2.5 py-1 text-xs font-bold rounded-lg transition select-none cursor-pointer ${
+                  selectedCampeonato === camp
+                    ? camp === 'BRASILEIRAO'
+                      ? 'bg-emerald-600 text-white shadow'
+                      : camp === 'COPA_MUNDO'
+                        ? 'bg-amber-600 text-white shadow'
+                        : 'bg-brand-blue-accent text-white shadow'
+                    : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
+                }`}
+              >
+                {campLabels[camp]}
+              </button>
+            );
+          })}
         </div>
 
-        {/* Categories Tab selector */}
-        <div className="flex flex-wrap gap-1">
+        {/* Filter and Search Row */}
+        <div className="flex flex-col md:flex-row gap-3">
+          {/* Search */}
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-500" />
+            <input
+              type="text"
+              placeholder="Filtrar por nome de time..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-8 pr-3 py-1.5 bg-slate-900 border border-slate-850 hover:border-slate-800 focus:border-yellow-500 rounded-lg text-xs font-semibold text-slate-200 font-sans"
+            />
+          </div>
+
+          {/* Categories Tab selector */}
+          <div className="flex flex-wrap gap-1">
           {(['TODOS', 'EXATOS', 'VENCEDOR', 'ERROS', 'PENDENTES'] as const).map((opt) => {
             const labelsMap = {
               TODOS: 'Todos',
@@ -411,6 +450,7 @@ export default function GuessesHistory({
           })}
         </div>
       </div>
+    </div>
 
       {/* List items representation */}
       <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">

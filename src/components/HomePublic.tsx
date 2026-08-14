@@ -5,7 +5,7 @@ import {
 import { REGRAS_PROG, PREMIACOES } from '../data';
 import { Jogo, ConfigCustom } from '../types';
 import { getFriendlyRoundName, getGameCampeonato } from './MatchesSection';
-import { calculateStandings, groupStandings } from '../utils/standingsCalculator';
+import { calculateStandings, groupStandings, calculateBrasileiraoStandings } from '../utils/standingsCalculator';
 import { safeParseDate, safeLocaleDateString, safeLocaleTimeString } from '../utils/dateUtils';
 
 const flagEmojiToIso = (flag: string): string | null => {
@@ -345,6 +345,11 @@ export default function HomePublic({
     return groupStandings(standings, 'COPA_MUNDO', copaGames);
   }, [jogos]);
 
+  // Real-time Standings for Brasileirão Série A
+  const brasStandings = React.useMemo(() => {
+    return calculateBrasileiraoStandings(jogos || []);
+  }, [jogos]);
+
   React.useEffect(() => {
     const calculateTimeLeft = () => {
       const now = new Date();
@@ -601,53 +606,130 @@ export default function HomePublic({
         </section>
       )}
 
-      {/* Grupos Oficiais Copa 2026 Grid */}
+      {/* Tabela Oficial do Campeonato Brasileiro Série A 2026 */}
       <section className="space-y-6">
-        <div className="flex items-center gap-2">
-          <div className="h-6 w-1.5 rounded-full bg-brand-blue-accent" />
-          <h2 className="text-xl font-bold text-slate-100">Grupos Oficiais - Copa do Mundo 2026</h2>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {Object.keys(copaStandingsGroups).map((gName) => (
-            <div 
-              key={gName} 
-              className="bg-slate-900/55 rounded-2xl border border-slate-800 p-4 space-y-3 shadow-md hover:border-brand-blue-accent/30 transition-all duration-300"
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <div className="h-6 w-1.5 rounded-full bg-emerald-500" />
+            <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+              <span>🇧🇷 Tabela de Classificação - Brasileirão Série A 2026</span>
+            </h2>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950/60 border border-emerald-800/40 text-[11px] font-bold text-emerald-400">
+              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+              Modo Diversão & Palpites
+            </span>
+            <button
+              onClick={onParticipateCta}
+              className="text-xs font-bold text-brand-blue-vibrant hover:underline flex items-center gap-1 cursor-pointer"
             >
-              <div className="flex items-center justify-between border-b border-slate-800/80 pb-2 font-mono text-[10px]">
-                <span className="text-xs font-black uppercase tracking-wider text-brand-blue-vibrant font-mono">
-                  {gName}
-                </span>
-                <span className="text-[8px] font-mono text-slate-500 font-bold tracking-widest uppercase">P / SG</span>
-              </div>
-              <ul className="space-y-2">
-                {copaStandingsGroups[gName].map((row, rIdx) => {
-                  const flag = row.bandeira || COPA_TEAMS_FLAGS[row.time] || "🏳️";
+              Palpitar nos jogos <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Responsive Table Container */}
+        <div className="bg-slate-900/70 border border-slate-800/90 rounded-2xl p-4 sm:p-5 overflow-hidden shadow-2xl space-y-4">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs font-sans min-w-[660px]">
+              <thead>
+                <tr className="border-b border-slate-800 text-slate-400 uppercase text-[10px] font-black tracking-wider">
+                  <th className="py-3 px-2 text-center w-12">Pos</th>
+                  <th className="py-3 px-3">Clube</th>
+                  <th className="py-3 px-2 text-center w-14 text-slate-200">Pts</th>
+                  <th className="py-3 px-2 text-center w-10">J</th>
+                  <th className="py-3 px-2 text-center w-10">V</th>
+                  <th className="py-3 px-2 text-center w-10">E</th>
+                  <th className="py-3 px-2 text-center w-10">D</th>
+                  <th className="py-3 px-2 text-center w-12 text-slate-450">GP</th>
+                  <th className="py-3 px-2 text-center w-12 text-slate-450">GC</th>
+                  <th className="py-3 px-2 text-center w-14">SG</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/50">
+                {brasStandings.map((row, idx) => {
+                  const isG4 = idx < 4;
+                  const isG6 = idx >= 4 && idx < 6;
+                  const isSula = idx >= 6 && idx < 12;
+                  const isZ4 = idx >= brasStandings.length - 4;
+
                   return (
-                    <li 
-                      key={rIdx} 
-                      className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-slate-950/40 hover:bg-slate-950/80 border border-transparent hover:border-slate-800/80 transition duration-150"
+                    <tr 
+                      key={idx} 
+                      className="hover:bg-slate-800/40 text-slate-300 transition duration-150 group"
                     >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className={`font-mono text-[10px] w-4 text-center font-bold ${rIdx < 2 ? 'text-emerald-400' : 'text-slate-600'}`}>
-                          {rIdx + 1}
+                      {/* Position */}
+                      <td className="py-2.5 px-2 text-center font-black">
+                        <span className={`inline-flex items-center justify-center h-5 w-5 rounded-md font-mono text-[10px] font-bold ${
+                          isG4
+                            ? 'bg-emerald-950 text-emerald-400 border border-emerald-700/50 shadow-xs'
+                            : isG6
+                              ? 'bg-blue-950 text-blue-400 border border-blue-700/40'
+                              : isSula
+                                ? 'bg-cyan-950 text-cyan-400 border border-cyan-800/40'
+                                : isZ4
+                                  ? 'bg-red-950 text-red-400 border border-red-700/40'
+                                  : 'text-slate-500 bg-slate-950/60'
+                        }`}>
+                          {idx + 1}
                         </span>
-                        {renderBandeira(flag, "w-5 h-5 rounded shadow-xs", "text-sm")}
-                        <span className={`text-xs truncate ${rIdx < 2 ? 'font-bold text-slate-200' : 'font-medium text-slate-400'}`}>
-                          {row.time}
-                        </span>
-                      </div>
-                      <div className="font-mono text-[10px] font-bold flex items-center gap-2.5 shrink-0">
-                        <span className={rIdx < 2 ? 'text-emerald-400 font-extrabold' : 'text-slate-300'}>{row.pontos}p</span>
-                        <span className={`w-5 text-right font-semibold ${row.saldo > 0 ? 'text-emerald-500' : row.saldo < 0 ? 'text-rose-500' : 'text-slate-500'}`}>
-                          {row.saldo > 0 ? `+${row.saldo}` : row.saldo}
-                        </span>
-                      </div>
-                    </li>
+                      </td>
+
+                      {/* Club name & escudo */}
+                      <td className="py-2.5 px-3 font-bold text-slate-150">
+                        <div className="flex items-center gap-2.5">
+                          {renderBandeira(row.bandeira, "w-5 h-5 rounded-sm shadow-xs", "text-base")}
+                          <span className="truncate group-hover:text-white transition-colors">{row.time}</span>
+                        </div>
+                      </td>
+
+                      {/* Stats */}
+                      <td className="py-2.5 px-2 text-center font-black text-slate-100 font-mono text-sm bg-slate-950/30">
+                        {row.pontos}
+                      </td>
+                      <td className="py-2.5 px-2 text-center font-mono text-slate-400">{row.jogos}</td>
+                      <td className="py-2.5 px-2 text-center font-mono text-slate-300">{row.vitorias}</td>
+                      <td className="py-2.5 px-2 text-center font-mono text-slate-400">{row.empates}</td>
+                      <td className="py-2.5 px-2 text-center font-mono text-slate-400">{row.derrotas}</td>
+                      <td className="py-2.5 px-2 text-center font-mono text-slate-400">{row.golsPro}</td>
+                      <td className="py-2.5 px-2 text-center font-mono text-slate-400">{row.golsContra}</td>
+                      <td className={`py-2.5 px-2 text-center font-bold font-mono ${
+                        row.saldo > 0 ? 'text-emerald-400' : row.saldo < 0 ? 'text-red-400' : 'text-slate-400'
+                      }`}>
+                        {row.saldo > 0 ? `+${row.saldo}` : row.saldo}
+                      </td>
+                    </tr>
                   );
                 })}
-              </ul>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Table Legend */}
+          <div className="pt-3 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-[11px] text-slate-400">
+            <div className="flex flex-wrap items-center gap-4">
+              <span className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500 inline-block" />
+                <span className="text-slate-300 font-medium">1º ao 4º: Libertadores (Fase de Grupos)</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-sm bg-blue-500 inline-block" />
+                <span className="text-slate-300 font-medium">5º e 6º: Pré-Libertadores</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-sm bg-cyan-500 inline-block" />
+                <span className="text-slate-300 font-medium">7º ao 12º: Sul-Americana</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-sm bg-red-500 inline-block" />
+                <span className="text-slate-300 font-medium">17º ao 20º: Rebaixamento</span>
+              </span>
             </div>
-          ))}
+            <span className="text-[10px] text-slate-500 font-mono">
+              Temporada 2026 • 38 Rodadas
+            </span>
+          </div>
         </div>
       </section>
 

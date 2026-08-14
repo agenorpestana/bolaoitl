@@ -1,6 +1,6 @@
 {
   "name": "CARTOLA ITL",
-  "description": "Sistema completo de palpites CARTOLA ITL para clientes do PROVEDOR ITLFIBRA, integrado ao IXC Soft e Copa de 2026.",
+  "description": "Sistema completo de palpites CARTOLA ITL para clientes do PROVEDOR ITLFIBRA, integrado ao IXC Soft com suporte a Brasileirão Série A e histórico da Copa de 2026.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

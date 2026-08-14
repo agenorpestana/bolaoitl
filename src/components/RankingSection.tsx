@@ -25,21 +25,14 @@ interface RankingSectionProps {
 export default function RankingSection({ ranking, jogos, token, usuarioLogado }: RankingSectionProps) {
   const [searchTerm, setSearchTerm] = React.useState("");
   const [selectedCity, setSelectedCity] = React.useState<string>("TODAS");
-  const [localRanking, setLocalRanking] = React.useState<RankingRow[]>(ranking);
-  const [activeMode, setActiveMode] = React.useState<'GERAL' | 'CAMPEONATO'>('GERAL');
-  const [selectedCampeonato, setSelectedCampeonato] = React.useState<'COPA_MUNDO' | 'LIBERTADORES' | 'BRASILEIRAO' | 'all'>('all');
+  const [localRanking, setLocalRanking] = React.useState<RankingRow[]>([]);
+  const [activeMode, setActiveMode] = React.useState<'GERAL' | 'CAMPEONATO'>('CAMPEONATO');
+  const [selectedCampeonato, setSelectedCampeonato] = React.useState<'COPA_MUNDO' | 'LIBERTADORES' | 'BRASILEIRAO' | 'all'>('BRASILEIRAO');
   const [selectedRodada, setSelectedRodada] = React.useState<string>('all');
   const [isLoading, setIsLoading] = React.useState(false);
 
-  // Sync prop ranking changes with local state (useful for first-load or global refresh notifications)
-  React.useEffect(() => {
-    if (activeMode === 'GERAL') {
-      setLocalRanking(ranking);
-    }
-  }, [ranking, activeMode]);
-
   // Fetch updated rankings from backend dynamically when selectors change
-  const fetchFilteredRanking = async (camp: string, rod: string) => {
+  const fetchFilteredRanking = React.useCallback(async (camp: string, rod: string) => {
     setIsLoading(true);
     try {
       const headersArr: any = {};
@@ -62,7 +55,12 @@ export default function RankingSection({ ranking, jogos, token, usuarioLogado }:
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [token]);
+
+  // Initial load for Brasileirão
+  React.useEffect(() => {
+    fetchFilteredRanking('BRASILEIRAO', 'all');
+  }, [fetchFilteredRanking]);
 
   // Get list of distinct cities available in the current ranking
   const distinctCities = React.useMemo(() => {
@@ -162,81 +160,127 @@ export default function RankingSection({ ranking, jogos, token, usuarioLogado }:
         </div>
       </div>
 
-      {/* Scope Selector Controls Row */}
-      <div className="flex flex-wrap items-center gap-3 bg-slate-950/40 p-4 rounded-xl border border-slate-900">
-        
-        {/* Overall Ranking Button (GERAL) */}
-        <button
-          type="button"
-          onClick={() => {
-            setActiveMode('GERAL');
-            setSelectedCampeonato('all');
-            setSelectedRodada('all');
-            fetchFilteredRanking('all', 'all');
-          }}
-          className={`px-4 py-2.5 rounded-lg text-xs font-bold transition flex items-center gap-2 select-none ${
-            activeMode === 'GERAL'
-              ? 'bg-brand-blue-accent text-slate-100 hover:bg-brand-blue-accent/90 shadow'
-              : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
-          }`}
-        >
-          <Trophy className="h-3.5 w-3.5" />
-          RANKING GERAL
-        </button>
-
-        {/* Vertical divider */}
-        <div className="h-6 w-px bg-slate-800 hidden sm:block" />
-
-        {/* Championship Selector Dropdown */}
-        <div className="flex items-center gap-2">
-          <label className="text-[10px] font-black uppercase text-slate-500 tracking-wider hidden md:block">Campeonato:</label>
-          <select
-            value={selectedCampeonato}
-            onChange={(e) => {
-              const val = e.target.value as 'COPA_MUNDO' | 'LIBERTADORES' | 'BRASILEIRAO' | 'all';
-              if (val === 'all') {
-                setActiveMode('GERAL');
-                setSelectedCampeonato('all');
-                setSelectedRodada('all');
-                fetchFilteredRanking('all', 'all');
-              } else {
-                setActiveMode('CAMPEONATO');
-                setSelectedCampeonato(val);
-                setSelectedRodada('all');
-                fetchFilteredRanking(val, 'all');
-              }
+      {/* Scope Selector Controls Row with Quick Championship Tabs */}
+      <div className="space-y-3 bg-slate-950/40 p-4 rounded-xl border border-slate-900">
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Brasileirão Série A Tab */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveMode('CAMPEONATO');
+              setSelectedCampeonato('BRASILEIRAO');
+              setSelectedRodada('all');
+              fetchFilteredRanking('BRASILEIRAO', 'all');
             }}
-            className="px-3 py-2.5 bg-slate-900 border border-slate-800 focus:border-brand-blue-accent hover:border-slate-700 rounded-lg text-xs font-semibold text-slate-200"
+            className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              activeMode === 'CAMPEONATO' && selectedCampeonato === 'BRASILEIRAO'
+                ? 'bg-emerald-600 text-white shadow shadow-emerald-600/30 ring-1 ring-emerald-400/50'
+                : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800 hover:border-slate-700'
+            }`}
           >
-            <option value="all">Filtro por Campeonato...</option>
-            <option value="BRASILEIRAO">Brasileirão Série A</option>
-            <option value="LIBERTADORES">Copa Libertadores</option>
-            <option value="COPA_MUNDO">Copa do Mundo</option>
-          </select>
+            <span>🇧🇷</span>
+            <span>Brasileirão Série A</span>
+            <span className="text-[9px] px-1.5 py-0.2 bg-emerald-950/80 text-emerald-300 rounded font-black border border-emerald-700/40">ATIVO</span>
+          </button>
+
+          {/* Copa do Mundo Tab */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveMode('CAMPEONATO');
+              setSelectedCampeonato('COPA_MUNDO');
+              setSelectedRodada('all');
+              fetchFilteredRanking('COPA_MUNDO', 'all');
+            }}
+            className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              activeMode === 'CAMPEONATO' && selectedCampeonato === 'COPA_MUNDO'
+                ? 'bg-amber-600 text-white shadow shadow-amber-600/30 ring-1 ring-amber-400/50'
+                : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800 hover:border-slate-700'
+            }`}
+          >
+            <Trophy className="h-3.5 w-3.5" />
+            <span>Copa do Mundo 2026</span>
+            <span className="text-[9px] px-1.5 py-0.2 bg-slate-950 text-slate-400 rounded font-black border border-slate-700">HISTÓRICO</span>
+          </button>
+
+          {/* Libertadores Tab */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveMode('CAMPEONATO');
+              setSelectedCampeonato('LIBERTADORES');
+              setSelectedRodada('all');
+              fetchFilteredRanking('LIBERTADORES', 'all');
+            }}
+            className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              activeMode === 'CAMPEONATO' && selectedCampeonato === 'LIBERTADORES'
+                ? 'bg-blue-600 text-white shadow shadow-blue-600/30 ring-1 ring-blue-400/50'
+                : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800 hover:border-slate-700'
+            }`}
+          >
+            <span>🌎</span>
+            <span>Libertadores</span>
+          </button>
+
+          {/* Overall Unified Ranking Button */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveMode('GERAL');
+              setSelectedCampeonato('all');
+              setSelectedRodada('all');
+              fetchFilteredRanking('all', 'all');
+            }}
+            className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              activeMode === 'GERAL'
+                ? 'bg-brand-blue-accent text-white shadow ring-1 ring-brand-blue-light'
+                : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800 hover:border-slate-700'
+            }`}
+          >
+            <span>🌐</span>
+            <span>Geral Unificado</span>
+          </button>
+
+          {/* Round Selector Dropdown (Shown when a specific Championship is active) */}
+          {activeMode === 'CAMPEONATO' && selectedCampeonato !== 'all' && availableRounds.length > 0 && (
+            <div className="flex items-center gap-2 ml-auto">
+              <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Rodada:</label>
+              <select
+                value={selectedRodada}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedRodada(val);
+                  fetchFilteredRanking(selectedCampeonato, val);
+                }}
+                className="px-3 py-1.5 bg-slate-900 border border-slate-800 focus:border-brand-blue-accent hover:border-slate-700 rounded-lg text-xs font-semibold text-slate-200"
+              >
+                <option value="all">Todas as Rodadas</option>
+                {availableRounds.map((rd) => (
+                  <option key={rd} value={rd.toString()}>Rodada {rd}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
-        {/* Round Selector Dropdown (Shown only when a specific Championship is active) */}
-        {activeMode === 'CAMPEONATO' && selectedCampeonato !== 'all' && (
-          <div className="flex items-center gap-2 animate-fadeIn">
-            <span className="h-6 w-px bg-slate-800 hidden sm:block" />
-            <label className="text-[10px] font-black uppercase text-slate-500 tracking-wider hidden md:block">Rodada:</label>
-            <select
-              value={selectedRodada}
-              onChange={(e) => {
-                const val = e.target.value;
-                setSelectedRodada(val);
-                fetchFilteredRanking(selectedCampeonato, val);
-              }}
-              className="px-3 py-2.5 bg-slate-900 border border-slate-800 focus:border-brand-blue-accent hover:border-slate-700 rounded-lg text-xs font-semibold text-slate-200"
-            >
-              <option value="all">Todas as Rodadas</option>
-              {availableRounds.map((rd) => (
-                <option key={rd} value={rd.toString()}>Rodada {rd}</option>
-              ))}
-            </select>
+        {/* Championship Context Banner */}
+        {selectedCampeonato === 'BRASILEIRAO' && (
+          <div className="px-3.5 py-2 rounded-lg bg-emerald-950/40 border border-emerald-800/40 text-[11px] text-emerald-300 flex items-center justify-between gap-2">
+            <span className="flex items-center gap-1.5">
+              <span>🇧🇷</span>
+              <strong>Brasileirão Série A:</strong> Pontuação individual iniciando do zero para este campeonato. Modo de diversão para palpites de clientes!
+            </span>
           </div>
         )}
 
+        {selectedCampeonato === 'COPA_MUNDO' && (
+          <div className="px-3.5 py-2 rounded-lg bg-amber-950/30 border border-amber-800/40 text-[11px] text-amber-300 flex items-center justify-between gap-2">
+            <span className="flex items-center gap-1.5">
+              <Trophy className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+              <strong>Copa do Mundo 2026:</strong> Torneio concluído. Pontuação oficial e premiação gravadas no histórico.
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Filter and query controls */}

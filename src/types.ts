@@ -7,6 +7,7 @@ export interface Correcao {
   descricao: string;
   created_at: string;
   rodada?: number | string;
+  campeonato?: 'COPA_MUNDO' | 'LIBERTADORES' | 'BRASILEIRAO' | string;
 }
 
 export interface Usuario {
