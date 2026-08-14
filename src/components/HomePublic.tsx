@@ -5,7 +5,7 @@ import {
 import { REGRAS_PROG, PREMIACOES } from '../data';
 import { Jogo, ConfigCustom } from '../types';
 import { getFriendlyRoundName, getGameCampeonato } from './MatchesSection';
-import { calculateStandings, groupStandings, calculateBrasileiraoStandings } from '../utils/standingsCalculator';
+import { calculateStandings, groupStandings } from '../utils/standingsCalculator';
 import { safeParseDate, safeLocaleDateString, safeLocaleTimeString } from '../utils/dateUtils';
 
 const flagEmojiToIso = (flag: string): string | null => {
@@ -347,7 +347,8 @@ export default function HomePublic({
 
   // Real-time Standings for Brasileirão Série A
   const brasStandings = React.useMemo(() => {
-    return calculateBrasileiraoStandings(jogos || []);
+    const brasGames = (jogos || []).filter(j => getGameCampeonato(j) === 'BRASILEIRAO');
+    return calculateStandings(brasGames);
   }, [jogos]);
 
   React.useEffect(() => {
@@ -704,6 +705,11 @@ export default function HomePublic({
                 })}
               </tbody>
             </table>
+            {brasStandings.length === 0 && (
+              <div className="py-10 text-center text-slate-400 text-xs italic font-sans">
+                Nenhuma partida do Campeonato Brasileiro Série A cadastrada no momento.
+              </div>
+            )}
           </div>
 
           {/* Table Legend */}

@@ -327,62 +327,16 @@ function getCanonicalTeamName(teamName: string, campeonato?: 'COPA_MUNDO' | 'LIB
   return teamName;
 }
 
-export const BRASILEIRAO_DEFAULT_CLUBS: { name: string; badge: string; short: string }[] = [
-  { name: "Botafogo", badge: "https://media.api-sports.io/football/teams/120.png", short: "BOT" },
-  { name: "Palmeiras", badge: "https://media.api-sports.io/football/teams/121.png", short: "PAL" },
-  { name: "Flamengo", badge: "https://media.api-sports.io/football/teams/127.png", short: "FLA" },
-  { name: "Fortaleza", badge: "https://media.api-sports.io/football/teams/154.png", short: "FOR" },
-  { name: "Internacional", badge: "https://media.api-sports.io/football/teams/119.png", short: "INT" },
-  { name: "São Paulo", badge: "https://media.api-sports.io/football/teams/126.png", short: "SAO" },
-  { name: "Corinthians", badge: "https://media.api-sports.io/football/teams/131.png", short: "COR" },
-  { name: "Bahia", badge: "https://media.api-sports.io/football/teams/118.png", short: "BAH" },
-  { name: "Cruzeiro", badge: "https://media.api-sports.io/football/teams/135.png", short: "CRU" },
-  { name: "Vasco da Gama", badge: "https://media.api-sports.io/football/teams/133.png", short: "VAS" },
-  { name: "Vitória", badge: "https://media.api-sports.io/football/teams/136.png", short: "VIT" },
-  { name: "Atlético-MG", badge: "https://media.api-sports.io/football/teams/1062.png", short: "CAM" },
-  { name: "Fluminense", badge: "https://media.api-sports.io/football/teams/124.png", short: "FLU" },
-  { name: "Grêmio", badge: "https://media.api-sports.io/football/teams/130.png", short: "GRE" },
-  { name: "Juventude", badge: "https://media.api-sports.io/football/teams/152.png", short: "JUV" },
-  { name: "Red Bull Bragantino", badge: "https://media.api-sports.io/football/teams/794.png", short: "RBB" },
-  { name: "Athletico-PR", badge: "https://media.api-sports.io/football/teams/134.png", short: "CAP" },
-  { name: "Criciúma", badge: "https://media.api-sports.io/football/teams/140.png", short: "CRI" },
-  { name: "Atlético-GO", badge: "https://media.api-sports.io/football/teams/144.png", short: "ACG" },
-  { name: "Cuiabá", badge: "https://media.api-sports.io/football/teams/1193.png", short: "CUI" },
-];
-
-export function calculateBrasileiraoStandings(jogos: Jogo[]): StandingRow[] {
+export function calculateStandings(jogos: Jogo[]): StandingRow[] {
   const standingsMap: { [key: string]: StandingRow } = {};
 
-  // 1. Initialize all 20 Série A clubs with 0 points
-  BRASILEIRAO_DEFAULT_CLUBS.forEach(club => {
-    standingsMap[club.name] = {
-      time: club.name,
-      bandeira: club.badge,
-      pontos: 0,
-      jogos: 0,
-      vitorias: 0,
-      empates: 0,
-      derrotas: 0,
-      golsPro: 0,
-      golsContra: 0,
-      saldo: 0
-    };
-  });
+  // 1. Initialize all teams that appear in the provided championship matches
+  jogos.forEach(jogo => {
+    const champ = getGameChampionshipLocal(jogo);
+    const tCasa = getCanonicalTeamName(jogo.time_casa, champ);
+    const tFora = getCanonicalTeamName(jogo.time_fora, champ);
 
-  // 2. Filter games that belong to Brasileirão
-  const brasJogos = (jogos || []).filter(j => getGameChampionshipLocal(j) === 'BRASILEIRAO');
-
-  // 3. Process completed/live games
-  brasJogos.forEach(jogo => {
-    if (jogo.status !== 'ENCERRADO' && jogo.status !== 'AO_VIVO') return;
-    if (jogo.placar_casa === null || jogo.placar_fora === null) return;
-
-    const tCasa = getCanonicalTeamName(jogo.time_casa, 'BRASILEIRAO');
-    const tFora = getCanonicalTeamName(jogo.time_fora, 'BRASILEIRAO');
-    const pCasa = jogo.placar_casa;
-    const pFora = jogo.placar_fora;
-
-    if (!standingsMap[tCasa]) {
+    if (tCasa && !standingsMap[tCasa]) {
       standingsMap[tCasa] = {
         time: tCasa,
         bandeira: jogo.time_casa_bandeira || undefined,
@@ -395,11 +349,11 @@ export function calculateBrasileiraoStandings(jogos: Jogo[]): StandingRow[] {
         golsContra: 0,
         saldo: 0
       };
-    } else if (jogo.time_casa_bandeira && (!standingsMap[tCasa].bandeira || standingsMap[tCasa].bandeira.includes("default"))) {
+    } else if (tCasa && jogo.time_casa_bandeira && !standingsMap[tCasa].bandeira) {
       standingsMap[tCasa].bandeira = jogo.time_casa_bandeira;
     }
 
-    if (!standingsMap[tFora]) {
+    if (tFora && !standingsMap[tFora]) {
       standingsMap[tFora] = {
         time: tFora,
         bandeira: jogo.time_fora_bandeira || undefined,
@@ -412,12 +366,28 @@ export function calculateBrasileiraoStandings(jogos: Jogo[]): StandingRow[] {
         golsContra: 0,
         saldo: 0
       };
-    } else if (jogo.time_fora_bandeira && (!standingsMap[tFora].bandeira || standingsMap[tFora].bandeira.includes("default"))) {
+    } else if (tFora && jogo.time_fora_bandeira && !standingsMap[tFora].bandeira) {
       standingsMap[tFora].bandeira = jogo.time_fora_bandeira;
     }
+  });
+
+  // 2. Accumulate results for completed or live games
+  jogos.forEach(jogo => {
+    if (jogo.status !== 'ENCERRADO' && jogo.status !== 'AO_VIVO') return;
+    if (jogo.placar_casa === null || jogo.placar_fora === null) return;
+
+    const champ = getGameChampionshipLocal(jogo);
+    const tCasa = getCanonicalTeamName(jogo.time_casa, champ);
+    const tFora = getCanonicalTeamName(jogo.time_fora, champ);
+    const pCasa = jogo.placar_casa;
+    const pFora = jogo.placar_fora;
+
+    if (!tCasa || !tFora) return;
 
     const rowCasa = standingsMap[tCasa];
     const rowFora = standingsMap[tFora];
+
+    if (!rowCasa || !rowFora) return;
 
     rowCasa.jogos++;
     rowFora.jogos++;
@@ -452,71 +422,6 @@ export function calculateBrasileiraoStandings(jogos: Jogo[]): StandingRow[] {
     if (b.saldo !== a.saldo) return b.saldo - a.saldo;
     if (b.golsPro !== a.golsPro) return b.golsPro - a.golsPro;
     return a.time.localeCompare(b.time);
-  });
-}
-
-export function calculateStandings(jogos: Jogo[]): StandingRow[] {
-  const standingsMap: { [key: string]: StandingRow } = {};
-
-  jogos.forEach(jogo => {
-    // Only processed or ended games count for scoreboard standings
-    if (jogo.status !== 'ENCERRADO' && jogo.status !== 'AO_VIVO') return;
-    if (jogo.placar_casa === null || jogo.placar_fora === null) return;
-
-    const champ = getGameChampionshipLocal(jogo);
-    const tCasa = getCanonicalTeamName(jogo.time_casa, champ);
-    const tFora = getCanonicalTeamName(jogo.time_fora, champ);
-    const pCasa = jogo.placar_casa;
-    const pFora = jogo.placar_fora;
-
-    // Initialize team records with optional badge support from either game if available
-    if (!standingsMap[tCasa]) {
-      standingsMap[tCasa] = { time: tCasa, bandeira: jogo.time_casa_bandeira || undefined, pontos: 0, jogos: 0, vitorias: 0, empates: 0, derrotas: 0, golsPro: 0, golsContra: 0, saldo: 0 };
-    } else if (jogo.time_casa_bandeira && !standingsMap[tCasa].bandeira) {
-      standingsMap[tCasa].bandeira = jogo.time_casa_bandeira;
-    }
-    
-    if (!standingsMap[tFora]) {
-      standingsMap[tFora] = { time: tFora, bandeira: jogo.time_fora_bandeira || undefined, pontos: 0, jogos: 0, vitorias: 0, empates: 0, derrotas: 0, golsPro: 0, golsContra: 0, saldo: 0 };
-    } else if (jogo.time_fora_bandeira && !standingsMap[tFora].bandeira) {
-      standingsMap[tFora].bandeira = jogo.time_fora_bandeira;
-    }
-
-    const rowCasa = standingsMap[tCasa];
-    const rowFora = standingsMap[tFora];
-
-    rowCasa.jogos++;
-    rowFora.jogos++;
-
-    rowCasa.golsPro += pCasa;
-    rowCasa.golsContra += pFora;
-    rowCasa.saldo = rowCasa.golsPro - rowCasa.golsContra;
-
-    rowFora.golsPro += pFora;
-    rowFora.golsContra += pCasa;
-    rowFora.saldo = rowFora.golsPro - rowFora.golsContra;
-
-    if (pCasa > pFora) {
-      rowCasa.pontos += 3;
-      rowCasa.vitorias++;
-      rowFora.derrotas++;
-    } else if (pFora > pCasa) {
-      rowFora.pontos += 3;
-      rowFora.vitorias++;
-      rowCasa.derrotas++;
-    } else {
-      rowCasa.pontos += 1;
-      rowFora.pontos += 1;
-      rowCasa.empates++;
-      rowFora.empates++;
-    }
-  });
-
-  return Object.values(standingsMap).sort((a, b) => {
-    if (b.pontos !== a.pontos) return b.pontos - a.pontos;
-    if (b.vitorias !== a.vitorias) return b.vitorias - a.vitorias;
-    if (b.saldo !== a.saldo) return b.saldo - a.saldo;
-    return b.golsPro - a.golsPro;
   });
 }
 
