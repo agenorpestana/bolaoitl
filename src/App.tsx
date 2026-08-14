@@ -588,7 +588,13 @@ export default function App() {
             )}
 
             {activeTab === 'ranking' && (
-              <RankingSection ranking={ranking} jogos={jogos} token={token} usuarioLogado={usuario} />
+              <RankingSection 
+                ranking={ranking} 
+                jogos={jogos} 
+                token={token} 
+                usuarioLogado={usuario} 
+                vencedoresRodadas={vencedoresRodadas}
+              />
             )}
 
             {activeTab === 'historico' && usuario && (

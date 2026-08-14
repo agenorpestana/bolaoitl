@@ -1,7 +1,8 @@
 import React from 'react';
-import { Search, Trophy, Medal, Star, Sparkles, Calendar, Filter } from 'lucide-react';
+import { Search, Trophy, Medal, Star, Sparkles, Calendar, Filter, Award } from 'lucide-react';
 import { LISTA_MEDALHAS } from '../data';
 import { Jogo } from '../types';
+import { getFriendlyRoundName } from './MatchesSection';
 
 interface RankingRow {
   id: number;
@@ -20,9 +21,10 @@ interface RankingSectionProps {
   jogos: Jogo[];
   token: string | null;
   usuarioLogado?: any;
+  vencedoresRodadas?: any[];
 }
 
-export default function RankingSection({ ranking, jogos, token, usuarioLogado }: RankingSectionProps) {
+export default function RankingSection({ ranking, jogos, token, usuarioLogado, vencedoresRodadas = [] }: RankingSectionProps) {
   const [searchTerm, setSearchTerm] = React.useState("");
   const [selectedCity, setSelectedCity] = React.useState<string>("TODAS");
   const [localRanking, setLocalRanking] = React.useState<RankingRow[]>([]);
@@ -588,6 +590,75 @@ export default function RankingSection({ ranking, jogos, token, usuarioLogado }:
             </section>
 
           </div>
+
+          {/* Historical Round Winners (Displayed in Ranking History for Copa do Mundo) */}
+          {selectedCampeonato === 'COPA_MUNDO' && vencedoresRodadas && vencedoresRodadas.length > 0 && (
+            <section className="space-y-3 pt-4 border-t border-slate-900 animate-fadeIn">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-black text-slate-100 flex items-center gap-2">
+                  <Award className="h-5 w-5 text-amber-500" />
+                  Ganhadores Históricos por Rodada (Copa do Mundo 2026)
+                </h3>
+                <span className="text-[10px] px-2 py-0.5 rounded bg-amber-950/60 border border-amber-800/40 text-amber-300 font-bold uppercase">
+                  Histórico Concluído
+                </span>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {vencedoresRodadas.map((r: any) => (
+                  <div 
+                    key={r.rodada} 
+                    className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 text-left space-y-2 relative overflow-hidden"
+                  >
+                    <div className="flex items-center justify-between border-b border-slate-800/60 pb-2">
+                      <span className="text-xs font-black uppercase text-amber-400 tracking-wider">
+                        {getFriendlyRoundName(r.rodada, 'COPA_MUNDO')}
+                      </span>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded font-black uppercase tracking-wider bg-slate-950/80 border border-slate-800 text-slate-400">
+                        Finalizado
+                      </span>
+                    </div>
+
+                    <div className="space-y-1.5 pt-1">
+                      {r.vencedores && r.vencedores.length > 0 ? (
+                        r.vencedores.map((v: any) => {
+                          const isUserWinner = usuarioLogado && Number(usuarioLogado.id) === Number(v.id);
+                          return (
+                            <div 
+                              key={v.posicao} 
+                              className={`p-2 rounded-lg border flex items-center justify-between text-xs ${
+                                isUserWinner
+                                  ? 'bg-amber-950/40 border-amber-500/50 shadow-sm'
+                                  : 'bg-slate-950/40 border-slate-850/60'
+                              }`}
+                            >
+                              <div className="min-w-0 pr-2">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[10px] font-bold">
+                                    {v.posicao === 1 ? "🥇" : v.posicao === 2 ? "🥈" : "🥉"}
+                                  </span>
+                                  <span className="font-bold text-slate-200 truncate">{v.nome}</span>
+                                  {isUserWinner && (
+                                    <span className="text-[8px] bg-yellow-500 text-slate-950 px-1 rounded font-extrabold uppercase shrink-0">VOCÊ</span>
+                                  )}
+                                </div>
+                                <span className="text-[9px] text-slate-500 block truncate">{v.cidade}</span>
+                              </div>
+                              <div className="text-right font-mono shrink-0">
+                                <span className="font-black text-amber-400 text-xs">{v.pontos} p</span>
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <p className="text-xs text-slate-500 py-2 text-center">Sem dados de rodada.</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
         </>
       )}
 
